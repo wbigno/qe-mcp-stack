@@ -1,0 +1,24 @@
+{
+  "name": "business-logic-documenter",
+  "version": "1.0.0",
+  "description": "STDIO MCP for documenting business logic from code using AI",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/test.js",
+    "dev": "node index.js"
+  },
+  "keywords": [
+    "mcp",
+    "stdio",
+    "documentation",
+    "business-logic",
+    "ai-powered"
+  ],
+  "author": "QE Automation Team",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0"
+  },
+  "devDependencies": {}
+}

@@ -1,0 +1,24 @@
+{
+  "name": "documentation-generator",
+  "version": "1.0.0",
+  "description": "STDIO MCP for generating comprehensive technical documentation",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/test.js",
+    "dev": "node index.js"
+  },
+  "keywords": [
+    "mcp",
+    "stdio",
+    "documentation",
+    "technical-docs",
+    "ai-powered"
+  ],
+  "author": "QE Automation Team",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0"
+  },
+  "devDependencies": {}
+}

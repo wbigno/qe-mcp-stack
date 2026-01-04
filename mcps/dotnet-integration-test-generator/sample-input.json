@@ -1,0 +1,9 @@
+{
+  "data": {
+    "app": "App1",
+    "apiEndpoint": "/api/users",
+    "scenario": "Complete CRUD operations with authentication and validation. Test creating users, retrieving user lists and individual users, updating user information, and deleting users. Include validation for required fields, email format, and duplicate detection.",
+    "includeAuth": true,
+    "includeDatabase": true
+  }
+}

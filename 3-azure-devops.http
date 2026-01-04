@@ -1,0 +1,324 @@
+### QE MCP Stack - Azure DevOps Integration
+### Use REST Client extension in VS Code to execute these requests
+### All ADO-related endpoints (stories, defects, test plans, quality metrics)
+
+@baseUrl = http://localhost:3000
+
+##########################################
+# AZURE DEVOPS - STORIES & WORK ITEMS
+##########################################
+
+### Pull Stories from Current Sprint
+POST {{baseUrl}}/api/ado/pull-stories
+Content-Type: application/json
+
+{
+  "sprint": "Sprint 1"
+}
+
+### Pull Specific Stories by ID
+POST {{baseUrl}}/api/ado/pull-stories
+Content-Type: application/json
+
+{
+  "workItemIds": [2]
+}
+
+### Pull Multiple Stories
+POST {{baseUrl}}/api/ado/pull-stories
+Content-Type: application/json
+
+{
+  "workItemIds": [2]
+}
+
+### Analyze Requirements for Stories
+POST {{baseUrl}}/api/ado/analyze-requirements
+Content-Type: application/json
+
+{
+  "storyIds": [2],
+  "includeGapAnalysis": true
+}
+
+### Generate Test Cases for Story
+POST {{baseUrl}}/api/ado/generate-test-cases
+Content-Type: application/json
+
+{
+  "storyId": 2,
+  "updateADO": false
+}
+
+### Generate Test Cases and Update ADO
+POST {{baseUrl}}/api/ado/generate-test-cases
+Content-Type: application/json
+
+{
+  "storyId": 2,
+  "updateADO": true
+}
+
+### Complete Workflow for Story
+# Pulls story, analyzes requirements, generates test cases
+POST {{baseUrl}}/api/ado/complete-workflow
+Content-Type: application/json
+
+{
+  "storyId": 2,
+  "updateADO": false
+}
+
+### Complete Workflow with ADO Update
+POST {{baseUrl}}/api/ado/complete-workflow
+Content-Type: application/json
+
+{
+  "storyId": 2,
+  "updateADO": true
+}
+
+### Get Work Item with Analysis (Dashboard)
+GET {{baseUrl}}/api/dashboard/work-item/2?analyze=true&generateTestCases=true
+
+### Analyze Story with AI (Dashboard)
+POST {{baseUrl}}/api/dashboard/analyze-story
+Content-Type: application/json
+
+{
+  "storyId": 12345
+}
+
+##########################################
+# DEFECT MANAGEMENT
+##########################################
+
+### Get All Defects
+GET {{baseUrl}}/api/ado/defects
+
+### Get Defects Filtered by Environment
+GET {{baseUrl}}/api/ado/defects?environment=UAT
+
+### Get Dev Environment Defects
+GET {{baseUrl}}/api/ado/defects?environment=Dev
+
+### Get UAT Environment Defects  
+GET {{baseUrl}}/api/ado/defects?environment=UAT&state=Active
+
+### Get Prod Environment Defects
+GET {{baseUrl}}/api/ado/defects?environment=Prod
+
+### Get Defects by Severity and State
+GET {{baseUrl}}/api/ado/defects?severity=High&state=Active
+
+### Get Critical/High Priority Defects
+GET {{baseUrl}}/api/ado/defects?severity=Critical&priority=1
+
+### Get Defects for Specific Sprint
+GET {{baseUrl}}/api/ado/defects?sprint=Sprint%2042
+
+### Get Defects by Story
+GET {{baseUrl}}/api/ado/defects/by-story/2
+
+### Get Defect Metrics
+GET {{baseUrl}}/api/ado/defects/metrics
+
+### Get Defect Metrics for Sprint
+GET {{baseUrl}}/api/ado/defects/metrics?sprint=Sprint1
+
+##########################################
+# TEST EXECUTION & TEST PLANS
+##########################################
+
+### Get All Test Plans
+GET {{baseUrl}}/api/ado/test-plans
+
+### Get Test Suites for a Plan
+GET {{baseUrl}}/api/ado/test-plans/12345/suites
+
+### Get Test Cases by Story
+GET {{baseUrl}}/api/ado/test-cases/by-story/12345
+
+### Get Test Cases for Multiple Stories
+GET {{baseUrl}}/api/ado/test-cases/by-story/2
+
+### Get All Test Runs
+GET {{baseUrl}}/api/ado/test-runs
+
+### Get Test Runs for Specific Plan
+GET {{baseUrl}}/api/ado/test-runs?planId=12345
+
+### Get Failed Test Runs
+GET {{baseUrl}}/api/ado/test-runs?outcome=Failed
+
+### Get Automated Test Runs Only
+GET {{baseUrl}}/api/ado/test-runs?automated=true
+
+### Get Manual Test Runs Only
+GET {{baseUrl}}/api/ado/test-runs?automated=false
+
+### Get Test Results for Specific Run
+GET {{baseUrl}}/api/ado/test-runs/98765/results
+
+### Get Test Execution Metrics
+GET {{baseUrl}}/api/ado/test-execution/metrics
+
+### Get Test Execution Metrics for Sprint
+GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Sprint%2042&planId=12345
+
+##########################################
+# QUALITY METRICS & REPORTING
+##########################################
+
+### Get Overall Quality Metrics
+GET {{baseUrl}}/api/ado/quality-metrics
+
+### Get Quality Metrics for Sprint
+GET {{baseUrl}}/api/ado/quality-metrics?sprint=Sprint%2042
+
+### Get Azure DevOps Dashboard Summary
+GET {{baseUrl}}/api/dashboard/aod-summary
+
+### Get ADO Summary with Filters
+GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%2042&state=Active
+
+##########################################
+# ADO WORKFLOWS
+##########################################
+
+### Workflow 1: Story-Driven Testing
+# Step 1: Pull story
+POST {{baseUrl}}/api/ado/pull-stories
+Content-Type: application/json
+
+{
+  "workItemIds": [2]
+}
+
+###
+# Step 2: Analyze requirements
+POST {{baseUrl}}/api/ado/analyze-requirements
+Content-Type: application/json
+
+{
+  "storyIds": [2],
+  "includeGapAnalysis": true
+}
+
+###
+# Step 3: Generate test cases
+POST {{baseUrl}}/api/ado/generate-test-cases
+Content-Type: application/json
+
+{
+  "storyId": 2,
+  "updateADO": false
+}
+
+###
+# Step 4: Review in dashboard
+GET {{baseUrl}}/api/dashboard/work-item/2?analyze=true
+
+### Workflow 2: Defect Analysis by Environment
+# Step 1: Get UAT defects
+GET {{baseUrl}}/api/ado/defects?environment=UAT&state=Active
+
+###
+# Step 2: Get defect metrics
+GET {{baseUrl}}/api/ado/defects/metrics
+
+###
+# Step 3: Review quality metrics
+GET {{baseUrl}}/api/ado/quality-metrics
+
+### Workflow 3: Test Coverage Analysis
+# Step 1: Get test plans
+GET {{baseUrl}}/api/ado/test-plans
+
+###
+# Step 2: Get test runs
+GET {{baseUrl}}/api/ado/test-runs
+
+###
+# Step 3: Get execution metrics
+GET {{baseUrl}}/api/ado/test-execution/metrics
+
+###
+# Step 4: Compare with code coverage
+POST {{baseUrl}}/api/analysis/coverage
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "detailed": true
+}
+
+### Workflow 4: Story Quality Check
+# Step 1: Get story
+POST {{baseUrl}}/api/ado/pull-stories
+Content-Type: application/json
+
+{
+  "workItemIds": [2]
+}
+
+###
+# Step 2: Get defects for story
+GET {{baseUrl}}/api/ado/defects/by-story/2
+
+###
+# Step 3: Get test cases for story
+GET {{baseUrl}}/api/ado/test-cases/by-story/2
+
+###
+# Step 4: Analyze story with AI
+POST {{baseUrl}}/api/dashboard/analyze-story
+Content-Type: application/json
+
+{
+  "storyId": 2
+}
+
+###
+# Step 5: Get quality assessment
+GET {{baseUrl}}/api/ado/quality-metrics?sprint=Sprint%201
+
+### Workflow 5: Sprint Quality Report
+# Step 1: Get quality metrics
+GET {{baseUrl}}/api/ado/quality-metrics?sprint=Sprint%2042
+
+###
+# Step 2: Get defect breakdown
+GET {{baseUrl}}/api/ado/defects?sprint=Sprint%2042
+
+###
+# Step 3: Get test execution
+GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Sprint%2042
+
+###
+# Step 4: Get dashboard summary
+GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%2042
+
+##########################################
+# TESTING & VALIDATION
+##########################################
+
+### Quick Test - Defects Exist
+GET {{baseUrl}}/api/ado/defects
+###
+# Expected: Success with defects array
+
+### Quick Test - Test Plans Exist
+GET {{baseUrl}}/api/ado/test-plans
+###
+# Expected: Success with test plans array
+
+### Quick Test - Quality Metrics
+GET {{baseUrl}}/api/ado/quality-metrics
+###
+# Expected: Success with quality score and metrics
+
+### Quick Test - Sprint Data
+GET {{baseUrl}}/api/ado/quality-metrics?sprint=Sprint%201
+###
+# Expected: Success with sprint-specific metrics

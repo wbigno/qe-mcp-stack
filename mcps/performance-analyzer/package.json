@@ -1,0 +1,22 @@
+{
+  "name": "performance-analyzer",
+  "version": "1.0.0",
+  "description": "STDIO MCP for analyzing performance metrics and bottlenecks",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/test.js",
+    "dev": "node index.js"
+  },
+  "keywords": [
+    "mcp",
+    "stdio",
+    "performance",
+    "metrics",
+    "bottlenecks"
+  ],
+  "author": "QE Automation Team",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}

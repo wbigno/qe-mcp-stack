@@ -1,0 +1,24 @@
+{
+  "name": "integration-test-generator",
+  "version": "1.0.0",
+  "description": "STDIO MCP for generating integration tests for .NET APIs and services",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/test.js",
+    "dev": "node index.js"
+  },
+  "keywords": [
+    "mcp",
+    "stdio",
+    "integration-tests",
+    "api-testing",
+    "dotnet"
+  ],
+  "author": "QE Automation Team",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0"
+  },
+  "devDependencies": {}
+}

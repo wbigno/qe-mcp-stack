@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure DevOps Quality Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="dashboard-wrapper">
+        <!-- Header with Tabs -->
+        <header class="dashboard-top-header">
+            <div class="header-title">
+                <h1>📋 Azure DevOps Quality Dashboard</h1>
+            </div>
+            
+            <!-- Tab Navigation -->
+            <nav class="tab-nav">
+                <button class="tab-btn active" data-tab="overview">📊 Overview</button>
+                <button class="tab-btn" data-tab="work-items">📋 Work Items</button>
+                <button class="tab-btn" data-tab="defects">🐛 Defects</button>
+                <button class="tab-btn" data-tab="test-cases">✅ Test Cases</button>
+                <button class="tab-btn" data-tab="test-execution">🔬 Test Execution</button>
+                <button class="tab-btn" data-tab="story-analyzer">🤖 Story Analyzer</button>
+                <button class="tab-btn" data-tab="quality-metrics">📈 Quality Metrics</button>
+            </nav>
+        </header>
+
+        <!-- Collapsible Filter Bar -->
+        <div class="filter-bar-wrapper">
+            <div class="filter-bar-header" id="filterBarToggle">
+                <span>🔍 Filters & Actions</span>
+                <span class="toggle-icon">▼</span>
+            </div>
+            
+            <div class="filter-bar-content" id="filterBarContent">
+                <div class="filter-controls">
+                    <div class="filter-group">
+                        <label>Sprint</label>
+                        <input type="text" id="sprintInput" placeholder="e.g., Sprint 42">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label>Environment</label>
+                        <select id="environmentFilter">
+                            <option value="">All</option>
+                            <option value="Dev">Dev</option>
+                            <option value="UAT">UAT</option>
+                            <option value="Prod">Prod</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label>State</label>
+                        <select id="stateFilter">
+                            <option value="">All</option>
+                            <option value="New">New</option>
+                            <option value="Active">Active</option>
+                            <option value="Resolved">Resolved</option>
+                            <option value="Closed">Closed</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-actions">
+                        <button id="applyFiltersBtn" class="btn btn-primary">Apply</button>
+                        <button id="clearFiltersBtn" class="btn btn-secondary">Clear</button>
+                        <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh</button>
+                    </div>
+                </div>
+                
+                <div id="statusMessage"></div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <main class="dashboard-main">
+            <!-- Overview Tab -->
+            <div id="overview-tab" class="tab-content active">
+                <div class="metrics-grid">
+                    <div class="metric-card gradient-blue">
+                        <div class="metric-value" id="activeWorkItems">-</div>
+                        <div class="metric-label">Active Work Items</div>
+                    </div>
+                    <div class="metric-card gradient-purple">
+                        <div class="metric-value" id="activeDefects">-</div>
+                        <div class="metric-label">Open Defects</div>
+                    </div>
+                    <div class="metric-card gradient-green">
+                        <div class="metric-value" id="testPassRate">-</div>
+                        <div class="metric-label">Test Pass Rate</div>
+                    </div>
+                    <div class="metric-card gradient-orange">
+                        <div class="metric-value" id="qualityScore">-</div>
+                        <div class="metric-label">Quality Score</div>
+                    </div>
+                </div>
+
+                <div class="content-grid">
+                    <div class="panel">
+                        <h2>Defects by Environment</h2>
+                        <div id="defectsByEnvChart"></div>
+                    </div>
+
+                    <div class="panel">
+                        <h2>Test Execution Trends</h2>
+                        <div id="testTrendsChart"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Work Items Tab -->
+            <div id="work-items-tab" class="tab-content">
+                <div class="panel">
+                    <h2>Work Items</h2>
+                    <div class="table-container">
+                        <table class="data-table" id="workItemsTable">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Title</th>
+                                    <th>Type</th>
+                                    <th>State</th>
+                                    <th>Assigned To</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Defects Tab -->
+            <div id="defects-tab" class="tab-content">
+                <div class="stats-row">
+                    <div class="stat-box">
+                        <div class="stat-value" id="defectsDev">0</div>
+                        <div class="stat-label">Dev</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="defectsUat">0</div>
+                        <div class="stat-label">UAT</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="defectsProd">0</div>
+                        <div class="stat-label">Prod</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="defectsCritical">0</div>
+                        <div class="stat-label">Critical</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>Defect List</h2>
+                    <div id="defectsList">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test Cases Tab (NEW) -->
+            <div id="test-cases-tab" class="tab-content">
+                <div class="panel analyzer-panel">
+                    <h2>✅ Generate Test Cases</h2>
+                    <p class="panel-description">Generate comprehensive test cases for a user story using AI</p>
+                    
+                    <div class="analyzer-form">
+                        <div class="form-group">
+                            <label for="testCaseStoryIdInput">Story ID</label>
+                            <input type="number" id="testCaseStoryIdInput" placeholder="Enter story ID (e.g., 12345)">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="includeNegativeTests" checked>
+                                Include Negative Test Cases
+                            </label>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>
+                                <input type="checkbox" id="includeEdgeCases" checked>
+                                Include Edge Cases
+                            </label>
+                        </div>
+                        
+                        <div class="form-actions">
+                            <button id="generateTestCasesBtn" class="btn btn-success">
+                                <span id="generateTestCasesLoading" style="display:none;" class="loading-spinner"></span>
+                                <span id="generateTestCasesText">✅ Generate Test Cases</span>
+                            </button>
+                            <button id="clearTestCasesBtn" class="btn btn-secondary">Clear Results</button>
+                        </div>
+                    </div>
+
+                    <div id="testCasesResults" style="display:none;">
+                        <!-- Test cases populated by JavaScript -->
+                    </div>
+                </div>
+
+                <div class="panel" id="testCasesByStoryPanel" style="display:none;">
+                    <h2>Test Cases for Story</h2>
+                    <div id="testCasesByStoryList">
+                        <!-- Existing test cases from ADO -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test Execution Tab -->
+            <div id="test-execution-tab" class="tab-content">
+                <div class="stats-row">
+                    <div class="stat-box">
+                        <div class="stat-value" id="totalTestRuns">0</div>
+                        <div class="stat-label">Total Runs</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="passedTests">0</div>
+                        <div class="stat-label">Passed</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="failedTests">0</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="automationRate">0%</div>
+                        <div class="stat-label">Automation</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>Recent Test Runs</h2>
+                    <div id="testRunsList">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Story Analyzer Tab -->
+            <div id="story-analyzer-tab" class="tab-content">
+                <div class="panel analyzer-panel">
+                    <h2>🤖 Analyze User Story</h2>
+                    <div class="analyzer-form">
+                        <div class="form-group">
+                            <label for="storyIdInput">Story ID</label>
+                            <input type="number" id="storyIdInput" placeholder="Enter story ID (e.g., 12345)">
+                        </div>
+                        <div class="form-actions">
+                            <button id="analyzeStoryBtn" class="btn btn-success">
+                                <span id="analyzeLoading" style="display:none;" class="loading-spinner"></span>
+                                <span id="analyzeText">🔍 Analyze Story</span>
+                            </button>
+                            <button id="generateTestsBtn" class="btn btn-warning">
+                                <span id="generateLoading" style="display:none;" class="loading-spinner"></span>
+                                <span id="generateText">✅ Generate Tests</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="analysisResults" style="display:none;">
+                        <!-- Analysis results populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quality Metrics Tab -->
+            <div id="quality-metrics-tab" class="tab-content">
+                <div class="metrics-grid">
+                    <div class="metric-card gradient-blue">
+                        <div class="metric-value" id="qmDefects">-</div>
+                        <div class="metric-label">Total Defects</div>
+                    </div>
+                    <div class="metric-card gradient-purple">
+                        <div class="metric-value" id="qmPassRate">-</div>
+                        <div class="metric-label">Pass Rate</div>
+                    </div>
+                    <div class="metric-card gradient-green">
+                        <div class="metric-value" id="qmCoverage">-</div>
+                        <div class="metric-label">Test Coverage</div>
+                    </div>
+                    <div class="metric-card gradient-orange">
+                        <div class="metric-value" id="qmScore">-</div>
+                        <div class="metric-label">Quality Score</div>
+                    </div>
+                </div>
+
+                <div class="content-grid">
+                    <div class="panel">
+                        <h2>Defect Breakdown</h2>
+                        <div id="qualityDefectsChart"></div>
+                    </div>
+
+                    <div class="panel">
+                        <h2>Testing Metrics</h2>
+                        <div id="qualityTestingChart"></div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

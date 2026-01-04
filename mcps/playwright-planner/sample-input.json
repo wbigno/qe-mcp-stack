@@ -1,0 +1,51 @@
+{
+  "data": {
+    "app": "HealthcareApp",
+    "userFlows": [
+      {
+        "name": "Patient Login Flow",
+        "pages": ["LoginPage", "HomePage"],
+        "steps": [
+          "Navigate to login page",
+          "Enter valid credentials",
+          "Click login button",
+          "Verify redirect to home page",
+          "Verify user name displayed"
+        ],
+        "requiresAuth": false,
+        "testCount": 4
+      },
+      {
+        "name": "Appointment Scheduling Flow",
+        "pages": ["HomePage", "AppointmentPage", "ConfirmationPage"],
+        "steps": [
+          "Login as patient",
+          "Navigate to appointments page",
+          "Select provider from dropdown",
+          "Choose available time slot",
+          "Click schedule button",
+          "Verify confirmation message",
+          "Verify appointment in list"
+        ],
+        "requiresAuth": true,
+        "apiInteractions": true,
+        "testCount": 6
+      },
+      {
+        "name": "Profile Management Flow",
+        "pages": ["HomePage", "ProfilePage"],
+        "steps": [
+          "Login as patient",
+          "Navigate to profile page",
+          "Update contact information",
+          "Save changes",
+          "Verify success message"
+        ],
+        "requiresAuth": true,
+        "testCount": 3
+      }
+    ],
+    "includeFixtures": true,
+    "includeHelpers": true
+  }
+}

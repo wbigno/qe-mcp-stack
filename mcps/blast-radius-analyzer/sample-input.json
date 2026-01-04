@@ -1,0 +1,11 @@
+{
+  "data": {
+    "app": "App1",
+    "changedFiles": [
+      "Controllers/UserController.cs",
+      "Services/UserService.cs",
+      "Models/User.cs"
+    ],
+    "analysisDepth": "moderate"
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "data": {
+    "app": "App1",
+    "metrics": {
+      "responseTimes": [
+        { "endpoint": "/api/users", "duration": 150, "timestamp": "2024-12-30T10:00:00Z" },
+        { "endpoint": "/api/users", "duration": 180, "timestamp": "2024-12-30T10:00:01Z" },
+        { "endpoint": "/api/orders", "duration": 450, "timestamp": "2024-12-30T10:00:02Z" },
+        { "endpoint": "/api/products", "duration": 200, "timestamp": "2024-12-30T10:00:03Z" },
+        { "endpoint": "/api/reports", "duration": 2100, "timestamp": "2024-12-30T10:00:04Z" },
+        { "endpoint": "/api/users", "duration": 170, "timestamp": "2024-12-30T10:00:05Z" },
+        { "endpoint": "/api/orders", "duration": 480, "timestamp": "2024-12-30T10:00:06Z" },
+        { "endpoint": "/api/users", "duration": 160, "timestamp": "2024-12-30T10:00:07Z" },
+        { "endpoint": "/api/reports", "duration": 2300, "timestamp": "2024-12-30T10:00:08Z" },
+        { "endpoint": "/api/products", "duration": 190, "timestamp": "2024-12-30T10:00:09Z" }
+      ],
+      "requests": [
+        { "endpoint": "/api/users", "status": 200, "timestamp": "2024-12-30T10:00:00Z" },
+        { "endpoint": "/api/users", "status": 200, "timestamp": "2024-12-30T10:00:01Z" },
+        { "endpoint": "/api/orders", "status": 200, "timestamp": "2024-12-30T10:00:02Z" },
+        { "endpoint": "/api/products", "status": 200, "timestamp": "2024-12-30T10:00:03Z" },
+        { "endpoint": "/api/reports", "status": 500, "timestamp": "2024-12-30T10:00:04Z" },
+        { "endpoint": "/api/users", "status": 200, "timestamp": "2024-12-30T10:00:05Z" },
+        { "endpoint": "/api/orders", "status": 200, "timestamp": "2024-12-30T10:00:06Z" },
+        { "endpoint": "/api/users", "status": 404, "timestamp": "2024-12-30T10:00:07Z" },
+        { "endpoint": "/api/reports", "status": 200, "timestamp": "2024-12-30T10:00:08Z" },
+        { "endpoint": "/api/products", "status": 200, "timestamp": "2024-12-30T10:00:09Z" }
+      ]
+    }
+  }
+}

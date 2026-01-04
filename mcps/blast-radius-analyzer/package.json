@@ -1,0 +1,22 @@
+{
+  "name": "blast-radius-analyzer",
+  "version": "1.0.0",
+  "description": "STDIO MCP for analyzing blast radius of code changes",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/test.js",
+    "dev": "node index.js"
+  },
+  "keywords": [
+    "mcp",
+    "stdio",
+    "blast-radius",
+    "impact-analysis",
+    "static-analysis"
+  ],
+  "author": "QE Automation Team",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}

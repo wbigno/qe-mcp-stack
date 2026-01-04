@@ -1,0 +1,298 @@
+version: '3.8'
+
+networks:
+  qe-network:
+    driver: bridge
+
+services:
+  orchestrator:
+    build:
+      context: ./orchestrator
+      dockerfile: Dockerfile
+    container_name: qe-orchestrator
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config:ro
+      - ./data/orchestrator:/app/data
+      - ./mcps:/app/mcps:ro
+      - ./code-dashboard:/app/code-dashboard:ro
+      - ./ado-dashboard:/app/ado-dashboard:ro
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/dev/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/dev/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/dev/git/app4:/mnt/apps/app4:ro
+    networks:
+      - qe-network
+    restart: unless-stopped
+    depends_on:
+      - dotnet-code-analyzer
+      - dotnet-coverage-analyzer
+      - azure-devops
+
+  dotnet-code-analyzer:
+    build:
+      context: ./mcps
+      dockerfile: dotnet-code-analyzer/Dockerfile
+    container_name: qe-dotnet-code-analyzer
+    ports:
+      - "3001:3001"
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/dotnet-code-analyzer:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  dotnet-coverage-analyzer:
+    build:
+      context: ./mcps
+      dockerfile: dotnet-coverage-analyzer/Dockerfile
+    container_name: qe-dotnet-coverage-analyzer
+    ports:
+      - "3002:3002"
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/dotnet-coverage-analyzer:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  azure-devops:
+    build:
+      context: ./mcps
+      dockerfile: azure-devops/Dockerfile
+    container_name: qe-azure-devops
+    ports:
+      - "3003:3003"
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config:ro
+      - ./data/azure-devops:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  playwright-analyzer:
+    build:
+      context: ./mcps
+      dockerfile: playwright-analyzer/Dockerfile
+    container_name: qe-playwright-analyzer
+    ports:
+      - "3004:3004"
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/playwright-analyzer:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  playwright-generator:
+    build:
+      context: ./mcps
+      dockerfile: playwright-generator/Dockerfile
+    container_name: qe-playwright-generator
+    ports:
+      - "3005:3005"
+    env_file:
+      - .env
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/playwright-generator:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  playwright-healer:
+    build:
+      context: ./mcps
+      dockerfile: playwright-healer/Dockerfile
+    container_name: qe-playwright-healer
+    ports:
+      - "3006:3006"
+    env_file:
+      - .env
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/playwright-healer:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  architecture-analyzer:
+    build:
+      context: ./mcps
+      dockerfile: architecture-analyzer/Dockerfile
+    container_name: qe-architecture-analyzer
+    ports:
+      - "3007:3007"
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/architecture-analyzer:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  integration-mapper:
+    build:
+      context: ./mcps
+      dockerfile: integration-mapper/Dockerfile
+    container_name: qe-integration-mapper
+    ports:
+      - "3008:3008"
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/integration-mapper:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  risk-analyzer:
+    build:
+      context: ./mcps
+      dockerfile: risk-analyzer/Dockerfile
+    container_name: qe-risk-analyzer
+    ports:
+      - "3009:3009"
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/risk-analyzer:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  workflow-analyzer:
+    build:
+      context: ./mcps
+      dockerfile: workflow-analyzer/Dockerfile
+    container_name: qe-workflow-analyzer
+    ports:
+      - "3010:3010"
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/workflow-analyzer:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  quality-metrics-analyzer:
+    build:
+      context: ./mcps
+      dockerfile: quality-metrics-analyzer/Dockerfile
+    container_name: qe-quality-metrics-analyzer
+    ports:
+      - "3011:3011"
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/quality-metrics-analyzer:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  security-analyzer:
+    build:
+      context: ./mcps
+      dockerfile: security-analyzer/Dockerfile
+    container_name: qe-security-analyzer
+    ports:
+      - "3012:3012"
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/security-analyzer:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  data-model-analyzer:
+    build:
+      context: ./mcps
+      dockerfile: data-model-analyzer/Dockerfile
+    container_name: qe-data-model-analyzer
+    ports:
+      - "3013:3013"
+    volumes:
+      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
+      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
+      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
+      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - ./config:/app/config:ro
+      - ./data/data-model-analyzer:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+
+  ado-dashboard:
+    image: nginx:alpine
+    container_name: qe-ado-dashboard
+    volumes:
+      - ./ado-dashboard:/usr/share/nginx/html:ro
+    ports:
+      - "8080:80"
+    networks:
+      - qe-network
+    restart: unless-stopped
+    depends_on:
+      - orchestrator
+
+  code-dashboard:
+    image: nginx:alpine
+    container_name: qe-code-dashboard
+    volumes:
+      - ./code-dashboard:/usr/share/nginx/html:ro
+    ports:
+      - "8081:80"
+    networks:
+      - qe-network
+    restart: unless-stopped
+    depends_on:
+      - orchestrator

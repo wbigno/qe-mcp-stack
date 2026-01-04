@@ -1,0 +1,22 @@
+{
+  "name": "smell-detector",
+  "version": "1.0.0",
+  "description": "STDIO MCP for detecting code smells using static analysis",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/test.js",
+    "dev": "node index.js"
+  },
+  "keywords": [
+    "mcp",
+    "stdio",
+    "code-smells",
+    "static-analysis",
+    "quality"
+  ],
+  "author": "QE Automation Team",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}

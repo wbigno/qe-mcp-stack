@@ -1,0 +1,615 @@
+# ============================================
+# .clauderc - Claude CLI Configuration
+# ============================================
+# Place this file in your project root
+# Customize the settings below for your project
+# Documentation: https://github.com/anthropics/claude-code
+
+# ============================================
+# PROJECT INFORMATION
+# ============================================
+
+[project]
+name = "QE MCP Testing Automation Stack"
+description = """
+Microservices-based testing automation platform with:
+- 27 MCP services (Docker + STDIO)
+- .NET code analysis & test generation
+- Azure DevOps integration
+- Playwright test automation
+- React dashboards for visualization
+
+Architecture:
+- Orchestrator on port 3000 coordinates all MCPs
+- Docker MCPs run on ports 3001-3020 with /health endpoints
+- STDIO MCPs spawn on-demand via orchestrator
+- All AI features use Anthropic API via claudeClient.js
+"""
+
+# Tech stack - helps Claude understand your codebase
+stack = [
+    "Node.js",
+    "Docker", 
+    "Express",
+    "React",
+    ".NET Core",
+    "Playwright",
+    "Anthropic API",
+    "PostgreSQL"
+]
+
+# ============================================
+# FILE PATTERNS
+# ============================================
+
+[files]
+# Files to ALWAYS include in context when analyzing
+include = [
+    "README.md",
+    "package.json",
+    "docker-compose.yml",
+    "orchestrator/src/**/*.js",
+    "mcps/*/index.js",
+    "mcps/*/README.md",
+    "mcps/*/package.json",
+    "*-dashboard/script.js",
+    "*-dashboard/index.html",
+    "*.http",
+    "docs/**/*.md"
+]
+
+# Files to EXCLUDE from context (saves tokens)
+exclude = [
+    "node_modules/**",
+    "**/node_modules/**",
+    ".git/**",
+    "**/.git/**",
+    "*.log",
+    "**/*.log",
+    "data/**",
+    "coverage/**",
+    "dist/**",
+    "build/**",
+    ".vs/**",
+    "bin/**",
+    "obj/**",
+    "*.min.js",
+    "*.bundle.js",
+    "package-lock.json",
+    "**/package-lock.json"
+]
+
+# ============================================
+# CUSTOM INSTRUCTIONS
+# ============================================
+
+[instructions]
+# Tell Claude how to work with your specific codebase
+content = """
+## Architecture Principles
+
+1. **MCP Structure:**
+   - This is a microservices architecture with 27+ MCPs
+   - Docker MCPs: API services on ports 3001-3020
+   - STDIO MCPs: On-demand spawned processes
+   - Orchestrator coordinates all MCPs on port 3000
+
+2. **Coding Standards:**
+   - Use ES6 modules (import/export, not require)
+   - Use async/await for all async operations
+   - File naming: kebab-case (my-file.js)
+   - Variable naming: camelCase (myVariable)
+   - Class naming: PascalCase (MyClass)
+   - Constants: UPPER_SNAKE_CASE (MY_CONSTANT)
+   - Always add JSDoc comments for functions
+   - Use structured logging with logger.info/error/warn
+
+3. **MCP Development Rules:**
+   - ALL MCPs must have: index.js, package.json, README.md
+   - Docker MCPs additionally need: Dockerfile
+   - Docker MCPs MUST expose /health endpoint
+   - STDIO MCPs MUST accept JSON on stdin, output JSON on stdout
+   - Use shared/claudeClient.js for AI features
+   - Follow token tracking patterns
+   - Register in orchestrator/src/services/mcpManager.js
+   - Add to docker-compose.yml with sequential port
+
+4. **Testing Requirements:**
+   - Create .http files in project root for API testing
+   - Test all endpoints before committing
+   - Add unit tests in tests/ directory
+   - Aim for 80%+ code coverage
+   - Mock external dependencies
+
+5. **Documentation Standards:**
+   - Every MCP needs comprehensive README.md
+   - Include: Overview, Quick Start, API Endpoints, Examples
+   - Add inline comments for complex logic
+   - Keep CHANGELOG.md updated
+   - Document all environment variables
+
+6. **Docker Conventions:**
+   - Multi-stage builds for optimization
+   - Health checks on all services
+   - Use sequential port numbers (3001, 3002, ...)
+   - Always set restart: unless-stopped
+   - Use named volumes for persistence
+
+7. **Dashboard Development:**
+   - NO inline JavaScript (CSP compliance)
+   - Use addEventListener, NEVER onclick
+   - Modular functions in script.js
+   - Responsive design with CSS Grid/Flexbox
+   - Progressive enhancement
+
+8. **Error Handling:**
+   - Always wrap in try/catch
+   - Return structured errors: { error: string, message: string, details?: any }
+   - Log errors with full context
+   - Use appropriate HTTP status codes
+   - Never expose internal errors to users
+
+9. **AI/Token Management:**
+   - Use selectModel() for model selection
+   - Track all AI calls with TokenTracker
+   - Prefer Haiku for simple tasks (94% cheaper)
+   - Use Sonnet 3.5 for medium complexity
+   - Reserve Sonnet 4 for complex tasks
+   - Cache expensive operations
+
+10. **Security Best Practices:**
+    - Never commit API keys or secrets
+    - Use environment variables for config
+    - Validate all user inputs
+    - Sanitize data before database queries
+    - Use parameterized queries (no string concatenation)
+    - Implement rate limiting on APIs
+    - Add CORS headers appropriately
+
+11. **Git Workflow:**
+    - Clear, descriptive commit messages
+    - Use conventional commits (feat:, fix:, docs:)
+    - Keep commits focused and atomic
+    - Update CHANGELOG.md with changes
+    - Test before pushing
+
+12. **Performance Guidelines:**
+    - Cache frequently accessed data
+    - Use streaming for large responses
+    - Implement pagination for lists
+    - Optimize database queries
+    - Monitor memory usage
+    - Set appropriate timeouts
+"""
+
+# ============================================
+# MODEL CONFIGURATION
+# ============================================
+
+[models]
+# Use Haiku as default (94% cheaper than Sonnet 4)
+default = "claude-haiku-3-5-20241022"  # ← Changed from Sonnet 4
+
+# Model selection by complexity
+simple = "claude-haiku-3-5-20241022"      # $0.25/1M
+medium = "claude-sonnet-3-5-20241022"     # $3/1M (use sparingly)
+complex = "claude-sonnet-4-20250514"      # $15/1M (use rarely)
+
+# Auto-select model based on task
+auto_select = true
+
+# ============================================
+# CUSTOM COMMANDS / SHORTCUTS
+# ============================================
+
+[commands]
+
+# Create a new MCP from template
+add-mcp = """
+Create a new MCP service named {0} following QE MCP Stack standards:
+
+1. Create directory structure:
+   - mcps/{0}/
+   - mcps/{0}/src/
+   - mcps/{0}/tests/
+
+2. Create files:
+   - index.js with Express server and /health endpoint
+   - package.json with dependencies
+   - Dockerfile (multi-stage build)
+   - README.md from standard template
+   - src/analyzer.js or src/generator.js (as appropriate)
+   - src/claudeClient.js if AI is needed
+   - tests/test.js with basic tests
+
+3. Register in orchestrator:
+   - Add to orchestrator/src/services/mcpManager.js
+   - Determine next available port (check highest + 1)
+
+4. Update docker-compose.yml:
+   - Add service definition
+   - Set correct port mapping
+   - Add health check
+   - Include in qe-network
+
+5. Create HTTP test file:
+   - Create {increment}-{0}.http
+   - Add basic endpoint tests
+
+Show me all files to create and their contents.
+"""
+
+# Add a new tab to code dashboard
+add-dashboard-tab = """
+Add a new tab named {0} to the code-dashboard:
+
+1. Update HTML:
+   - Add tab button in code-dashboard/index.html
+   - Add tab content container with data-tab="{0}"
+
+2. Update JavaScript (code-dashboard/script.js):
+   - Create load{0}Data(app) function
+   - Add tab switching logic
+   - Add event listeners (NO onclick)
+   - Fetch data from new API endpoint
+
+3. Create API endpoint (orchestrator/src/routes/dashboard.js):
+   - Add GET /api/dashboard/{0}?app=App1
+   - Call appropriate MCP
+   - Return structured data
+
+4. Update CSS (code-dashboard/styles.css):
+   - Add tab-specific styles
+   - Ensure responsive design
+
+5. Create tests:
+   - Add to HTTP test files
+   - Test with different apps
+
+Show me the complete implementation.
+"""
+
+# Perform security audit
+review-security = """
+Perform comprehensive security review of the codebase:
+
+1. Check for common vulnerabilities:
+   - SQL injection points
+   - XSS vulnerabilities
+   - CSRF protection
+   - Command injection
+   - Path traversal
+
+2. Review authentication/authorization:
+   - Check token validation
+   - Review session management
+   - Check password handling
+   - Review permission checks
+
+3. Check for exposed secrets:
+   - API keys in code
+   - Hardcoded credentials
+   - Environment variable leaks
+   - Git history issues
+
+4. Review dependencies:
+   - Check for known CVEs
+   - Outdated packages
+   - Unused dependencies
+
+5. Check configuration:
+   - CORS settings
+   - Security headers
+   - Error message verbosity
+   - Logging sensitivity
+
+6. Review input validation:
+   - User input sanitization
+   - File upload restrictions
+   - Query parameter validation
+   - Request body validation
+
+7. Docker security:
+   - Running as root?
+   - Exposed ports
+   - Secrets management
+   - Image vulnerabilities
+
+Provide detailed findings with severity levels and remediation steps.
+"""
+
+# Optimize AI costs
+optimize-costs = """
+Analyze AI token usage and provide cost optimization recommendations:
+
+1. Find all Anthropic API calls:
+   - List all files using claudeClient.js
+   - Identify call patterns
+   - Estimate token usage
+
+2. Identify optimization opportunities:
+   - Calls that could use Haiku instead of Sonnet
+   - Calls that could be cached
+   - Calls that could be batched
+   - Redundant calls
+
+3. Calculate potential savings:
+   - Current monthly cost estimate
+   - Optimized monthly cost
+   - Savings percentage
+   - ROI timeline
+
+4. Provide implementation plan:
+   - Priority order (highest savings first)
+   - Code changes needed
+   - Testing requirements
+   - Rollback plan
+
+5. Token tracking implementation:
+   - Add TokenTracker middleware
+   - Set budget limits
+   - Add monitoring dashboards
+   - Configure alerts
+
+Show detailed analysis with code examples.
+"""
+
+# Generate comprehensive tests
+add-tests = """
+Generate comprehensive test suite for {0}:
+
+1. Unit Tests:
+   - Test all public functions
+   - Test error cases
+   - Test edge cases
+   - Test boundary conditions
+   - Mock external dependencies
+
+2. Integration Tests:
+   - Test API endpoints
+   - Test database interactions
+   - Test MCP communication
+   - Test error propagation
+
+3. Test Coverage:
+   - Aim for 80%+ line coverage
+   - Cover all critical paths
+   - Test success and failure cases
+   - Test with various inputs
+
+4. Test Organization:
+   - Use describe/it blocks
+   - Clear test names
+   - Arrange-Act-Assert pattern
+   - Setup/teardown properly
+
+5. Mocking Strategy:
+   - Mock external APIs
+   - Mock database
+   - Mock file system
+   - Mock time/dates
+
+Generate complete test file with all tests.
+"""
+
+# Analyze code quality
+analyze-quality = """
+Analyze code quality and provide improvement recommendations:
+
+1. Code Smells:
+   - Long methods (>50 lines)
+   - Complex conditionals
+   - Duplicate code
+   - God classes
+   - Feature envy
+
+2. Metrics:
+   - Cyclomatic complexity
+   - Lines of code
+   - Number of dependencies
+   - Coupling metrics
+
+3. Best Practices:
+   - SOLID principles adherence
+   - DRY violations
+   - Naming conventions
+   - Error handling patterns
+
+4. Documentation:
+   - Missing JSDoc comments
+   - Unclear variable names
+   - Insufficient README
+   - Missing examples
+
+5. Performance:
+   - Inefficient algorithms
+   - Memory leaks
+   - Blocking operations
+   - Missing caching
+
+Provide detailed report with priority rankings and code examples.
+"""
+
+# ============================================
+# CONTEXT MANAGEMENT
+# ============================================
+
+[context]
+# Maximum number of files to include at once
+max_files = 20  # ← Reduced from 50
+
+# Maximum tokens in context window
+max_tokens = 50000  # ← Reduced from 150000
+
+# Boost recently edited files in context
+recent_files_boost = 1.5
+
+# Include files that are imported/required
+include_dependencies = false  # ← Disabled to save tokens
+
+# Smart context (automatically include relevant files)
+smart_context = true
+
+# ============================================
+# BUDGET & LIMITS
+# ============================================
+
+budget]
+# Daily token budget (approximate)
+daily_tokens = 166667  # ~$2.50/day for Sonnet 4 ($50/20 working days)
+
+# Warning threshold (percentage of daily budget)
+warn_at = 80  # Warn at 80% ($2.00/day)
+
+# Cost per task warning
+cost_per_task = 0.25  # Warn if single task > $0.25
+
+# Monthly budget tracking
+monthly_budget = 50  # $50/month
+
+# ============================================
+# SAFETY & PROTECTION
+# ============================================
+
+[safety]
+# Files that require explicit confirmation before modifying
+protected = [
+    "package-lock.json",
+    "docker-compose.yml",
+    ".env",
+    ".env.production",
+    "data/**",
+    "orchestrator/src/services/mcpManager.js"
+]
+
+# Warn before large changes
+warn_lines_changed = 100
+warn_files_modified = 5
+
+# Require confirmation for destructive operations
+confirm_delete = true
+confirm_overwrite = true
+
+# ============================================
+# OUTPUT PREFERENCES
+# ============================================
+
+[output]
+# Preferred code style
+language = "javascript"
+style = "concise"  # minimal, concise, detailed
+comments = "helpful"  # none, minimal, helpful, verbose
+
+# Explanation detail level
+explain = "medium"  # minimal, medium, detailed
+
+# Code formatting
+format = "prettier"  # prettier, eslint, none
+
+# Include examples in explanations
+include_examples = true
+
+# ============================================
+# INTEGRATIONS
+# ============================================
+
+[integrations.git]
+enabled = true
+auto_commit = false
+commit_style = "conventional"  # conventional, simple, detailed
+
+[integrations.docker]
+enabled = true
+auto_build = false
+auto_restart = true
+
+[integrations.testing]
+framework = "jest"
+auto_run = false
+watch_mode = false
+
+[integrations.linting]
+enabled = true
+auto_fix = true
+eslint_config = ".eslintrc.js"
+
+# ============================================
+# LOGGING & DEBUGGING
+# ============================================
+
+[logging]
+enabled = true
+level = "info"  # debug, info, warn, error
+file = ".claude.log"
+max_size = "10mb"
+max_files = 5
+
+# Track token usage
+track_tokens = true
+track_costs = true
+
+# Performance logging
+track_response_time = true
+
+# ============================================
+# WORKING DIRECTORIES
+# ============================================
+
+[directories]
+# Quick navigation shortcuts
+mcps = "mcps/"
+orchestrator = "orchestrator/src/"
+dashboards = "code-dashboard/"
+docs = "docs/"
+tests = "tests/"
+config = "config/"
+
+# ============================================
+# KEYBOARD SHORTCUTS
+# ============================================
+
+[shortcuts]
+# These work in interactive mode
+explain = "e"      # Explain last response in detail
+code = "c"         # Show code only
+retry = "r"        # Retry last request
+clear = "cls"      # Clear conversation
+help = "h"         # Show help
+
+# ============================================
+# FEATURE FLAGS
+# ============================================
+
+[features]
+# Enable experimental features
+autocomplete = true
+smart_suggestions = true
+context_awareness = true
+code_analysis = true
+security_scanning = false  # Enable when ready
+
+# ============================================
+# EXAMPLE USAGE
+# ============================================
+
+# Basic commands:
+# claude "add error handling to orchestrator/src/routes/tests.js"
+# claude add-mcp "performance-analyzer"
+# claude add-dashboard-tab "security"
+# claude review-security
+# claude optimize-costs
+
+# Interactive mode:
+# claude
+# > What MCPs are missing from the orchestrator?
+# > Add security tab to code dashboard
+# > Optimize token usage in all claudeClient.js files
+
+# File-specific:
+# claude --file mcps/smell-detector/index.js "add health check endpoint"
+
+# Multi-file:
+# claude --files "orchestrator/src/**/*.js" "add JSDoc comments"
+
+# With context:
+# claude --context "I'm working on dashboard integration" "help me add a new tab"

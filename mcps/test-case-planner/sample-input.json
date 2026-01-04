@@ -1,0 +1,9 @@
+{
+  "data": {
+    "storyId": 12345,
+    "requirements": "Patients need the ability to schedule appointments through the patient portal. This feature should allow them to select a provider, choose an available time slot, and receive confirmation.",
+    "acceptanceCriteria": "Given I am a logged-in patient\nWhen I navigate to the appointment scheduling page\nAnd I select a provider from the dropdown\nAnd I choose an available time slot\nAnd I click 'Schedule Appointment'\nThen the appointment should be created in the system\nAnd I should receive a confirmation email\nAnd the appointment should appear in my 'My Appointments' list\nAnd the provider's calendar should be updated",
+    "includeNegative": true,
+    "includeEdgeCases": true
+  }
+}

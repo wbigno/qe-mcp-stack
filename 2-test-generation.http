@@ -1,0 +1,354 @@
+### QE MCP Stack - Test Generation
+### Use REST Client extension in VS Code to execute these requests
+### All test generation endpoints (.NET Unit, Integration, Playwright)
+
+@baseUrl = http://localhost:3000
+
+##########################################
+# TEST GENERATION - FILE ANALYSIS (NEW)
+##########################################
+
+### Analyze File for Test Needs
+# Determines if file needs unit tests, integration tests, or both
+POST {{baseUrl}}/api/tests/analyze-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "file": "/App1/Services/PatientService.cs"
+}
+
+### Analyze Controller File
+POST {{baseUrl}}/api/tests/analyze-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "file": "/App1/Controllers/UsersController.cs"
+}
+
+### Analyze Repository File
+POST {{baseUrl}}/api/tests/analyze-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "file": "/App1/Repositories/PatientRepository.cs"
+}
+
+##########################################
+# TEST GENERATION - UNIT TESTS (NEW)
+##########################################
+
+### Generate Unit Tests for Specific File
+# File-by-file generation with smart detection
+POST {{baseUrl}}/api/tests/generate-for-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "file": "/App1/Services/PatientService.cs",
+  "className": "PatientService"
+}
+
+### Generate Unit Tests with Source Code
+POST {{baseUrl}}/api/tests/generate-for-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "file": "/App1/Services/UserService.cs",
+  "className": "UserService",
+  "sourceCode": "public class UserService { public User GetById(int id) { return null; } }"
+}
+
+### Generate Unit Tests for Specific Method
+POST {{baseUrl}}/api/tests/generate-for-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "className": "UserService",
+  "methods": ["GetUserById", "CreateUser"]
+}
+
+##########################################
+# TEST GENERATION - INTEGRATION TESTS (NEW)
+##########################################
+
+### Generate Integration Tests for File
+POST {{baseUrl}}/api/tests/generate-integration-for-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "file": "/App1/Controllers/UsersController.cs",
+  "apiEndpoint": "/api/users"
+}
+
+### Generate Integration Tests with Scenario
+POST {{baseUrl}}/api/tests/generate-integration-for-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "apiEndpoint": "/api/patients",
+  "scenario": "Complete CRUD operations with Epic integration"
+}
+
+### Generate Integration Tests with Options
+POST {{baseUrl}}/api/tests/generate-integration-for-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "apiEndpoint": "/api/users",
+  "includeAuth": true,
+  "includeDatabase": true
+}
+
+##########################################
+# TEST GENERATION - LEGACY/BATCH (EXISTING)
+##########################################
+
+### Generate Unit Tests (Legacy - All Methods)
+POST {{baseUrl}}/api/tests/generate-unit-tests
+Content-Type: application/json
+
+{
+  "app": "App1"
+}
+
+### Generate Unit Tests with Output Path
+POST {{baseUrl}}/api/tests/generate-unit-tests
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "outputPath": "/path/to/save/tests"
+}
+
+### Generate Integration Tests (Legacy)
+POST {{baseUrl}}/api/tests/generate-integration-tests
+Content-Type: application/json
+
+{
+  "app": "App1"
+}
+
+### Generate Integration Tests with Integrations
+POST {{baseUrl}}/api/tests/generate-integration-tests
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "integrations": ["Epic", "Financial"],
+  "outputPath": "/path/to/save/tests"
+}
+
+##########################################
+# PLAYWRIGHT - UI TEST GENERATION
+##########################################
+
+### Analyze Critical UI Paths
+POST {{baseUrl}}/api/tests/analyze-ui-paths
+Content-Type: application/json
+
+{
+  "app": "App1"
+}
+
+### Analyze UI Paths for Specific Stories
+POST {{baseUrl}}/api/tests/analyze-ui-paths
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "storyIds": [12345, 12346]
+}
+
+### Plan Playwright Test Architecture
+POST {{baseUrl}}/api/tests/plan-playwright-architecture
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "generateUtilities": true,
+  "organizeByFeature": true
+}
+
+### Generate Playwright Tests
+POST {{baseUrl}}/api/tests/generate-playwright-tests
+Content-Type: application/json
+
+{
+  "app": "App1"
+}
+
+### Generate Playwright Tests with Full Options
+POST {{baseUrl}}/api/tests/generate-playwright-tests
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "language": "typescript",
+  "includePageObjects": true,
+  "includeFixtures": true,
+  "outputPath": "/path/to/save/tests"
+}
+
+### Heal Playwright Tests
+POST {{baseUrl}}/api/tests/heal-playwright-tests
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "autoFix": true
+}
+
+### Heal Specific Test Files
+POST {{baseUrl}}/api/tests/heal-playwright-tests
+Content-Type: application/json
+
+{
+  "testFiles": [
+    "/path/to/test1.spec.ts",
+    "/path/to/test2.spec.ts"
+  ],
+  "autoFix": true
+}
+
+##########################################
+# TEST GENERATION WORKFLOWS
+##########################################
+
+### Workflow 1: File-by-File Unit Test Generation
+# Step 1: Analyze file
+POST {{baseUrl}}/api/tests/analyze-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "file": "/App1/Services/PatientService.cs"
+}
+
+###
+# Step 2: Generate unit tests (if needed)
+POST {{baseUrl}}/api/tests/generate-for-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "file": "/App1/Services/PatientService.cs",
+  "className": "PatientService"
+}
+
+### Workflow 2: Controller Integration Tests
+# Step 1: Analyze controller
+POST {{baseUrl}}/api/tests/analyze-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "file": "/App1/Controllers/UsersController.cs"
+}
+
+###
+# Step 2: Generate unit tests for controller logic
+POST {{baseUrl}}/api/tests/generate-for-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "className": "UsersController"
+}
+
+###
+# Step 3: Generate integration tests for API
+POST {{baseUrl}}/api/tests/generate-integration-for-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "apiEndpoint": "/api/users",
+  "scenario": "CRUD operations with authentication"
+}
+
+### Workflow 3: UI Test Automation (Playwright)
+# Step 1: Analyze critical UI paths
+POST {{baseUrl}}/api/tests/analyze-ui-paths
+Content-Type: application/json
+
+{
+  "app": "App1"
+}
+
+###
+# Step 2: Plan test architecture
+POST {{baseUrl}}/api/tests/plan-playwright-architecture
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "organizeByFeature": true
+}
+
+###
+# Step 3: Generate Playwright tests
+POST {{baseUrl}}/api/tests/generate-playwright-tests
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "language": "typescript",
+  "includePageObjects": true
+}
+
+###
+# Step 4: Heal failing tests (if needed)
+POST {{baseUrl}}/api/tests/heal-playwright-tests
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "autoFix": true
+}
+
+### Workflow 4: Complete Test Coverage Sprint
+# Step 1: Identify gaps
+POST {{baseUrl}}/api/analysis/test-gaps
+Content-Type: application/json
+
+{
+  "app": "App1"
+}
+
+###
+# Step 2: Analyze each file with gaps
+POST {{baseUrl}}/api/tests/analyze-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "file": "/App1/Services/PatientService.cs"
+}
+
+###
+# Step 3: Generate tests file-by-file
+POST {{baseUrl}}/api/tests/generate-for-file
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "className": "PatientService"
+}
+
+###
+# Step 4: Verify coverage improved
+POST {{baseUrl}}/api/analysis/coverage
+Content-Type: application/json
+
+{
+  "app": "App1",
+  "detailed": true
+}

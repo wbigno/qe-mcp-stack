@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Code Analysis Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="dashboard-wrapper">
+        <!-- Header with Tabs -->
+        <header class="dashboard-top-header">
+            <div class="header-title">
+                <h1>💻 Code Analysis Dashboard</h1>
+            </div>
+            
+            <!-- Tab Navigation -->
+            <nav class="tab-nav">
+                <button class="tab-btn active" data-tab="overview">📊 Overview</button>
+                <button class="tab-btn" data-tab="coverage">🎯 Coverage</button>
+                <button class="tab-btn" data-tab="complexity">🧮 Complexity</button>
+                <button class="tab-btn" data-tab="test-gaps">🔍 Test Gaps</button>
+            </nav>
+        </header>
+
+        <!-- Collapsible Filter Bar -->
+        <div class="filter-bar-wrapper">
+            <div class="filter-bar-header" id="filterBarToggle">
+                <span>🔍 Filters & Actions</span>
+                <span class="toggle-icon">▼</span>
+            </div>
+            
+            <div class="filter-bar-content" id="filterBarContent">
+                <div class="filter-controls">
+                    <div class="filter-group">
+                        <label>Application</label>
+                        <select id="appFilter">
+                            <option value="">Select Application...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label>Complexity</label>
+                        <select id="complexityFilter">
+                            <option value="">All</option>
+                            <option value="low">Low</option>
+                            <option value="medium">Medium</option>
+                            <option value="high">High</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label>Coverage Threshold</label>
+                        <select id="coverageFilter">
+                            <option value="">All</option>
+                            <option value="high">≥ 80%</option>
+                            <option value="medium">50-80%</option>
+                            <option value="low">< 50%</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-actions">
+                        <button id="applyFiltersBtn" class="btn btn-primary">Apply</button>
+                        <button id="clearFiltersBtn" class="btn btn-secondary">Clear</button>
+                        <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh</button>
+                    </div>
+                </div>
+                
+                <div id="statusMessage"></div>
+            </div>
+        </div>
+
+        <!-- Main Content Area -->
+        <main class="dashboard-main">
+            <!-- Overview Tab -->
+            <div id="overview-tab" class="tab-content active">
+                <div class="metrics-grid">
+                    <div class="metric-card gradient-blue">
+                        <div class="metric-value" id="totalFiles">-</div>
+                        <div class="metric-label">Total Files</div>
+                    </div>
+                    <div class="metric-card gradient-purple">
+                        <div class="metric-value" id="overallCoverage">-</div>
+                        <div class="metric-label">Overall Coverage</div>
+                    </div>
+                    <div class="metric-card gradient-green">
+                        <div class="metric-value" id="highComplexity">-</div>
+                        <div class="metric-label">High Complexity Files</div>
+                    </div>
+                    <div class="metric-card gradient-orange">
+                        <div class="metric-value" id="testGaps">-</div>
+                        <div class="metric-label">Test Gaps</div>
+                    </div>
+                </div>
+
+                <div class="content-grid">
+                    <div class="panel">
+                        <h2>Coverage by Type</h2>
+                        <div id="coverageByAppChart"></div>
+                    </div>
+                    
+                    <div class="panel">
+                        <h2>Complexity Distribution</h2>
+                        <div id="complexityChart"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Coverage Tab -->
+            <div id="coverage-tab" class="tab-content">
+                <div class="stats-row">
+                    <div class="stat-box">
+                        <div class="stat-value" id="lineCoverage">0%</div>
+                        <div class="stat-label">Line Coverage</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="branchCoverage">0%</div>
+                        <div class="stat-label">Branch Coverage</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="methodCoverage">0%</div>
+                        <div class="stat-label">Method Coverage</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="linesCovered">0</div>
+                        <div class="stat-label">Lines Covered</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>Coverage Details</h2>
+                    <div class="table-container">
+                        <table class="data-table" id="coverageTable">
+                            <thead>
+                                <tr>
+                                    <th>File</th>
+                                    <th>Application</th>
+                                    <th>Line Coverage</th>
+                                    <th>Branch Coverage</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Complexity Tab -->
+            <div id="complexity-tab" class="tab-content">
+                <div class="stats-row">
+                    <div class="stat-box">
+                        <div class="stat-value" id="avgComplexity">0.0</div>
+                        <div class="stat-label">Avg Complexity</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="lowComplexity">9</div>
+                        <div class="stat-label">Low</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="mediumComplexity">0</div>
+                        <div class="stat-label">Medium</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="highComplexityCount">0</div>
+                        <div class="stat-label">High</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>High Complexity Files</h2>
+                    <div class="table-container">
+                        <table class="data-table" id="complexityTable">
+                            <thead>
+                                <tr>
+                                    <th>File</th>
+                                    <th>Avg Complexity</th>
+                                    <th>Max Complexity</th>
+                                    <th>Methods</th>
+                                    <th>Severity</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test Gaps Tab -->
+            <div id="test-gaps-tab" class="tab-content">
+                <div class="stats-row">
+                    <div class="stat-box">
+                        <div class="stat-value" id="totalMethods">0</div>
+                        <div class="stat-label">Total Methods</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="untestedMethods">0</div>
+                        <div class="stat-label">Untested (0%)</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="partialCoverage">0</div>
+                        <div class="stat-label">Partial Coverage</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value" id="missingNegativeTests">0</div>
+                        <div class="stat-label">Missing Negative Tests</div>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>Files Missing Tests</h2>
+                    <p style="color: #94a3b8; margin-bottom: 15px;">Files with no or insufficient test coverage</p>
+                    <div class="table-container">
+                        <table class="data-table" id="testGapsTable">
+                            <thead>
+                                <tr>
+                                    <th>Method</th>
+                                    <th>File</th>
+                                    <th>Coverage</th>
+                                    <th>Has Tests</th>
+                                    <th>Has Negative Tests</th>
+                                    <th>Priority</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h2>Recommended Actions</h2>
+                    <div id="recommendedActions">
+                        <p style="color: #94a3b8;">No recommendations needed! 🎉</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

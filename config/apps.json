@@ -1,0 +1,107 @@
+{
+  "applications": [
+    {
+      "name": "App1",
+      "displayName": "Application 1 - Patient Portal",
+      "path": "/mnt/apps/patient-portal",
+      "localPath": "/Users/williambigno/dev/git/patient-portal",
+      "type": "dotnet",
+      "framework": "net10.0",
+      "testFramework": "xUnit",
+      "excludePaths": [
+        "bin",
+        "obj",
+        "packages",
+        "node_modules",
+        ".vs",
+        "TestResults"
+      ],
+      "includePatterns": [
+        "**/*.cs",
+        "**/*.csproj"
+      ],
+      "integrations": [
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "App2",
+      "displayName": "Application 2 - Financial Processing",
+      "path": "/mnt/apps/app2",
+      "localPath": "/Users/williambigno/dev/git/app2",
+      "type": "dotnet",
+      "framework": "net8.0",
+      "testFramework": "xUnit",
+      "excludePaths": [
+        "bin",
+        "obj",
+        "packages",
+        "node_modules",
+        ".vs",
+        "TestResults"
+      ],
+      "includePatterns": [
+        "**/*.cs",
+        "**/*.csproj"
+      ],
+      "integrations": [
+        "Financial"
+      ],
+      "priority": "high"
+    },
+    {
+      "name": "App3",
+      "displayName": "Application 3",
+      "path": "/mnt/apps/app3",
+      "localPath": "/Users/williambigno/dev/git/app3",
+      "type": "dotnet",
+      "framework": "net8.0",
+      "testFramework": "xUnit",
+      "excludePaths": [
+        "bin",
+        "obj",
+        "packages",
+        "node_modules",
+        ".vs",
+        "TestResults"
+      ],
+      "includePatterns": [
+        "**/*.cs",
+        "**/*.csproj"
+      ],
+      "integrations": [
+        "Epic"
+      ],
+      "priority": "medium"
+    },
+    {
+      "name": "App4",
+      "displayName": "Application 4",
+      "path": "/mnt/apps/app4",
+      "localPath": "/Users/williambigno/dev/git/app4",
+      "type": "dotnet",
+      "framework": "net8.0",
+      "testFramework": "xUnit",
+      "excludePaths": [
+        "bin",
+        "obj",
+        "packages",
+        "node_modules",
+        ".vs",
+        "TestResults"
+      ],
+      "includePatterns": [
+        "**/*.cs",
+        "**/*.csproj"
+      ],
+      "integrations": [],
+      "priority": "medium"
+    }
+  ],
+  "settings": {
+    "parallelAnalysis": true,
+    "maxConcurrency": 2,
+    "cacheResults": true,
+    "cacheTTL": 3600
+  }
+}

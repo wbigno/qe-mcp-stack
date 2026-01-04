@@ -1,0 +1,9 @@
+{
+  "name": "shared-dotnet-analyzer",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dotnet-analyzer.js",
+  "dependencies": {
+    "glob": "^10.3.10"
+  }
+}

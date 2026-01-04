@@ -1,0 +1,115 @@
+{
+  "data": {
+    "storyId": 12345,
+    "automationLevel": "all",
+    "testCases": [
+      {
+        "id": "TC001",
+        "title": "User can log in with valid credentials",
+        "description": "Verify that a user can successfully log in with correct username and password",
+        "category": "positive",
+        "priority": "high",
+        "estimatedDuration": "3 minutes",
+        "automationFeasibility": {
+          "feasibility": "high",
+          "score": 95
+        },
+        "steps": [
+          {
+            "stepNumber": 1,
+            "action": "Navigate to login page",
+            "expectedResult": "Login page displays"
+          },
+          {
+            "stepNumber": 2,
+            "action": "Enter valid username",
+            "expectedResult": "Username accepted"
+          },
+          {
+            "stepNumber": 3,
+            "action": "Enter valid password",
+            "expectedResult": "Password accepted"
+          },
+          {
+            "stepNumber": 4,
+            "action": "Click login button",
+            "expectedResult": "User is logged in and redirected to home page"
+          }
+        ]
+      },
+      {
+        "id": "TC002",
+        "title": "User cannot log in with invalid password",
+        "description": "Verify that system rejects login attempt with incorrect password",
+        "category": "negative",
+        "priority": "high",
+        "estimatedDuration": "2 minutes",
+        "automationFeasibility": {
+          "feasibility": "high",
+          "score": 90
+        },
+        "steps": [
+          {
+            "stepNumber": 1,
+            "action": "Navigate to login page",
+            "expectedResult": "Login page displays"
+          },
+          {
+            "stepNumber": 2,
+            "action": "Enter valid username",
+            "expectedResult": "Username accepted"
+          },
+          {
+            "stepNumber": 3,
+            "action": "Enter invalid password",
+            "expectedResult": "Password field accepts input"
+          },
+          {
+            "stepNumber": 4,
+            "action": "Click login button",
+            "expectedResult": "Error message displays: Invalid username or password"
+          }
+        ]
+      },
+      {
+        "id": "TC003",
+        "title": "User can schedule an appointment",
+        "description": "Verify that logged-in user can schedule an appointment with a provider",
+        "category": "positive",
+        "priority": "high",
+        "estimatedDuration": "8 minutes",
+        "automationFeasibility": {
+          "feasibility": "high",
+          "score": 85
+        },
+        "steps": [
+          {
+            "stepNumber": 1,
+            "action": "Log in as patient",
+            "expectedResult": "User logged in successfully"
+          },
+          {
+            "stepNumber": 2,
+            "action": "Navigate to appointment page",
+            "expectedResult": "Appointment scheduling page displays"
+          },
+          {
+            "stepNumber": 3,
+            "action": "Select provider from dropdown",
+            "expectedResult": "Provider selected, available slots shown"
+          },
+          {
+            "stepNumber": 4,
+            "action": "Choose available time slot",
+            "expectedResult": "Time slot selected"
+          },
+          {
+            "stepNumber": 5,
+            "action": "Click schedule appointment button",
+            "expectedResult": "Appointment created, confirmation displayed"
+          }
+        ]
+      }
+    ]
+  }
+}

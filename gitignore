@@ -1,0 +1,264 @@
+# ============================================
+# .gitignore - QE MCP Stack
+# ============================================
+
+# ============================================
+# NODE / NPM
+# ============================================
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Package lock files (optional - uncomment if you want to ignore)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
+
+# ============================================
+# ENVIRONMENT & SECRETS
+# ============================================
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.*.local
+
+# API Keys and secrets
+**/secrets/
+*.key
+*.pem
+*.p12
+anthropic-api-key.txt
+
+# ============================================
+# LOGS
+# ============================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Claude logs
+.claude.log
+.claude-code.log
+
+# Application logs
+combined.log
+error.log
+access.log
+
+# ============================================
+# DATA & DATABASES
+# ============================================
+data/
+*.db
+*.sqlite
+*.sqlite3
+dump.sql
+*.sql
+
+# Redis
+dump.rdb
+
+# PostgreSQL
+*.pgdata
+
+# ============================================
+# BUILD & DIST
+# ============================================
+dist/
+build/
+out/
+.next/
+.nuxt/
+.cache/
+.parcel-cache/
+
+# Compiled JavaScript
+*.min.js
+*.bundle.js
+
+# ============================================
+# TESTING & COVERAGE
+# ============================================
+coverage/
+.nyc_output/
+*.lcov
+.coverage/
+
+# Test results
+test-results/
+junit.xml
+
+# ============================================
+# DOCKER
+# ============================================
+.docker/
+docker-compose.override.yml
+
+# Docker volumes data
+volumes/
+
+# ============================================
+# OPERATING SYSTEM
+# ============================================
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+Desktop.ini
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# ============================================
+# IDEs & EDITORS
+# ============================================
+# VS Code
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# JetBrains (WebStorm, IntelliJ, etc.)
+.idea/
+*.iml
+*.ipr
+*.iws
+.idea_modules/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# ============================================
+# .NET (for your .NET analysis tools)
+# ============================================
+bin/
+obj/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.csproj.user
+
+# Visual Studio
+.vs/
+*.vspscc
+*.vssscc
+.builds
+*.pidb
+*.svclog
+*.scc
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# ============================================
+# TEMPORARY FILES
+# ============================================
+tmp/
+temp/
+*.tmp
+*.bak
+*.swp
+*~.nib
+
+# ============================================
+# PLAYWRIGHT
+# ============================================
+playwright-report/
+test-results/
+playwright/.cache/
+
+# ============================================
+# MISC
+# ============================================
+# Documentation builds
+docs/_build/
+site/
+
+# Python (if any Python scripts)
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+
+# Certificates
+*.cert
+*.crt
+
+# Compressed files
+*.zip
+*.tar.gz
+*.rar
+
+# ============================================
+# PROJECT SPECIFIC
+# ============================================
+# Dashboard uploads
+*-dashboard/uploads/
+
+# MCP data
+mcps/*/data/
+
+# Test fixtures (large files)
+fixtures/large-files/
+
+# Screenshots from tests
+screenshots/
+*.png
+*.jpg
+!docs/**/*.png
+!docs/**/*.jpg
+
+# Performance monitoring
+.performance/
+
+# Token usage tracking data
+.token-usage/
+
+# ============================================
+# KEEP THESE FILES
+# ============================================
+# Force include important config files
+!.gitignore
+!.editorconfig
+!.prettierrc
+!.eslintrc.js
+!.clauderc
