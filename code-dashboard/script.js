@@ -3,6 +3,9 @@
 
 const API_BASE_URL = window.location.origin || 'http://localhost:3000';
 
+// Import model selector
+import { modelSelector } from './modelSelector.js';
+
 let state = {
     applications: [],
     currentApp: null,
@@ -25,14 +28,17 @@ let state = {
 
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('🚀 Initializing Code Analysis Dashboard');
-    
+
+    // Initialize model selector
+    modelSelector.initialize();
+
     initializeTabs();
     initializeFilterBar();
     initializeFilters();
-    
+
     // Load applications
     await loadApplications();
-    
+
     console.log('✅ Dashboard initialized');
 });
 
@@ -839,7 +845,8 @@ async function generateTestsForFile(fileName, fullPath, testType, analysis) {
             // Generate unit tests
             const includeNegative = document.getElementById('includeNegative').checked;
             const includeMocks = document.getElementById('includeMocks').checked;
-            
+            const { model } = modelSelector.getSelection();
+
             response = await fetch(`${API_BASE_URL}/api/tests/generate-for-file`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -848,14 +855,16 @@ async function generateTestsForFile(fileName, fullPath, testType, analysis) {
                     file: fullPath,
                     className: analysis.classes[0], // First class in file
                     includeNegativeTests: includeNegative,
-                    includeMocks: includeMocks
+                    includeMocks: includeMocks,
+                    model
                 })
             });
         } else {
             // Generate integration tests
             const includeAuth = document.getElementById('includeAuth').checked;
             const includeDatabase = document.getElementById('includeDatabase').checked;
-            
+            const { model } = modelSelector.getSelection();
+
             response = await fetch(`${API_BASE_URL}/api/tests/generate-integration-for-file`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -864,7 +873,8 @@ async function generateTestsForFile(fileName, fullPath, testType, analysis) {
                     file: fullPath,
                     apiEndpoint: analysis.endpoints[0]?.path || '/api/test',
                     includeAuth,
-                    includeDatabase
+                    includeDatabase,
+                    model
                 })
             });
         }
@@ -994,8 +1004,126 @@ function closeTestGenerationModal() {
 
 function viewMethodDetails(fileName, methodName) {
     console.log(`Viewing details for ${fileName}.${methodName}`);
-    // Could show method signature, complexity, calls, etc.
-    alert(`Method details for ${methodName}\n\n(Feature coming soon)`);
+
+    // Find the method in the current test gaps data
+    const testGapsData = state.data.testGaps;
+    if (!testGapsData || !testGapsData.gaps) {
+        alert('Method details not available');
+        return;
+    }
+
+    // Search through all methods in gaps
+    let methodData = null;
+    const allMethods = [
+        ...(testGapsData.gaps.untestedMethods || []),
+        ...(testGapsData.gaps.partialCoverage || []),
+        ...(testGapsData.gaps.falsePositiveTests || [])
+    ];
+
+    methodData = allMethods.find(m =>
+        m.name === methodName && m.file && m.file.includes(fileName)
+    );
+
+    if (!methodData) {
+        alert(`Method ${methodName} details not found`);
+        return;
+    }
+
+    // Build detailed modal
+    const modal = document.createElement('div');
+    modal.className = 'ai-modal show';
+    modal.innerHTML = `
+        <div class="ai-modal-overlay" id="methodDetailsOverlay"></div>
+        <div class="ai-modal-content" style="max-width: 700px;">
+            <div class="ai-modal-header">
+                <h2>📊 Method Details</h2>
+                <p style="font-family: monospace; color: #94a3b8;">${fileName}.${methodName}()</p>
+            </div>
+
+            <div class="ai-modal-body">
+                <div style="display: grid; gap: 15px;">
+                    <div class="detail-row">
+                        <strong>File Path:</strong>
+                        <div style="font-family: monospace; font-size: 12px; color: #94a3b8; margin-top: 5px;">
+                            ${methodData.file || 'N/A'}
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <strong>Coverage:</strong>
+                        <div style="margin-top: 5px;">
+                            ${methodData.coverage !== undefined ? `${methodData.coverage}%` : 'N/A'}
+                        </div>
+                    </div>
+
+                    <div class="detail-row">
+                        <strong>Test Status:</strong>
+                        <div style="margin-top: 5px;">
+                            <span style="margin-right: 15px;">
+                                Has Tests: ${methodData.hasTests ? '✅ Yes' : '❌ No'}
+                            </span>
+                            <span>
+                                Has Negative Tests: ${methodData.hasNegativeTests ? '✅ Yes' : '❌ No'}
+                            </span>
+                        </div>
+                    </div>
+
+                    ${methodData.calls && methodData.calls.length > 0 ? `
+                        <div class="detail-row">
+                            <strong>Method Calls (${methodData.calls.length}):</strong>
+                            <div style="margin-top: 5px; max-height: 150px; overflow-y: auto;">
+                                <ul style="font-family: monospace; font-size: 12px; color: #94a3b8;">
+                                    ${methodData.calls.map(call => `<li>${escapeHtml(call)}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    ${methodData.complexity !== undefined ? `
+                        <div class="detail-row">
+                            <strong>Complexity:</strong>
+                            <div style="margin-top: 5px;">
+                                ${methodData.complexity}
+                            </div>
+                        </div>
+                    ` : ''}
+
+                    ${methodData.lineCount !== undefined ? `
+                        <div class="detail-row">
+                            <strong>Line Count:</strong>
+                            <div style="margin-top: 5px;">
+                                ${methodData.lineCount} lines
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+
+            <div class="ai-modal-footer">
+                <button id="closeMethodDetailsBtn" class="btn btn-primary">Close</button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modal);
+
+    // Add close handlers
+    document.getElementById('closeMethodDetailsBtn').addEventListener('click', () => {
+        modal.remove();
+    });
+
+    document.getElementById('methodDetailsOverlay').addEventListener('click', () => {
+        modal.remove();
+    });
+
+    // ESC key handler
+    const escHandler = (e) => {
+        if (e.key === 'Escape') {
+            modal.remove();
+            document.removeEventListener('keydown', escHandler);
+        }
+    };
+    document.addEventListener('keydown', escHandler);
 }
 
 function escapeHtml(text) {
@@ -1197,50 +1325,6 @@ function initializeTestGapsEventListeners() {
             viewMethodDetails(fileName, methodName);
         }
     });
-}
-
-function updateRecommendations(categories, summary) {
-    const recDiv = document.getElementById('recommendedActions');
-    if (!recDiv) return;
-    
-    // ✅ FIX: Handle undefined/null categories (renamed parameter to match new usage)
-    // This function is now called with fileGroups as first parameter
-    const fileGroups = categories;
-    
-    if (!fileGroups || typeof fileGroups !== 'object') {
-        recDiv.innerHTML = '<p style="color: #4ade80;">✅ No test gaps found!</p>';
-        return;
-    }
-    
-    const totalFiles = Object.keys(fileGroups).length;
-    const unitTestFiles = Object.values(fileGroups).filter(f => f.needsUnitTests).length;
-    const integrationTestFiles = Object.values(fileGroups).filter(f => f.needsIntegrationTests).length;
-    
-    let recommendations = '<h3>Recommended Actions</h3><div style="padding: 10px;">';
-    
-    if (unitTestFiles > 0) {
-        recommendations += `
-            <div style="background: #991b1b; padding: 12px; margin-bottom: 10px; border-radius: 4px;">
-                <strong>🧪 Generate Unit Tests:</strong><br/>
-                ${unitTestFiles} files need unit tests. Click "Generate Unit Tests" on each file.
-            </div>
-        `;
-    }
-    
-    if (integrationTestFiles > 0) {
-        recommendations += `
-            <div style="background: #ca8a04; padding: 12px; margin-bottom: 10px; border-radius: 4px;">
-                <strong>🔗 Generate Integration Tests:</strong><br/>
-                ${integrationTestFiles} files need integration tests. Click "Generate Integration Tests" on each file.
-            </div>
-        `;
-    }
-    
-    if (totalFiles === 0) {
-        recommendations = '<p style="color: #4ade80;">✅ No test gaps found!</p>';
-    }
-    
-    recDiv.innerHTML = recommendations;
 }
 
 // ============================================

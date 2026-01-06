@@ -1,32 +1,25 @@
 /**
- * Claude API Client for Unit Test Generation
- * 
- * Handles communication with Anthropic Claude API for generating xUnit tests
+ * AI API Client for Unit Test Generation
+ *
+ * Handles communication with AI APIs for generating xUnit tests
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
-
-// Claude model to use
-const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+import { generateCompletion } from '../../shared/aiClient.js';
 
 /**
- * Generate unit tests using Claude API
- * 
+ * Generate unit tests using AI
+ *
  * @param {Object} params - Generation parameters
  * @returns {Promise<Object>} Generated tests
  */
 export async function generateWithClaude(params) {
-  const { 
+  const {
     className,
     methodName,
     sourceCode,
     includeNegativeTests,
-    includeMocks
+    includeMocks,
+    model
   } = params;
 
   // Construct generation prompt
@@ -39,21 +32,21 @@ export async function generateWithClaude(params) {
   );
 
   try {
-    // Call Claude API
-    const response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 8192,
-      temperature: 0.3, // Lower temp for code generation
+    // Call AI API via unified client
+    const response = await generateCompletion({
+      model,
       messages: [
         {
           role: 'user',
           content: prompt
         }
-      ]
+      ],
+      maxTokens: 8192,
+      temperature: 0.3 // Lower temp for code generation
     });
 
     // Extract text content from response
-    const generatedText = response.content[0].text;
+    const generatedText = response.text;
 
     // Parse the structured response
     const tests = parseTestsResponse(generatedText);

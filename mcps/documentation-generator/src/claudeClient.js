@@ -1,43 +1,37 @@
 /**
- * Claude API Client for Documentation Generation
+ * AI API Client for Documentation Generation
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
-
-const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+import { generateCompletion } from '../../shared/aiClient.js';
 
 /**
- * Generate documentation using Claude API
+ * Generate documentation using AI
  */
 export async function generateWithClaude(params) {
-  const { docType, content, format } = params;
+  const { docType, content, format, model } = params;
 
   const prompt = buildDocumentationPrompt(docType, content, format);
 
   try {
-    const response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 8192,
-      temperature: 0.3,
+    const response = await generateCompletion({
+      model,
       messages: [
         {
           role: 'user',
           content: prompt
         }
-      ]
+      ],
+      maxTokens: 8192,
+      temperature: 0.3
     });
 
-    const generatedText = response.content[0].text;
+    const generatedText = response.text;
     const documentation = parseDocumentationResponse(generatedText);
 
     return documentation;
 
   } catch (error) {
-    throw new Error(`Claude API error: ${error.message}`);
+    throw new Error(`AI API error: ${error.message}`);
   }
 }
 

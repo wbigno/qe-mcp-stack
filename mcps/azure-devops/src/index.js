@@ -31,7 +31,7 @@ app.get('/health', (req, res) => {
 // Pull work items
 app.post('/work-items/query', async (req, res) => {
   try {
-    const { sprint, workItemIds, query } = req.body;
+    const { sprint, workItemIds, query, organization, project, team } = req.body;
 
     if (workItemIds) {
       // Get specific work items
@@ -42,11 +42,51 @@ app.post('/work-items/query', async (req, res) => {
       return res.json(response.data.value || []);
     }
 
+    // Build iteration path for sprint queries
+    let iterationPathCondition = '';
+    if (sprint) {
+      // Support multiple formats:
+      // 1. Full path: "Core\\Core Team\\2025\\Q4\\25.Q4.07"
+      // 2. Partial path: "Core Team\\2025\\Q4\\25.Q4.07"
+      // 3. Sprint only: "25.Q4.07"
+      
+      let fullIterationPath = sprint;
+      
+      // If sprint doesn't contain backslashes, it's just the sprint name
+      if (!sprint.includes('\\')) {
+        // Build full path: Project\Team\Year\Quarter\Sprint
+        const projectName = project || ADO_PROJECT;
+        const teamName = team || '';
+        
+        // Extract year and quarter from sprint name (e.g., "25.Q4.07" -> "2025" and "Q4")
+        const sprintMatch = sprint.match(/^(\d{2})\.Q(\d)\.(\d{2})$/);
+        if (sprintMatch) {
+          const year = `20${sprintMatch[1]}`; // 25 -> 2025
+          const quarter = `Q${sprintMatch[2]}`; // Q4
+          
+          if (teamName) {
+            fullIterationPath = `${projectName}\\${teamName}\\${year}\\${quarter}\\${sprint}`;
+          } else {
+            fullIterationPath = `${projectName}\\${year}\\${quarter}\\${sprint}`;
+          }
+        } else {
+          // Can't parse sprint format, try with just project
+          fullIterationPath = `${projectName}\\${sprint}`;
+        }
+      }
+      
+      // Use UNDER to match sprint and all children
+      iterationPathCondition = `AND [System.IterationPath] UNDER '${fullIterationPath}'`;
+    }
+
     // Query by sprint or custom query
-    const wiql = query || `SELECT [System.Id], [System.Title], [System.State]
+    const wiql = query || `SELECT [System.Id], [System.Title], [System.State], [System.IterationPath], [System.WorkItemType], [System.AssignedTo], [System.Tags]
       FROM WorkItems
       WHERE [System.TeamProject] = '${ADO_PROJECT}'
-      ${sprint ? `AND [System.IterationPath] = '${ADO_PROJECT}\\${sprint}'` : ''}`;
+      ${iterationPathCondition}
+      ORDER BY [System.Id] DESC`;
+
+    console.log('Executing WIQL query:', wiql);
 
     const queryResponse = await adoApi.post(
       `/wit/wiql?api-version=${ADO_API_VERSION}`,
@@ -56,8 +96,11 @@ app.post('/work-items/query', async (req, res) => {
     const workItemIdsFromQuery = queryResponse.data.workItems.map(wi => wi.id);
 
     if (workItemIdsFromQuery.length === 0) {
-    return res.json([]);
-    };
+      console.log('No work items found for query');
+      return res.json([]);
+    }
+
+    console.log(`Found ${workItemIdsFromQuery.length} work items`);
 
     const detailsResponse = await adoApi.get(
       `/wit/workitems?ids=${workItemIdsFromQuery.join(',')}&api-version=${ADO_API_VERSION}`

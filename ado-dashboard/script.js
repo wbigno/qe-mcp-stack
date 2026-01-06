@@ -1,6 +1,9 @@
 // API Configuration
 const API_BASE_URL = 'http://localhost:3000';
 
+// Import model selector
+import { modelSelector } from './modelSelector.js';
+
 // State Management
 let currentData = {
     workItems: [],
@@ -19,13 +22,16 @@ let isLoading = false;
 
 // Initialize Dashboard
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize model selector
+    modelSelector.initialize();
+
     initializeNavigation();
     initializeFilterBar();
     initializeFilters();
     initializeStoryAnalyzer();
     initializeTestCasesTab();
     addSVGGradients();
-    
+
     // Show initial message prompting user to set filters
     showStatusMessage('Enter a Sprint and click Apply to load data', 'info');
 });
@@ -798,12 +804,15 @@ async function analyzeStoryFull(storyId) {
         let requirementsAnalysis = null;
         
         try {
+            const { model } = modelSelector.getSelection();
+
             const analysisResponse = await fetch(`${API_BASE_URL}/api/ado/analyze-requirements`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     storyIds: [parseInt(storyId)],
-                    includeGapAnalysis: true
+                    includeGapAnalysis: true,
+                    model
                 })
             });
             
@@ -866,13 +875,16 @@ async function generateTestCases(storyId) {
     if (text) text.style.display = 'none';
     
     try {
+        const { model } = modelSelector.getSelection();
+
         console.log('Calling generate-test-cases endpoint...');
         const response = await fetch(`${API_BASE_URL}/api/ado/generate-test-cases`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 storyId: parseInt(storyId),
-                updateADO: false 
+                updateADO: false,
+                model
             })
         });
         
@@ -1422,17 +1434,20 @@ async function generateTestCasesForTab(storyId) {
     if (text) text.style.display = 'none';
     
     try {
+        const { model } = modelSelector.getSelection();
+
         console.log('Calling generate-test-cases endpoint...');
         console.log('Options:', { includeNegative, includeEdgeCases });
-        
+
         const response = await fetch(`${API_BASE_URL}/api/ado/generate-test-cases`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
+            body: JSON.stringify({
                 storyId: parseInt(storyId),
                 updateADO: false,
                 includeNegativeTests: includeNegative,
-                includeEdgeCases: includeEdgeCases
+                includeEdgeCases: includeEdgeCases,
+                model
             })
         });
         

@@ -280,4 +280,90 @@ function transformCodeAnalysisForDashboard(codeData, coverageData, appName) {
   };
 }
 
+// ============================================
+// AZURE DEVOPS DASHBOARD ENDPOINTS
+// ============================================
+
+/**
+ * Get Azure DevOps Dashboard Summary
+ * GET /api/dashboard/aod-summary?sprint=Sprint%2042&state=Active
+ */
+router.get('/aod-summary', async (req, res) => {
+  try {
+    const { sprint, state, environment } = req.query;
+
+    logger.info('[Dashboard] Getting ADO summary', { sprint, state, environment });
+
+    // Build WIQL query for work items
+    let wiqlConditions = ["[System.WorkItemType] IN ('User Story', 'Task', 'Bug')"];
+
+    if (sprint) {
+      wiqlConditions.push(`[System.IterationPath] UNDER '${sprint}'`);
+    }
+    if (state) {
+      wiqlConditions.push(`[System.State] = '${state}'`);
+    }
+
+    const wiql = `SELECT * FROM WorkItems WHERE ${wiqlConditions.join(' AND ')}`;
+
+    // Fetch work items from Azure DevOps MCP
+    const workItems = await req.mcpManager.callDockerMcp('azureDevOps', '/work-items/query', {
+      wiql
+    }).catch(err => {
+      logger.warn('[Dashboard] Failed to fetch work items:', err.message);
+      return [];
+    });
+
+    // Transform to dashboard format
+    const workItemDetails = (workItems || []).map(wi => ({
+      id: wi.id,
+      title: wi.fields?.['System.Title'] || 'Untitled',
+      type: wi.fields?.['System.WorkItemType'] || 'Unknown',
+      state: wi.fields?.['System.State'] || 'Unknown',
+      assignedTo: wi.fields?.['System.AssignedTo']?.displayName || 'Unassigned',
+      priority: wi.fields?.['Microsoft.VSTS.Common.Priority'] || 3,
+      tags: wi.fields?.['System.Tags'] || '',
+      iterationPath: wi.fields?.['System.IterationPath'] || '',
+      areaPath: wi.fields?.['System.AreaPath'] || '',
+      createdDate: wi.fields?.['System.CreatedDate'] || new Date().toISOString(),
+      changedDate: wi.fields?.['System.ChangedDate'] || new Date().toISOString()
+    }));
+
+    res.json({
+      success: true,
+      timestamp: new Date().toISOString(),
+      filters: { sprint, state, environment },
+      workItemDetails,
+      summary: {
+        total: workItemDetails.length,
+        byType: calculateByType(workItemDetails),
+        byState: calculateByState(workItemDetails)
+      }
+    });
+
+  } catch (error) {
+    logger.error('[Dashboard] ADO summary error:', error);
+    res.status(500).json({
+      error: 'Failed to get ADO summary',
+      message: error.message
+    });
+  }
+});
+
+function calculateByType(workItems) {
+  const counts = {};
+  workItems.forEach(wi => {
+    counts[wi.type] = (counts[wi.type] || 0) + 1;
+  });
+  return counts;
+}
+
+function calculateByState(workItems) {
+  const counts = {};
+  workItems.forEach(wi => {
+    counts[wi.state] = (counts[wi.state] || 0) + 1;
+  });
+  return counts;
+}
+
 export default router;

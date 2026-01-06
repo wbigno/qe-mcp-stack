@@ -10,13 +10,13 @@ const router = express.Router();
 // Pull stories from Azure DevOps
 router.post('/pull-stories', async (req, res) => {
   try {
-    const { sprint, workItemIds, query } = req.body;
-    logger.info('Pulling stories from Azure DevOps');
+    const { sprint, workItemIds, query, organization, project, team } = req.body;
+    logger.info('Pulling stories from Azure DevOps', { sprint, workItemIds: workItemIds?.length, organization, project, team });
 
     const stories = await req.mcpManager.callDockerMcp(
       'azureDevOps',
       '/work-items/query',
-      { sprint, workItemIds, query }
+      { sprint, workItemIds, query, organization, project, team }
     );
 
     res.json({

@@ -1,14 +1,10 @@
 import express from 'express';
-import Anthropic from '@anthropic-ai/sdk';
+import { generateCompletion } from '../shared/aiClient.js';
 
 const app = express();
 const PORT = process.env.PORT || 3005;
 
 app.use(express.json());
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
 
 app.get('/health', (req, res) => {
   res.json({
@@ -23,12 +19,13 @@ app.get('/health', (req, res) => {
  */
 app.post('/generate', async (req, res) => {
   try {
-    const { 
-      app: appName, 
-      paths = [], 
+    const {
+      app: appName,
+      paths = [],
       language = 'typescript',
       includePageObjects = true,
-      includeFixtures = true
+      includeFixtures = true,
+      model
     } = req.body;
 
     if (!appName) {
@@ -65,13 +62,13 @@ Requirements:
 Return ONLY the complete, compilable test code without markdown code blocks.`;
 
       try {
-        const message = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 3000,
-          messages: [{ role: 'user', content: prompt }]
+        const response = await generateCompletion({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          maxTokens: 3000
         });
 
-        let testCode = message.content[0].text;
+        let testCode = response.text;
         testCode = testCode.replace(/```typescript\n?/g, '').replace(/```\n?/g, '').trim();
 
         const fileName = path.name.toLowerCase().replace(/\s+/g, '-') + '.spec.ts';
@@ -107,13 +104,13 @@ Create page objects that:
 Return ONLY the code for BasePage.ts and relevant page objects.`;
 
       try {
-        const message = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4000,
-          messages: [{ role: 'user', content: prompt }]
+        const response = await generateCompletion({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          maxTokens: 4000
         });
 
-        let pageObjectCode = message.content[0].text;
+        let pageObjectCode = response.text;
         pageObjectCode = pageObjectCode.replace(/```typescript\n?/g, '').replace(/```\n?/g, '').trim();
 
         // Split into separate page object files
@@ -153,13 +150,13 @@ Return ONLY the code for BasePage.ts and relevant page objects.`;
 Return TypeScript code for fixtures.ts`;
 
       try {
-        const message = await anthropic.messages.create({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2000,
-          messages: [{ role: 'user', content: prompt }]
+        const response = await generateCompletion({
+          model,
+          messages: [{ role: 'user', content: prompt }],
+          maxTokens: 2000
         });
 
-        let fixtureCode = message.content[0].text;
+        let fixtureCode = response.text;
         fixtureCode = fixtureCode.replace(/```typescript\n?/g, '').replace(/```\n?/g, '').trim();
 
         files.push({

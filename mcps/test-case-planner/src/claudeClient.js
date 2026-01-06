@@ -1,59 +1,52 @@
 /**
- * Claude API Client for Test Case Generation
- * 
- * Handles communication with Anthropic Claude API
+ * AI API Client for Test Case Generation
+ *
+ * Handles communication with AI APIs for test case generation
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
-
-// Claude model to use
-const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+import { generateCompletion } from '../../shared/aiClient.js';
 
 /**
- * Generate test cases using Claude API
- * 
+ * Generate test cases using AI
+ *
  * @param {Object} params - Generation parameters
  * @returns {Promise<Object>} Generated test cases
  */
 export async function generateWithClaude(params) {
-  const { 
-    storyId, 
-    requirements, 
+  const {
+    storyId,
+    requirements,
     acceptanceCriteria,
     includeNegative,
-    includeEdgeCases 
+    includeEdgeCases,
+    model
   } = params;
 
   // Construct generation prompt
   const prompt = buildGenerationPrompt(
-    storyId, 
-    requirements, 
+    storyId,
+    requirements,
     acceptanceCriteria,
     includeNegative,
     includeEdgeCases
   );
 
   try {
-    // Call Claude API
-    const response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 8192, // Higher token limit for generating multiple test cases
-      temperature: 0.4, // Slightly higher for creative test scenarios
+    // Call AI API via unified client
+    const response = await generateCompletion({
+      model,
       messages: [
         {
           role: 'user',
           content: prompt
         }
-      ]
+      ],
+      maxTokens: 8192, // Higher token limit for generating multiple test cases
+      temperature: 0.4 // Slightly higher for creative test scenarios
     });
 
     // Extract text content from response
-    const generatedText = response.content[0].text;
+    const generatedText = response.text;
 
     // Parse the structured response
     const testCases = parseTestCasesResponse(generatedText);
@@ -61,7 +54,7 @@ export async function generateWithClaude(params) {
     return testCases;
 
   } catch (error) {
-    throw new Error(`Claude API error: ${error.message}`);
+    throw new Error(`AI API error: ${error.message}`);
   }
 }
 

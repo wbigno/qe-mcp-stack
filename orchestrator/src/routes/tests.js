@@ -167,7 +167,7 @@ router.post('/analyze-file', async (req, res) => {
  */
 router.post('/generate-for-file', async (req, res) => {
   try {
-    const { app, file, className, includeNegativeTests = true, includeMocks = true } = req.body;
+    const { app, file, className, includeNegativeTests = true, includeMocks = true, model } = req.body;
 
     if (!app || !className) {
       return res.status(400).json({ error: 'App and className are required' });
@@ -199,13 +199,14 @@ router.post('/generate-for-file', async (req, res) => {
     
     const unitTests = await req.mcpManager.callStdioMcp(
       'dotnet-unit-test-generator',
-      { 
+      {
         data: {
           app,
           className,
           sourceCode,
           includeNegativeTests,
-          includeMocks
+          includeMocks,
+          model
         }
       }
     );
@@ -232,7 +233,7 @@ router.post('/generate-for-file', async (req, res) => {
  */
 router.post('/generate-integration-for-file', async (req, res) => {
   try {
-    const { app, file, apiEndpoint, scenario, includeAuth = true, includeDatabase = true } = req.body;
+    const { app, file, apiEndpoint, scenario, includeAuth = true, includeDatabase = true, model } = req.body;
 
     if (!app || !apiEndpoint) {
       return res.status(400).json({ error: 'App and apiEndpoint are required' });
@@ -243,13 +244,14 @@ router.post('/generate-integration-for-file', async (req, res) => {
     // Call integration-test-generator STDIO MCP
     const integrationTests = await req.mcpManager.callStdioMcp(
       'dotnet-integration-test-generator',
-      { 
+      {
         data: {
           app,
           apiEndpoint,
           scenario: scenario || `Integration tests for ${apiEndpoint}`,
           includeAuth,
-          includeDatabase
+          includeDatabase,
+          model
         }
       }
     );

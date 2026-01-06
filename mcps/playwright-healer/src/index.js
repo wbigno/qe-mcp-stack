@@ -1,14 +1,10 @@
 import express from 'express';
-import Anthropic from '@anthropic-ai/sdk';
+import { generateCompletion } from '../shared/aiClient.js';
 
 const app = express();
 const PORT = process.env.PORT || 3006;
 
 app.use(express.json());
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
 
 app.get('/health', (req, res) => {
   res.json({
@@ -23,11 +19,12 @@ app.get('/health', (req, res) => {
  */
 app.post('/heal', async (req, res) => {
   try {
-    const { 
-      app: appName, 
+    const {
+      app: appName,
       testFiles = [],
       failureReports = [],
-      autoFix = false 
+      autoFix = false,
+      model
     } = req.body;
 
     console.log(`Healing Playwright tests for ${appName || 'provided files'}`);
@@ -41,7 +38,7 @@ app.post('/heal', async (req, res) => {
 
     // Analyze each failure
     for (const failure of failureReports) {
-      const analysis = await analyzeFailure(failure, autoFix);
+      const analysis = await analyzeFailure(failure, autoFix, model);
       
       if (analysis.fixable && autoFix) {
         results.fixed.push(analysis);
@@ -84,7 +81,7 @@ app.post('/heal', async (req, res) => {
 /**
  * Analyze a test failure and determine how to fix it
  */
-async function analyzeFailure(failure, autoFix) {
+async function analyzeFailure(failure, autoFix, model) {
   const { testFile, testName, error, screenshot } = failure;
 
   console.log(`Analyzing failure: ${testName}`);
@@ -113,15 +110,15 @@ Suggest 3 alternative selectors that might work better:
 Return JSON: { "selectors": ["selector1", "selector2", "selector3"], "reasoning": "why these are better" }`;
 
         try {
-          const message = await anthropic.messages.create({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1000,
-            messages: [{ role: 'user', content: prompt }]
+          const aiResponse = await generateCompletion({
+            model,
+            messages: [{ role: 'user', content: prompt }],
+            maxTokens: 1000
           });
 
-          let response = message.content[0].text;
-          response = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-          const suggestions = JSON.parse(response);
+          let text = aiResponse.text;
+          text = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          const suggestions = JSON.parse(text);
 
           return {
             file: testFile,

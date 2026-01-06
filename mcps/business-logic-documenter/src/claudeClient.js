@@ -1,47 +1,39 @@
 /**
- * Claude API Client for Business Logic Documentation
- * 
- * Handles communication with Anthropic Claude API
+ * AI API Client for Business Logic Documentation
+ *
+ * Handles communication with AI APIs for business logic documentation generation
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
-
-// Claude model to use
-const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+import { generateCompletion } from '../../shared/aiClient.js';
 
 /**
- * Generate documentation using Claude API
- * 
+ * Generate documentation using AI
+ *
  * @param {Object} params - Documentation parameters
  * @returns {Promise<Object>} Generated documentation
  */
 export async function generateWithClaude(params) {
-  const { className, sourceCode, format } = params;
+  const { className, sourceCode, format, model } = params;
 
   // Construct documentation prompt
   const prompt = buildDocumentationPrompt(className, sourceCode, format);
 
   try {
-    // Call Claude API
-    const response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 8192,
-      temperature: 0.3,
+    // Call AI API via unified client
+    const response = await generateCompletion({
+      model,
       messages: [
         {
           role: 'user',
           content: prompt
         }
-      ]
+      ],
+      maxTokens: 8192,
+      temperature: 0.3
     });
 
     // Extract text content from response
-    const generatedText = response.content[0].text;
+    const generatedText = response.text;
 
     // Parse the structured response
     const documentation = parseDocumentationResponse(generatedText);
@@ -49,7 +41,7 @@ export async function generateWithClaude(params) {
     return documentation;
 
   } catch (error) {
-    throw new Error(`Claude API error: ${error.message}`);
+    throw new Error(`AI API error: ${error.message}`);
   }
 }
 

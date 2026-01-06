@@ -1,47 +1,39 @@
 /**
- * Claude API Client for Change Impact Analysis
- * 
- * Handles communication with Anthropic Claude API
+ * AI API Client for Change Impact Analysis
+ *
+ * Handles communication with AI APIs for change impact analysis
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
-
-// Claude model to use
-const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+import { generateCompletion } from '../../shared/aiClient.js';
 
 /**
- * Analyze change impact using Claude API
- * 
+ * Analyze change impact using AI
+ *
  * @param {Object} params - Analysis parameters
  * @returns {Promise<Object>} Impact analysis
  */
 export async function analyzeWithClaude(params) {
-  const { changes, context } = params;
+  const { changes, context, model } = params;
 
   // Construct analysis prompt
   const prompt = buildAnalysisPrompt(changes, context);
 
   try {
-    // Call Claude API
-    const response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 8192,
-      temperature: 0.3,
+    // Call AI API via unified client
+    const response = await generateCompletion({
+      model,
       messages: [
         {
           role: 'user',
           content: prompt
         }
-      ]
+      ],
+      maxTokens: 8192,
+      temperature: 0.3
     });
 
     // Extract text content from response
-    const generatedText = response.content[0].text;
+    const generatedText = response.text;
 
     // Parse the structured response
     const analysis = parseAnalysisResponse(generatedText);
@@ -49,7 +41,7 @@ export async function analyzeWithClaude(params) {
     return analysis;
 
   } catch (error) {
-    throw new Error(`Claude API error: ${error.message}`);
+    throw new Error(`AI API error: ${error.message}`);
   }
 }
 

@@ -13,7 +13,9 @@ POST {{baseUrl}}/api/ado/pull-stories
 Content-Type: application/json
 
 {
-  "sprint": "Sprint 1"
+
+  "sprint": "Core\\Core Team\\2025\\Q4\\25.Q4.07"
+
 }
 
 ### Pull Specific Stories by ID
@@ -21,7 +23,7 @@ POST {{baseUrl}}/api/ado/pull-stories
 Content-Type: application/json
 
 {
-  "workItemIds": [2]
+  "workItemIds": [62970]
 }
 
 ### Pull Multiple Stories
@@ -160,27 +162,39 @@ GET {{baseUrl}}/api/ado/test-runs?automated=false
 ### Get Test Results for Specific Run
 GET {{baseUrl}}/api/ado/test-runs/98765/results
 
-### Get Test Execution Metrics
+### Get Test Execution Metrics (All Test Runs)
 GET {{baseUrl}}/api/ado/test-execution/metrics
 
 ### Get Test Execution Metrics for Sprint
+GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Sprint%201
+
+### Get Test Execution Metrics for Sprint and Plan
 GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Sprint%2042&planId=12345
 
 ##########################################
 # QUALITY METRICS & REPORTING
 ##########################################
 
-### Get Overall Quality Metrics
+### Get Overall Quality Metrics (All Data)
 GET {{baseUrl}}/api/ado/quality-metrics
 
-### Get Quality Metrics for Sprint
+### Get Quality Metrics for Specific Sprint
+GET {{baseUrl}}/api/ado/quality-metrics?sprint=Sprint%201
+
+### Get Quality Metrics for Another Sprint
 GET {{baseUrl}}/api/ado/quality-metrics?sprint=Sprint%2042
 
-### Get Azure DevOps Dashboard Summary
+### Get Azure DevOps Dashboard Summary (All Work Items)
 GET {{baseUrl}}/api/dashboard/aod-summary
 
-### Get ADO Summary with Filters
+### Get ADO Summary for Specific Sprint
+GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%201
+
+### Get ADO Summary with Sprint and State Filters
 GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%2042&state=Active
+
+### Get ADO Summary with All Filters (Sprint, State, Environment)
+GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%201&state=Active&environment=UAT
 
 ##########################################
 # ADO WORKFLOWS
@@ -322,3 +336,58 @@ GET {{baseUrl}}/api/ado/quality-metrics
 GET {{baseUrl}}/api/ado/quality-metrics?sprint=Sprint%201
 ###
 # Expected: Success with sprint-specific metrics
+
+### Quick Test - ADO Dashboard Summary
+GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%201
+###
+# Expected: Success with work items and summary statistics
+
+### Quick Test - Test Execution Metrics
+GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Sprint%201
+###
+# Expected: Success with test execution metrics and trends
+
+##########################################
+# ENHANCED ENDPOINTS (WITH IMPROVED ERROR HANDLING)
+##########################################
+
+### Enhanced: ADO Dashboard Summary
+# Features:
+# - Queries work items from Azure DevOps
+# - Supports filtering by sprint, state, and environment
+# - Returns work items with detailed fields and summary statistics
+# - Graceful error handling - returns empty array if ADO unavailable
+GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%201&state=Active
+
+### Enhanced: Quality Metrics
+# Features:
+# - Individual error handling for defects, test runs, and stories
+# - Prevents single failure from crashing entire endpoint
+# - Division by zero protection in quality score calculation
+# - Graceful degradation with partial data
+GET {{baseUrl}}/api/ado/quality-metrics?sprint=Sprint%201
+
+### Enhanced: Test Execution Metrics
+# Features:
+# - Error handling for test runs fetch
+# - Returns empty metrics if data unavailable
+# - Supports sprint and planId filtering
+# - Detailed error logging with stack traces
+GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Sprint%201
+
+##########################################
+# ENDPOINT NOTES
+##########################################
+
+# All enhanced endpoints now include:
+# ✅ Comprehensive error handling
+# ✅ Graceful degradation (partial data instead of 500 errors)
+# ✅ Detailed logging with context
+# ✅ Stack traces in error responses for debugging
+# ✅ Default values for missing/null data
+
+# Dashboard endpoints optimized for:
+# - Real-time dashboard display
+# - Filtering by sprint, state, environment
+# - Summary statistics and aggregations
+# - Work item details with all relevant fields

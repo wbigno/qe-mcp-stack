@@ -1,49 +1,42 @@
 /**
  * Claude API Client
- * 
- * Handles communication with Anthropic Claude API for requirements analysis
+ *
+ * Handles communication with AI APIs for requirements analysis
  */
 
-import Anthropic from '@anthropic-ai/sdk';
-
-// Initialize Anthropic client
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-});
-
-// Claude model to use
-const MODEL = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+import { generateCompletion } from '../../shared/aiClient.js';
 
 /**
- * Analyze requirements using Claude API
- * 
+ * Analyze requirements using AI
+ *
  * @param {Object} params - Analysis parameters
  * @param {number} params.storyId - Story ID
  * @param {Object} params.storyContent - Story content
+ * @param {string} params.model - Optional model to use
  * @returns {Promise<Object>} Analysis results
  */
-export async function analyzeWithClaude({ storyId, storyContent }) {
+export async function analyzeWithClaude({ storyId, storyContent, model }) {
   const { title, description, acceptanceCriteria } = storyContent;
 
   // Construct analysis prompt
   const prompt = buildAnalysisPrompt(storyId, title, description, acceptanceCriteria);
 
   try {
-    // Call Claude API
-    const response = await anthropic.messages.create({
-      model: MODEL,
-      max_tokens: 4096,
-      temperature: 0.3, // Lower temperature for more consistent analysis
+    // Call AI API via unified client
+    const response = await generateCompletion({
+      model,
       messages: [
         {
           role: 'user',
           content: prompt
         }
-      ]
+      ],
+      maxTokens: 4096,
+      temperature: 0.3 // Lower temperature for more consistent analysis
     });
 
     // Extract text content from response
-    const analysisText = response.content[0].text;
+    const analysisText = response.text;
 
     // Parse the structured response
     const analysis = parseAnalysisResponse(analysisText);
@@ -51,7 +44,7 @@ export async function analyzeWithClaude({ storyId, storyContent }) {
     return analysis;
 
   } catch (error) {
-    throw new Error(`Claude API error: ${error.message}`);
+    throw new Error(`AI API error: ${error.message}`);
   }
 }
 
