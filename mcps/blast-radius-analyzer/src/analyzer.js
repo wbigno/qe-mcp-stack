@@ -4,7 +4,7 @@
  * Static analysis of code changes to determine impact
  */
 
-import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
+import { readFileSync, existsSync, readdirSync, statSync, promises as fs } from 'fs';
 import { join, dirname, basename, extname } from 'path';
 
 /**
@@ -23,8 +23,8 @@ export async function analyzeBlastRadius(params) {
   // Validate input
   validateInput(params);
 
-  // Get app directory
-  const appDir = `/mnt/apps/${app}`;
+  // Load app configuration to get the correct path
+  const appDir = await getAppDirectory(app);
   if (!existsSync(appDir)) {
     throw new Error(`App directory not found: ${appDir}`);
   }
@@ -463,6 +463,29 @@ function generateRecommendations(impact, risk) {
   });
 
   return recommendations;
+}
+
+/**
+ * Get app directory from configuration
+ */
+async function getAppDirectory(appName) {
+  try {
+    // Use /app/config in Docker, fallback to relative path for local dev
+    const configPath = process.env.CONFIG_PATH || '/app/config/apps.json';
+    const content = await fs.readFile(configPath, 'utf-8');
+    const config = JSON.parse(content);
+
+    const app = config.applications.find(a => a.name === appName);
+    if (!app) {
+      throw new Error(`Application ${appName} not found in configuration`);
+    }
+
+    return app.path;
+  } catch (error) {
+    console.error('Error loading app config:', error);
+    // Fallback to old behavior if config not available
+    return `/mnt/apps/${appName}`;
+  }
 }
 
 export default {

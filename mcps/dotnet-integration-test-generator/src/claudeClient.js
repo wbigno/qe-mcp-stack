@@ -39,7 +39,7 @@ export async function generateWithClaude(params) {
           content: prompt
         }
       ],
-      maxTokens: 8192,
+      maxTokens: 4096,
       temperature: 0.3
     });
 
@@ -183,14 +183,23 @@ Generate comprehensive integration tests covering all scenarios. Return ONLY the
  */
 function parseTestsResponse(text) {
   try {
-    // Remove markdown code blocks if present
-    const cleaned = text
-      .replace(/```json\n?/g, '')
-      .replace(/```\n?/g, '')
-      .trim();
+    // Extract JSON from the response (handles markdown blocks and surrounding text)
+    let jsonText = text;
+
+    // Try to find JSON within markdown code blocks first
+    const codeBlockMatch = text.match(/```json\s*\n?([\s\S]*?)\n?```/);
+    if (codeBlockMatch) {
+      jsonText = codeBlockMatch[1].trim();
+    } else {
+      // If no code block, try to find JSON object directly
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[0];
+      }
+    }
 
     // Parse JSON
-    const parsed = JSON.parse(cleaned);
+    const parsed = JSON.parse(jsonText);
 
     // Validate structure
     if (!Array.isArray(parsed.tests)) {

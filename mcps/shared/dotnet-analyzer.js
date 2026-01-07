@@ -254,7 +254,8 @@ export class DotNetAnalyzer {
   
   async loadAppConfig(appName) {
     try {
-      const configPath = path.join(process.cwd(), '../../config/apps.json');
+      // Use /app/config in Docker, fallback to relative path for local dev
+      const configPath = process.env.CONFIG_PATH || '/app/config/apps.json';
       const content = await fs.readFile(configPath, 'utf-8');
       const config = JSON.parse(content);
       

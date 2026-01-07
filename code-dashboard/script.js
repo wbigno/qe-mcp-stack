@@ -84,10 +84,7 @@ async function loadApplications() {
         const appFilter = document.getElementById('appFilter');
         appFilter.innerHTML = `
             <option value="">Select Application...</option>
-            <option value="App1">Application 1 - Patient Portal (net10.0)</option>
-            <option value="App2">Application 2 - Financial Processing (net8.0)</option>
-            <option value="App3">Application 3 (net8.0)</option>
-            <option value="App4">Application 4 (net8.0)</option>
+            <option value="App1">Application 1 - Core (net10.0)</option>
         `;
     }
 }
@@ -274,15 +271,23 @@ function updateCoverageTab() {
     
     // Calculate stats
     const totalMethods = testGaps.summary?.totalMethods || allMethods.length;
-    const covered = partialMethods.length; // Methods with >0% coverage
-    const untested = untestedMethods.length;
-    const overall = testGaps.summary?.coveragePercentage || 0;
-    
+    const methodsWithCoverage = allMethods.filter(m => m.coverage !== null && m.coverage !== undefined);
+    const methodsWithTests = allMethods.filter(m => m.hasTests);
+
+    // Calculate percentages
+    const lineCoveragePercent = testGaps.summary?.coveragePercentage || 0;
+    const methodCoveragePercent = totalMethods > 0 ? Math.round((methodsWithTests.length / totalMethods) * 100) : 0;
+
+    // Branch coverage and lines covered require actual XML data
+    const hasCoverageData = methodsWithCoverage.length > 0;
+    const branchCoverageDisplay = hasCoverageData ? '0' : 'N/A'; // We don't parse branch coverage from XML yet
+    const linesCoveredDisplay = hasCoverageData ? methodsWithCoverage.length : 'N/A'; // Approximation
+
     // Update stats
-    document.getElementById('lineCoverage').textContent = `${overall}%`;
-    document.getElementById('branchCoverage').textContent = covered;
-    document.getElementById('methodCoverage').textContent = untested;
-    document.getElementById('linesCovered').textContent = totalMethods;
+    document.getElementById('lineCoverage').textContent = `${lineCoveragePercent}%`;
+    document.getElementById('branchCoverage').textContent = branchCoverageDisplay;
+    document.getElementById('methodCoverage').textContent = `${methodCoveragePercent}%`;
+    document.getElementById('linesCovered').textContent = linesCoveredDisplay;
     
     // Update table with METHOD-level coverage
     const tbody = document.querySelector('#coverageTable tbody');
@@ -292,20 +297,25 @@ function updateCoverageTab() {
         return;
     }
     
-    // Sort by coverage (lowest first)
-    allMethods.sort((a, b) => a.coverage - b.coverage);
-    
+    // Sort by coverage (lowest first, nulls at end)
+    allMethods.sort((a, b) => {
+        if (a.coverage === null) return 1;
+        if (b.coverage === null) return -1;
+        return a.coverage - b.coverage;
+    });
+
     tbody.innerHTML = allMethods.map(method => {
-        const cov = method.coverage || 0;
-        const status = cov >= 80 ? 'GOOD' : cov > 0 ? 'PARTIAL' : 'UNTESTED';
-        const statusClass = cov >= 80 ? 'badge-low' : cov > 0 ? 'badge-medium' : 'badge-high';
+        const cov = method.coverage;
+        const covDisplay = cov !== null ? `${cov}%` : 'N/A';
+        const status = cov === null ? 'NO DATA' : (cov >= 80 ? 'GOOD' : cov > 0 ? 'PARTIAL' : 'UNTESTED');
+        const statusClass = cov === null ? 'badge-medium' : (cov >= 80 ? 'badge-low' : cov > 0 ? 'badge-medium' : 'badge-high');
         const fileName = method.file.split('/').pop();
-        
+
         return `
             <tr>
                 <td><strong>${method.name}</strong></td>
                 <td style="font-size: 12px; color: #94a3b8;">${fileName}</td>
-                <td>${cov}%</td>
+                <td>${covDisplay}</td>
                 <td>${method.hasTests ? '✅' : '❌'}</td>
                 <td><span class="badge ${statusClass}">${status}</span></td>
             </tr>
@@ -381,10 +391,16 @@ function updateTestGapsTab() {
     console.log('  📊 Files with gaps:', Object.keys(fileGroups).length);
     
     // Update stats
-    document.getElementById('totalMethods').textContent = summary.totalMethods || 0;
-    document.getElementById('untestedMethods').textContent = Object.keys(fileGroups).length;
+    const totalMethodsCount = summary.totalMethods || 0;
+    const untestedFilesCount = Object.keys(fileGroups).length;
+    const untestedMethodsCount = gaps.untestedMethods?.length || 0;
+    const untestedPercent = totalMethodsCount > 0 ? Math.round((untestedMethodsCount / totalMethodsCount) * 100) : 0;
+
+    document.getElementById('totalMethods').textContent = totalMethodsCount;
+    document.getElementById('untestedMethods').textContent = untestedFilesCount;
+    document.getElementById('untestedLabel').textContent = `Untested (${untestedPercent}%)`;
     document.getElementById('partialCoverage').textContent = gaps.partialCoverage?.length || 0;
-    document.getElementById('missingNegativeTests').textContent = gaps.falsePositiveTests?.length || 0;
+    document.getElementById('missingNegativeTests').textContent = gaps.missingNegativeTests?.length || 0;
     
     // Build file-grouped display
     const tbody = document.querySelector('#testGapsTable tbody');
@@ -427,8 +443,13 @@ function categorizeByFile(gaps) {
     untestedMethods.forEach(method => {
         // ✅ FIX: Skip invalid methods
         if (!method || !method.file) return;
-        
+
         const fileName = method.file.split('/').pop();
+
+        // ✅ FIX: Skip test files (they shouldn't show in test gaps!)
+        if (fileName.includes('Test.cs') || fileName.includes('Tests.cs')) {
+            return;
+        }
         
         if (!fileGroups[fileName]) {
             fileGroups[fileName] = {
@@ -459,8 +480,13 @@ function categorizeByFile(gaps) {
     partialCoverage.forEach(method => {
         // ✅ FIX: Skip invalid methods
         if (!method || !method.file) return;
-        
+
         const fileName = method.file.split('/').pop();
+
+        // ✅ FIX: Skip test files
+        if (fileName.includes('Test.cs') || fileName.includes('Tests.cs')) {
+            return;
+        }
         
         if (!fileGroups[fileName]) {
             fileGroups[fileName] = {
@@ -582,10 +608,11 @@ function createFileGroupSection(fileName, fileData) {
     
     fileData.methods.forEach(method => {
         const safeMethodName = method.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        const covDisplay = method.coverage !== null ? `${method.coverage}%` : 'N/A';
         html += `
             <tr>
                 <td><strong>${method.name}</strong></td>
-                <td>${method.coverage || 0}%</td>
+                <td>${covDisplay}</td>
                 <td>${method.hasTests ? '✅' : '❌'}</td>
                 <td>${method.hasNegativeTests ? '✅' : '❌'}</td>
                 <td><span class="badge badge-${method.priority.toLowerCase()}">${method.priority}</span></td>
@@ -1052,7 +1079,7 @@ function viewMethodDetails(fileName, methodName) {
                     <div class="detail-row">
                         <strong>Coverage:</strong>
                         <div style="margin-top: 5px;">
-                            ${methodData.coverage !== undefined ? `${methodData.coverage}%` : 'N/A'}
+                            ${methodData.coverage !== null && methodData.coverage !== undefined ? `${methodData.coverage}%` : 'N/A'}
                         </div>
                     </div>
 
@@ -1230,9 +1257,10 @@ function categorizeTestGaps(gaps) {
             });
         } else {
             // Production method needs more coverage
+            const covMsg = method.coverage !== null ? `Only ${method.coverage}% covered - needs more test cases` : 'Coverage data not available - run tests with coverage collection';
             categories.needsMoreTests.push({
                 ...method,
-                issue: `Only ${method.coverage}% covered - needs more test cases`,
+                issue: covMsg,
                 type: 'PRODUCTION_METHOD'
             });
         }
@@ -1255,7 +1283,7 @@ function categorizeTestGaps(gaps) {
 function createTestGapRow(method, priority, priorityClass) {
     const hasTests = method.hasTests ? '✅' : '❌';
     const hasNegative = method.hasNegativeTests ? '✅' : '❌';
-    const coverage = method.coverage !== undefined ? `${method.coverage}%` : '0%';
+    const coverage = method.coverage !== null && method.coverage !== undefined ? `${method.coverage}%` : 'N/A';
     const fileName = method.file.split('/').pop();
     const typeIcon = method.type === 'TEST_METHOD' ? '🧪' : 
                      method.type === 'PRODUCTION_METHOD' ? '⚙️' : '🔧';

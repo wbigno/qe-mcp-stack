@@ -8,22 +8,23 @@
 # AZURE DEVOPS - STORIES & WORK ITEMS
 ##########################################
 
-### Pull Stories from Current Sprint
+### Pull Stories from Current Sprint (2026 Q1 Sprint 01)
 POST {{baseUrl}}/api/ado/pull-stories
 Content-Type: application/json
 
 {
-
-  "sprint": "Core\\Core Team\\2025\\Q4\\25.Q4.07"
-
+  "sprint": "Core\\Core Team\\2026\\Q1\\26.Q1.01"
 }
+###
+# Sprint path format in JSON: Project\\Team\\Year\\Quarter\\Sprint
+# Returns: All work items for 2026 Q1 Sprint 01
 
 ### Pull Specific Stories by ID
 POST {{baseUrl}}/api/ado/pull-stories
 Content-Type: application/json
 
 {
-  "workItemIds": [62970]
+  "workItemIds": [63145]
 }
 
 ### Pull Multiple Stories
@@ -95,38 +96,57 @@ Content-Type: application/json
 # DEFECT MANAGEMENT
 ##########################################
 
-### Get All Defects
+### Get All Defects (No Filter)
 GET {{baseUrl}}/api/ado/defects
+###
+# Returns: All defects across all sprints
 
-### Get Defects Filtered by Environment
-GET {{baseUrl}}/api/ado/defects?environment=UAT
+### Get Defects for Current Sprint (2026 Q1 Sprint 01)
+GET {{baseUrl}}/api/ado/defects?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01
+###
+# Sprint path format: Project\Team\Year\Quarter\Sprint
+# URL-encoded: Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01
+# Returns: 1 defect (ID: 63145)
 
 ### Get Dev Environment Defects
 GET {{baseUrl}}/api/ado/defects?environment=Dev
+###
+# Filters defects with "Dev" tag
 
-### Get UAT Environment Defects  
+### Get UAT Environment Defects (Active Only)
 GET {{baseUrl}}/api/ado/defects?environment=UAT&state=Active
+###
+# Filters defects with "UAT" tag and "Active" state
 
 ### Get Prod Environment Defects
 GET {{baseUrl}}/api/ado/defects?environment=Prod
+###
+# Filters defects with "Prod" tag
 
-### Get Defects by Severity and State
-GET {{baseUrl}}/api/ado/defects?severity=High&state=Active
+### Get Defects for Sprint with Environment Filter
+GET {{baseUrl}}/api/ado/defects?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01&environment=UAT
+###
+# Combines sprint and environment filters
 
-### Get Critical/High Priority Defects
-GET {{baseUrl}}/api/ado/defects?severity=Critical&priority=1
-
-### Get Defects for Specific Sprint
-GET {{baseUrl}}/api/ado/defects?sprint=Sprint%2042
+### Get Active Defects for Current Sprint
+GET {{baseUrl}}/api/ado/defects?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01&state=Active
+###
+# Filters by sprint and state
 
 ### Get Defects by Story
-GET {{baseUrl}}/api/ado/defects/by-story/2
+GET {{baseUrl}}/api/ado/defects/by-story/62967
+###
+# Returns defects linked to specific story (parent work item)
 
-### Get Defect Metrics
+### Get Defect Metrics (All Sprints)
 GET {{baseUrl}}/api/ado/defects/metrics
+###
+# Returns: metrics, byEnvironment, bySeverity, byPriority
 
-### Get Defect Metrics for Sprint
-GET {{baseUrl}}/api/ado/defects/metrics?sprint=Sprint1
+### Get Defect Metrics for Current Sprint
+GET {{baseUrl}}/api/ado/defects/metrics?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01
+###
+# Returns metrics filtered to specific sprint
 
 ##########################################
 # TEST EXECUTION & TEST PLANS
@@ -164,12 +184,36 @@ GET {{baseUrl}}/api/ado/test-runs/98765/results
 
 ### Get Test Execution Metrics (All Test Runs)
 GET {{baseUrl}}/api/ado/test-execution/metrics
+###
+# Note: Test execution endpoints return graceful message if not implemented
+# Returns: available=false, message="Test execution tracking not yet implemented"
 
-### Get Test Execution Metrics for Sprint
-GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Sprint%201
+### Get Test Execution Metrics for Current Sprint
+GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01
+###
+# Returns empty metrics with message about feature not yet implemented
 
 ### Get Test Execution Metrics for Sprint and Plan
-GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Sprint%2042&planId=12345
+GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01&planId=12345
+###
+# Filters by both sprint and test plan ID (when implemented)
+
+### Get Test Execution By Story (Story-Centric View)
+GET {{baseUrl}}/api/ado/test-execution/by-story?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01
+###
+# Returns test execution data organized by story
+# For each story, shows:
+# - Story details (ID, title, state, type)
+# - Test cases linked to the story
+# - Per-story metrics (total cases, automation rate, pass rate)
+# - Overall metrics across all stories
+# Used by ADO Dashboard Test Execution tab for story-centric view
+
+### Get Test Execution By Story (All Stories)
+GET {{baseUrl}}/api/ado/test-execution/by-story
+###
+# Returns all stories with their test cases (no sprint filter)
+# Note: May return large dataset, recommend using sprint filter
 
 ##########################################
 # QUALITY METRICS & REPORTING
@@ -177,24 +221,37 @@ GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Sprint%2042&planId=12345
 
 ### Get Overall Quality Metrics (All Data)
 GET {{baseUrl}}/api/ado/quality-metrics
+###
+# Returns: defects, testing (with available flag), coverage, qualityScore
+# Note: Test execution returns available=false if not yet implemented
 
-### Get Quality Metrics for Specific Sprint
-GET {{baseUrl}}/api/ado/quality-metrics?sprint=Sprint%201
-
-### Get Quality Metrics for Another Sprint
-GET {{baseUrl}}/api/ado/quality-metrics?sprint=Sprint%2042
+### Get Quality Metrics for Current Sprint
+GET {{baseUrl}}/api/ado/quality-metrics?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01
+###
+# Returns sprint-specific metrics with defects and story counts
+# Testing metrics show available=false with explanation
 
 ### Get Azure DevOps Dashboard Summary (All Work Items)
 GET {{baseUrl}}/api/dashboard/aod-summary
+###
+# Returns all work items with hierarchy (parents, children, orphans)
+# Includes summary statistics
 
-### Get ADO Summary for Specific Sprint
-GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%201
+### Get ADO Summary for Current Sprint
+GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01
+###
+# Returns work items for 2026 Q1 Sprint 01
+# Includes parents, children, and orphan tasks
 
 ### Get ADO Summary with Sprint and State Filters
-GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%2042&state=Active
+GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01&state=Active
+###
+# Filters to Active work items only
 
 ### Get ADO Summary with All Filters (Sprint, State, Environment)
-GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%201&state=Active&environment=UAT
+GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01&state=Active&environment=UAT
+###
+# Combines sprint, state, and environment filters
 
 ##########################################
 # ADO WORKFLOWS
@@ -313,6 +370,29 @@ GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Sprint%2042
 # Step 4: Get dashboard summary
 GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%2042
 
+### Workflow 6: Story-Centric Test Coverage (NEW)
+# Step 1: Get test coverage by story for current sprint
+GET {{baseUrl}}/api/ado/test-execution/by-story?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01
+###
+# Returns:
+# - Overall metrics: total stories, stories with/without tests, automation rate
+# - Per-story breakdown: test cases linked to each story
+# - Test case details: automated/manual, state, run history
+# Used by ADO Dashboard Test Execution tab
+
+###
+# Step 2: Review specific story's test coverage
+# Extract storyId from response above, then view in dashboard
+GET {{baseUrl}}/api/dashboard/work-item/63019?analyze=true&generateTestCases=true
+
+###
+# Step 3: Compare with defects for same sprint
+GET {{baseUrl}}/api/ado/defects?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01
+
+###
+# Step 4: Get overall quality metrics
+GET {{baseUrl}}/api/ado/quality-metrics?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01
+
 ##########################################
 # TESTING & VALIDATION
 ##########################################
@@ -346,6 +426,13 @@ GET {{baseUrl}}/api/dashboard/aod-summary?sprint=Sprint%201
 GET {{baseUrl}}/api/ado/test-execution/metrics?sprint=Sprint%201
 ###
 # Expected: Success with test execution metrics and trends
+
+### Quick Test - Story-Centric Test Execution (NEW)
+GET {{baseUrl}}/api/ado/test-execution/by-story?sprint=Core%5CCore%20Team%5C2026%5CQ1%5C26.Q1.01
+###
+# Expected: Success with story-organized test execution data
+# Returns: metrics object with totalStories, storiesWithTests, etc.
+# Returns: stories array with test cases for each story
 
 ##########################################
 # ENHANCED ENDPOINTS (WITH IMPROVED ERROR HANDLING)

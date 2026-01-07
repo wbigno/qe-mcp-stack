@@ -34,10 +34,10 @@ app.post('/work-items/query', async (req, res) => {
     const { sprint, workItemIds, query, organization, project, team } = req.body;
 
     if (workItemIds) {
-      // Get specific work items
+      // Get specific work items with relations
       const ids = workItemIds.join(',');
       const response = await adoApi.get(
-        `/wit/workitems?ids=${ids}&api-version=${ADO_API_VERSION}`
+        `/wit/workitems?ids=${ids}&$expand=relations&api-version=${ADO_API_VERSION}`
       );
       return res.json(response.data.value || []);
     }
@@ -102,9 +102,16 @@ app.post('/work-items/query', async (req, res) => {
 
     console.log(`Found ${workItemIdsFromQuery.length} work items`);
 
-    const detailsResponse = await adoApi.get(
-      `/wit/workitems?ids=${workItemIdsFromQuery.join(',')}&api-version=${ADO_API_VERSION}`
-    );
+    // Fetch work item details with relations to get parent-child links
+    const detailsUrl = `/wit/workitems?ids=${workItemIdsFromQuery.join(',')}&$expand=relations&api-version=${ADO_API_VERSION}`;
+    console.log('Fetching work item details with URL:', detailsUrl);
+
+    const detailsResponse = await adoApi.get(detailsUrl);
+
+    // Log if we got relations
+    const sampleItem = detailsResponse.data.value?.[0];
+    console.log('Sample work item keys:', sampleItem ? Object.keys(sampleItem) : 'none');
+    console.log('Sample has relations:', sampleItem?.relations ? `yes (${sampleItem.relations.length})` : 'no');
 
     res.json(detailsResponse.data.value || []);
   } catch (error) {
@@ -240,6 +247,96 @@ app.post('/work-items/bulk-update', async (req, res) => {
   } catch (error) {
     console.error('ADO bulk update error:', error.message);
     res.status(500).json({ error: 'Failed to bulk update', message: error.message });
+  }
+});
+
+// Get all projects
+app.get('/iterations/projects', async (req, res) => {
+  try {
+    const response = await axios.get(
+      `https://dev.azure.com/${ADO_ORG}/_apis/projects?api-version=${ADO_API_VERSION}`,
+      {
+        auth: {
+          username: '',
+          password: ADO_PAT
+        }
+      }
+    );
+
+    const projects = response.data.value.map(p => ({
+      name: p.name,
+      id: p.id
+    }));
+
+    res.json({ projects });
+  } catch (error) {
+    console.error('ADO projects error:', error.message);
+    res.status(500).json({ error: 'Failed to get projects', message: error.message });
+  }
+});
+
+// Get teams for a project
+app.get('/iterations/teams', async (req, res) => {
+  try {
+    const { project } = req.query;
+
+    if (!project) {
+      return res.status(400).json({ error: 'project query parameter required' });
+    }
+
+    const response = await axios.get(
+      `https://dev.azure.com/${ADO_ORG}/_apis/projects/${project}/teams?api-version=${ADO_API_VERSION}`,
+      {
+        auth: {
+          username: '',
+          password: ADO_PAT
+        }
+      }
+    );
+
+    const teams = response.data.value.map(t => ({
+      name: t.name,
+      id: t.id
+    }));
+
+    res.json({ teams });
+  } catch (error) {
+    console.error('ADO teams error:', error.message);
+    res.status(500).json({ error: 'Failed to get teams', message: error.message });
+  }
+});
+
+// Get sprints for a team
+app.get('/iterations/sprints', async (req, res) => {
+  try {
+    const { project, team } = req.query;
+
+    if (!project || !team) {
+      return res.status(400).json({ error: 'project and team query parameters required' });
+    }
+
+    const response = await axios.get(
+      `https://dev.azure.com/${ADO_ORG}/${project}/${team}/_apis/work/teamsettings/iterations?api-version=${ADO_API_VERSION}`,
+      {
+        auth: {
+          username: '',
+          password: ADO_PAT
+        }
+      }
+    );
+
+    const sprints = response.data.value.map(s => ({
+      name: s.name,
+      path: s.path,
+      id: s.id,
+      startDate: s.attributes?.startDate,
+      finishDate: s.attributes?.finishDate
+    }));
+
+    res.json({ sprints });
+  } catch (error) {
+    console.error('ADO sprints error:', error.message);
+    res.status(500).json({ error: 'Failed to get sprints', message: error.message });
   }
 });
 

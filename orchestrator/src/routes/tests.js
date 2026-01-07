@@ -25,10 +25,7 @@ function resolveFilePath(app, file) {
   
   // Otherwise, convert relative app path to absolute Docker path
   const appPathMap = {
-    'App1': 'patient-portal/PatientPortal',
-    'App2': 'app2/App2',
-    'App3': 'app3/App3',
-    'App4': 'app4/App4'
+    'App1': 'core'
   };
   
   const appPath = appPathMap[app];
@@ -337,73 +334,19 @@ function detectIntegrationType(call) {
 }
 
 // ============================================
-// LEGACY ENDPOINTS (Keep for backward compatibility)
+// LEGACY ENDPOINTS REMOVED - 2026-01-07
 // ============================================
-
-router.post('/generate-unit-tests', async (req, res) => {
-  try {
-    const { app, className, sourceCode } = req.body;
-
-    if (!app || !className) {
-      return res.status(400).json({ error: 'App and className are required' });
-    }
-
-    logger.info(`[Legacy] Generating unit tests for ${className}`);
-
-    const unitTests = await req.mcpManager.callStdioMcp(
-      'dotnet-unit-test-generator',
-      { 
-        data: {
-          app,
-          className,
-          sourceCode,
-          includeNegativeTests: true,
-          includeMocks: true
-        }
-      }
-    );
-
-    res.json(unitTests);
-  } catch (error) {
-    logger.error('[Legacy] Unit test generation error:', error);
-    res.status(500).json({ 
-      error: 'Unit test generation failed',
-      message: error.message 
-    });
-  }
-});
-
-router.post('/generate-integration-tests', async (req, res) => {
-  try {
-    const { app, apiEndpoint, scenario } = req.body;
-
-    if (!app || !apiEndpoint) {
-      return res.status(400).json({ error: 'App and apiEndpoint are required' });
-    }
-
-    logger.info(`[Legacy] Generating integration tests for ${apiEndpoint}`);
-
-    const integrationTests = await req.mcpManager.callStdioMcp(
-      'dotnet-integration-test-generator',
-      { 
-        data: {
-          app,
-          apiEndpoint,
-          scenario,
-          includeAuth: true,
-          includeDatabase: true
-        }
-      }
-    );
-
-    res.json(integrationTests);
-  } catch (error) {
-    logger.error('[Legacy] Integration test generation error:', error);
-    res.status(500).json({ 
-      error: 'Integration test generation failed',
-      message: error.message 
-    });
-  }
-});
+//
+// Removed deprecated endpoints:
+// - POST /generate-unit-tests → Use POST /generate-for-file instead
+// - POST /generate-integration-tests → Use POST /generate-integration-for-file instead
+//
+// These endpoints were replaced by file-based generation that:
+// 1. Automatically reads source files from Docker volumes
+// 2. Supports file path resolution
+// 3. Provides richer analysis and generation options
+// 4. Better integrates with the code-dashboard frontend
+//
+// See lines 165-270 for active endpoints
 
 export default router;

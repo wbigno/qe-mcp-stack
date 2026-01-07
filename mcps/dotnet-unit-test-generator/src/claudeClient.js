@@ -19,6 +19,7 @@ export async function generateWithClaude(params) {
     sourceCode,
     includeNegativeTests,
     includeMocks,
+    onlyNegativeTests,
     model
   } = params;
 
@@ -28,7 +29,8 @@ export async function generateWithClaude(params) {
     methodName,
     sourceCode,
     includeNegativeTests,
-    includeMocks
+    includeMocks,
+    onlyNegativeTests
   );
 
   try {
@@ -41,7 +43,7 @@ export async function generateWithClaude(params) {
           content: prompt
         }
       ],
-      maxTokens: 8192,
+      maxTokens: 4000,
       temperature: 0.3 // Lower temp for code generation
     });
 
@@ -61,10 +63,42 @@ export async function generateWithClaude(params) {
 /**
  * Build test generation prompt
  */
-function buildGenerationPrompt(className, methodName, sourceCode, includeNegativeTests, includeMocks) {
+function buildGenerationPrompt(className, methodName, sourceCode, includeNegativeTests, includeMocks, onlyNegativeTests) {
   const methodScope = methodName ? `specifically the "${methodName}" method` : 'all public methods';
-  
-  return `You are an expert .NET test engineer. Generate comprehensive xUnit unit tests for a C# class.
+
+  // If generating only negative tests, customize the prompt
+  if (onlyNegativeTests) {
+    return `You are an expert .NET test engineer. Generate ONLY negative/error scenario xUnit tests for methods that are missing negative test coverage.
+
+**Class Name:** ${className}
+**Test Scope:** ${methodScope}
+
+**Source Code:**
+\`\`\`csharp
+${sourceCode}
+\`\`\`
+
+---
+
+**CRITICAL**: Generate ONLY negative/error scenario tests. DO NOT generate positive tests or happy path tests.
+
+Generate xUnit unit tests following these requirements:
+
+1. **Test Framework:** xUnit for .NET
+2. **Naming Convention:** MethodName_InvalidScenario_ExpectedBehavior
+3. **Pattern:** Arrange-Act-Assert (AAA)
+4. **Focus ONLY on:**
+   - ❌ Null argument tests → ArgumentNullException
+   - ❌ Invalid input tests → ArgumentException
+   - ❌ Business rule violations → Custom exceptions
+   - ❌ Boundary violations (negative numbers, empty strings, etc.)
+   - ❌ Error conditions and failure scenarios
+
+${includeMocks ? `5. **Mocking:** Use Moq for dependencies when needed.` : ''}`;
+  }
+
+  // Original prompt for full test generation
+  return `You are an expert .NET test engineer. Generate 2-3 essential xUnit unit tests for a C# class.
 
 **Class Name:** ${className}
 **Test Scope:** ${methodScope}
@@ -88,7 +122,9 @@ Generate xUnit unit tests following these requirements:
 
 ${includeMocks ? `5. **Mocking:** Use Moq for dependencies. Create mock setup code for interfaces.` : ''}
 
-Return ONLY a JSON object with this structure:
+**IMPORTANT**: Return ONLY a valid, properly-escaped JSON object. All string values (especially testCode and mockCode) must use \\n for newlines, not actual line breaks. The response must be parseable by JSON.parse().
+
+Return a JSON object with this structure:
 
 {
   "tests": [
@@ -159,7 +195,7 @@ Return ONLY a JSON object with this structure:
 - Use proper xUnit assertions (Assert.Equal, Assert.NotNull, etc.)
 - Follow C# coding conventions
 
-Generate comprehensive tests covering all scenarios. Return ONLY the JSON object.`;
+Generate 2-3 focused, high-value tests. Return ONLY the JSON object in compact format (no pretty-printing, all code as escaped single-line strings with \\n for line breaks).`;
 }
 
 /**
@@ -167,14 +203,23 @@ Generate comprehensive tests covering all scenarios. Return ONLY the JSON object
  */
 function parseTestsResponse(text) {
   try {
-    // Remove markdown code blocks if present
-    const cleaned = text
-      .replace(/```json\n?/g, '')
-      .replace(/```\n?/g, '')
-      .trim();
+    // Extract JSON from the response (handles markdown blocks and surrounding text)
+    let jsonText = text;
+
+    // Try to find JSON within markdown code blocks first
+    const codeBlockMatch = text.match(/```json\s*\n?([\s\S]*?)\n?```/);
+    if (codeBlockMatch) {
+      jsonText = codeBlockMatch[1].trim();
+    } else {
+      // If no code block, try to find JSON object directly
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        jsonText = jsonMatch[0];
+      }
+    }
 
     // Parse JSON
-    const parsed = JSON.parse(cleaned);
+    const parsed = JSON.parse(jsonText);
 
     // Validate structure
     if (!Array.isArray(parsed.tests)) {

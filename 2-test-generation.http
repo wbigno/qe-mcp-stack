@@ -108,43 +108,27 @@ Content-Type: application/json
 }
 
 ##########################################
-# TEST GENERATION - LEGACY/BATCH (EXISTING)
+# REMOVED - LEGACY ENDPOINTS (2026-01-07)
 ##########################################
-
-### Generate Unit Tests (Legacy - All Methods)
-POST {{baseUrl}}/api/tests/generate-unit-tests
-Content-Type: application/json
-
-{
-  "app": "App1"
-}
-
-### Generate Unit Tests with Output Path
-POST {{baseUrl}}/api/tests/generate-unit-tests
-Content-Type: application/json
-
-{
-  "app": "App1",
-  "outputPath": "/path/to/save/tests"
-}
-
-### Generate Integration Tests (Legacy)
-POST {{baseUrl}}/api/tests/generate-integration-tests
-Content-Type: application/json
-
-{
-  "app": "App1"
-}
-
-### Generate Integration Tests with Integrations
-POST {{baseUrl}}/api/tests/generate-integration-tests
-Content-Type: application/json
-
-{
-  "app": "App1",
-  "integrations": ["Epic", "Financial"],
-  "outputPath": "/path/to/save/tests"
-}
+#
+# The following endpoints were removed and replaced by file-based generation:
+#
+# OLD (REMOVED):
+# - POST /api/tests/generate-unit-tests
+# - POST /api/tests/generate-integration-tests
+#
+# NEW (USE THESE):
+# - POST /api/tests/generate-for-file
+# - POST /api/tests/generate-integration-for-file
+#
+# Benefits of new endpoints:
+# 1. Automatic source file reading from Docker volumes
+# 2. File path resolution (supports both relative and absolute paths)
+# 3. Richer analysis and generation options
+# 4. Better frontend integration
+# 5. Per-file control for incremental test generation
+#
+# See sections above for examples of the new endpoints
 
 ##########################################
 # PLAYWRIGHT - UI TEST GENERATION

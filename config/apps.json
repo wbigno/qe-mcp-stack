@@ -1,12 +1,12 @@
 {
   "applications": [
     {
-      "name": "App1",
-      "displayName": "Application 1 - Patient Portal",
-      "path": "/mnt/apps/patient-portal",
-      "localPath": "/Users/williambigno/dev/git/patient-portal",
+      "name": "Core",
+      "displayName": "Core Application",
+      "path": "/mnt/apps/Core",
+      "localPath": "/Users/williambigno/dev/git/Core",
       "type": "dotnet",
-      "framework": "net10.0",
+      "framework": "net48",
       "testFramework": "xUnit",
       "excludePaths": [
         "bin",
@@ -20,65 +20,14 @@
         "**/*.cs",
         "**/*.csproj"
       ],
-      "integrations": [
-      ],
+      "integrations": [],
       "priority": "high"
     },
     {
-      "name": "App2",
-      "displayName": "Application 2 - Financial Processing",
-      "path": "/mnt/apps/app2",
-      "localPath": "/Users/williambigno/dev/git/app2",
-      "type": "dotnet",
-      "framework": "net8.0",
-      "testFramework": "xUnit",
-      "excludePaths": [
-        "bin",
-        "obj",
-        "packages",
-        "node_modules",
-        ".vs",
-        "TestResults"
-      ],
-      "includePatterns": [
-        "**/*.cs",
-        "**/*.csproj"
-      ],
-      "integrations": [
-        "Financial"
-      ],
-      "priority": "high"
-    },
-    {
-      "name": "App3",
-      "displayName": "Application 3",
-      "path": "/mnt/apps/app3",
-      "localPath": "/Users/williambigno/dev/git/app3",
-      "type": "dotnet",
-      "framework": "net8.0",
-      "testFramework": "xUnit",
-      "excludePaths": [
-        "bin",
-        "obj",
-        "packages",
-        "node_modules",
-        ".vs",
-        "TestResults"
-      ],
-      "includePatterns": [
-        "**/*.cs",
-        "**/*.csproj"
-      ],
-      "integrations": [
-        "Epic"
-      ],
-      "priority": "medium"
-    },
-    {
-      "name": "App4",
-      "displayName": "Application 4",
-      "path": "/mnt/apps/app4",
-      "localPath": "/Users/williambigno/dev/git/app4",
+      "name": "Core.Common",
+      "displayName": "Core Common Library",
+      "path": "/mnt/apps/Core.Common",
+      "localPath": "/Users/williambigno/dev/git/Core.Common",
       "type": "dotnet",
       "framework": "net8.0",
       "testFramework": "xUnit",
@@ -95,12 +44,81 @@
         "**/*.csproj"
       ],
       "integrations": [],
-      "priority": "medium"
+      "priority": "high"
+    },
+    {
+      "name": "Payments",
+      "displayName": "Payments System",
+      "path": "/mnt/apps/Payments",
+      "localPath": "/Users/williambigno/dev/git/Payments",
+      "type": "dotnet",
+      "framework": "net8.0",
+      "testFramework": "xUnit",
+      "excludePaths": [
+        "bin",
+        "obj",
+        "packages",
+        "node_modules",
+        ".vs",
+        "TestResults"
+      ],
+      "includePatterns": [
+        "**/*.cs",
+        "**/*.csproj"
+      ],
+      "integrations": [],
+      "priority": "high"
+    },
+    {
+      "name": "PreCare",
+      "displayName": "PreCare System",
+      "path": "/mnt/apps/PreCare",
+      "localPath": "/Users/williambigno/dev/git/PreCare",
+      "type": "dotnet",
+      "framework": "net6.0",
+      "testFramework": "xUnit",
+      "excludePaths": [
+        "bin",
+        "obj",
+        "packages",
+        "node_modules",
+        ".vs",
+        "TestResults"
+      ],
+      "includePatterns": [
+        "**/*.cs",
+        "**/*.csproj"
+      ],
+      "integrations": [],
+      "priority": "high"
+    },
+    {
+      "name": "ThirdPartyIntegrations",
+      "displayName": "Third Party Integrations",
+      "path": "/mnt/apps/ThirdPartyIntegrations",
+      "localPath": "/Users/williambigno/dev/git/ThirdPartyIntegrations",
+      "type": "dotnet",
+      "framework": "net8.0",
+      "testFramework": "xUnit",
+      "excludePaths": [
+        "bin",
+        "obj",
+        "packages",
+        "node_modules",
+        ".vs",
+        "TestResults"
+      ],
+      "includePatterns": [
+        "**/*.cs",
+        "**/*.csproj"
+      ],
+      "integrations": [],
+      "priority": "high"
     }
   ],
   "settings": {
     "parallelAnalysis": true,
-    "maxConcurrency": 2,
+    "maxConcurrency": 5,
     "cacheResults": true,
     "cacheTTL": 3600
   }

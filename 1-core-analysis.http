@@ -110,8 +110,9 @@ GET {{baseUrl}}/api/dashboard/code-analysis?app=App1
 ### Get Coverage Dashboard Data
 GET {{baseUrl}}/api/dashboard/coverage?app=App1
 
-### Get Test Gaps Dashboard Data
-GET {{baseUrl}}/api/dashboard/test-gaps?app=App1
+### Get Test Gaps Dashboard Data (REMOVED - Use POST /api/analysis/test-gaps instead)
+# This endpoint was removed as duplicate. Use the POST endpoint below.
+# GET {{baseUrl}}/api/dashboard/test-gaps?app=App1
 
 ##########################################
 # COMMON ANALYSIS WORKFLOWS

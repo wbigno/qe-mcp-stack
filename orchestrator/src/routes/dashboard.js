@@ -1,5 +1,10 @@
 import express from 'express';
 import { logger } from '../utils/logger.js';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = express.Router();
 
@@ -20,8 +25,9 @@ const router = express.Router();
 router.get('/applications', async (req, res) => {
   try {
     logger.info('[Dashboard] Getting applications list');
-    
+
     const fs = await import('fs/promises');
+    // Config directory is volume-mounted at /app/config in Docker
     const configPath = '/app/config/apps.json';
     
     const configContent = await fs.readFile(configPath, 'utf-8');
@@ -121,77 +127,9 @@ router.get('/coverage', async (req, res) => {
   }
 });
 
-/**
- * Get test gaps - PROXIES to /api/analysis/test-gaps
- * GET /api/dashboard/test-gaps?app=App1
- * 
- * This endpoint now simply forwards to the working analysis endpoint
- * instead of trying to duplicate the logic
- */
-router.get('/test-gaps', async (req, res) => {
-  try {
-    const appName = req.query.app || 'App1';
-    
-    logger.info(`[Dashboard] Getting test gaps for ${appName} (proxying to analysis endpoint)`);
-
-    // Get code structure
-    const codeStructure = await req.mcpManager.callDockerMcp(
-      'dotnetCodeAnalyzer',
-      '/analyze',
-      { app: appName }
-    );
-
-    // Get coverage data
-    const coverage = await req.mcpManager.callDockerMcp(
-      'dotnetCoverageAnalyzer',
-      '/analyze',
-      { app: appName, codeStructure }
-    );
-
-    // Extract coverage data from potentially nested structure
-    const coverageData = coverage.coverage || coverage;
-    
-    logger.info(`[Dashboard] Coverage data structure:`, {
-      hasMethods: !!coverageData.methods,
-      methodsCount: (coverageData.methods || []).length,
-      hasOverallPercentage: !!coverageData.overallPercentage
-    });
-
-    // Identify gaps
-    const gaps = {
-      untestedMethods: (coverageData.methods || []).filter(m => m.coverage === 0),
-      partialCoverage: (coverageData.methods || []).filter(m => m.coverage > 0 && m.coverage < 80),
-      missingNegativeTests: coverageData.negativeTestGaps || [],
-      criticalPaths: coverageData.criticalUntested || []
-    };
-
-    const result = {
-      success: true,
-      app: appName,
-      gaps,
-      summary: {
-        totalMethods: (coverageData.methods || []).length,
-        untestedCount: gaps.untestedMethods.length,
-        coveragePercentage: coverageData.overallPercentage || 0
-      }
-    };
-
-    logger.info(`[Dashboard] Returning test gaps:`, {
-      untestedCount: result.summary.untestedCount,
-      partialCount: gaps.partialCoverage.length,
-      totalMethods: result.summary.totalMethods
-    });
-
-    res.json(result);
-
-  } catch (error) {
-    logger.error('[Dashboard] Test gaps error:', error);
-    res.status(500).json({ 
-      error: 'Failed to get test gaps', 
-      message: error.message 
-    });
-  }
-});
+// REMOVED: GET /test-gaps endpoint - DUPLICATE of POST /api/analysis/test-gaps
+// Frontend uses POST /api/analysis/test-gaps instead
+// Removed on 2026-01-07 during API consolidation
 
 // ============================================
 // DATA TRANSFORMERS
@@ -294,40 +232,95 @@ router.get('/aod-summary', async (req, res) => {
 
     logger.info('[Dashboard] Getting ADO summary', { sprint, state, environment });
 
-    // Build WIQL query for work items
-    let wiqlConditions = ["[System.WorkItemType] IN ('User Story', 'Task', 'Bug')"];
-
-    if (sprint) {
-      wiqlConditions.push(`[System.IterationPath] UNDER '${sprint}'`);
-    }
-    if (state) {
-      wiqlConditions.push(`[System.State] = '${state}'`);
-    }
-
-    const wiql = `SELECT * FROM WorkItems WHERE ${wiqlConditions.join(' AND ')}`;
-
-    // Fetch work items from Azure DevOps MCP
+    // Fetch work items from Azure DevOps MCP (includes relations now)
     const workItems = await req.mcpManager.callDockerMcp('azureDevOps', '/work-items/query', {
-      wiql
+      sprint
     }).catch(err => {
       logger.warn('[Dashboard] Failed to fetch work items:', err.message);
       return [];
     });
 
-    // Transform to dashboard format
-    const workItemDetails = (workItems || []).map(wi => ({
-      id: wi.id,
-      title: wi.fields?.['System.Title'] || 'Untitled',
-      type: wi.fields?.['System.WorkItemType'] || 'Unknown',
-      state: wi.fields?.['System.State'] || 'Unknown',
-      assignedTo: wi.fields?.['System.AssignedTo']?.displayName || 'Unassigned',
-      priority: wi.fields?.['Microsoft.VSTS.Common.Priority'] || 3,
-      tags: wi.fields?.['System.Tags'] || '',
-      iterationPath: wi.fields?.['System.IterationPath'] || '',
-      areaPath: wi.fields?.['System.AreaPath'] || '',
-      createdDate: wi.fields?.['System.CreatedDate'] || new Date().toISOString(),
-      changedDate: wi.fields?.['System.ChangedDate'] || new Date().toISOString()
-    }));
+    // Extract parent IDs from work item relations
+    const parentIds = new Set();
+    logger.info(`[Dashboard] Checking ${(workItems || []).length} work items for parent relations`);
+
+    (workItems || []).forEach(wi => {
+      if (wi.relations) {
+        logger.info(`[Dashboard] Work item ${wi.id} has ${wi.relations.length} relations`);
+        wi.relations.forEach(relation => {
+          logger.info(`[Dashboard] Relation type: ${relation.rel}`);
+          // Look for parent relationships
+          if (relation.rel === 'System.LinkTypes.Hierarchy-Reverse') {
+            // Extract work item ID from URL (e.g., .../workItems/12345)
+            const match = relation.url.match(/workItems\/(\d+)/);
+            if (match) {
+              parentIds.add(parseInt(match[1]));
+              logger.info(`[Dashboard] Found parent ID: ${match[1]}`);
+            }
+          }
+        });
+      }
+    });
+
+    logger.info(`[Dashboard] Total unique parent IDs found: ${parentIds.size}`);
+
+    // Fetch parent work items if any were found
+    let parentWorkItems = [];
+    if (parentIds.size > 0) {
+      logger.info(`[Dashboard] Fetching ${parentIds.size} parent work items`);
+      parentWorkItems = await req.mcpManager.callDockerMcp('azureDevOps', '/work-items/query', {
+        workItemIds: Array.from(parentIds)
+      }).catch(err => {
+        logger.warn('[Dashboard] Failed to fetch parent work items:', err.message);
+        return [];
+      });
+    }
+
+    // Combine all work items (sprint items + their parents)
+    const allWorkItems = [...(workItems || []), ...(parentWorkItems || [])];
+
+    // No type filtering - include ALL work items (Issues, Bugs, Tasks, etc.)
+    let filteredItems = allWorkItems;
+
+    // Filter by state if specified
+    if (state) {
+      filteredItems = filteredItems.filter(wi => {
+        return wi.fields?.['System.State'] === state;
+      });
+    }
+
+    // Transform to dashboard format with parent ID
+    const workItemDetails = filteredItems.map(wi => {
+      // Extract parent ID from relations
+      let parentId = null;
+      if (wi.relations) {
+        const parentRelation = wi.relations.find(r => r.rel === 'System.LinkTypes.Hierarchy-Reverse');
+        if (parentRelation) {
+          const match = parentRelation.url.match(/workItems\/(\d+)/);
+          if (match) {
+            parentId = parseInt(match[1]);
+          }
+        }
+      }
+
+      return {
+        id: wi.id,
+        title: wi.fields?.['System.Title'] || 'Untitled',
+        type: wi.fields?.['System.WorkItemType'] || 'Unknown',
+        state: wi.fields?.['System.State'] || 'Unknown',
+        assignedTo: wi.fields?.['System.AssignedTo']?.displayName || 'Unassigned',
+        priority: wi.fields?.['Microsoft.VSTS.Common.Priority'] || 3,
+        tags: wi.fields?.['System.Tags'] || '',
+        iterationPath: wi.fields?.['System.IterationPath'] || '',
+        areaPath: wi.fields?.['System.AreaPath'] || '',
+        createdDate: wi.fields?.['System.CreatedDate'] || new Date().toISOString(),
+        changedDate: wi.fields?.['System.ChangedDate'] || new Date().toISOString(),
+        description: wi.fields?.['System.Description'] || '',
+        acceptanceCriteria: wi.fields?.['Microsoft.VSTS.Common.AcceptanceCriteria'] || '',
+        reproSteps: wi.fields?.['Microsoft.VSTS.TCM.ReproSteps'] || '',
+        parentId: parentId  // Include parent ID for hierarchical display
+      };
+    });
 
     res.json({
       success: true,
@@ -365,5 +358,45 @@ function calculateByState(workItems) {
   });
   return counts;
 }
+
+// ============================================
+// CONFIGURATION ENDPOINTS
+// ============================================
+
+/**
+ * Get apps configuration for app selector dropdown
+ * GET /api/dashboard/config/apps
+ */
+router.get('/config/apps', async (req, res) => {
+  try {
+    logger.info('[Dashboard] Getting apps configuration');
+
+    const fs = await import('fs/promises');
+    // Config directory is volume-mounted at /app/config in Docker
+    const configPath = '/app/config/apps.json';
+
+    const configContent = await fs.readFile(configPath, 'utf-8');
+    const config = JSON.parse(configContent);
+
+    // Transform applications array to format expected by AppSelector
+    const apps = (config.applications || []).map(app => ({
+      name: app.name,
+      description: app.displayName || app.description || app.name,
+      displayName: app.displayName || app.name,
+      framework: app.framework,
+      path: app.path
+    }));
+
+    res.json({ apps });
+
+  } catch (error) {
+    logger.error('[Dashboard] Config apps error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get apps configuration',
+      message: error.message
+    });
+  }
+});
 
 export default router;

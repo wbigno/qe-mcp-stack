@@ -15,6 +15,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     env_file:
       - .env
     volumes:
@@ -23,10 +25,11 @@ services:
       - ./mcps:/app/mcps:ro
       - ./code-dashboard:/app/code-dashboard:ro
       - ./ado-dashboard:/app/ado-dashboard:ro
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/dev/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/dev/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/dev/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
     networks:
       - qe-network
     restart: unless-stopped
@@ -43,10 +46,11 @@ services:
     ports:
       - "3001:3001"
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/dotnet-code-analyzer:/app/data
     networks:
@@ -61,10 +65,11 @@ services:
     ports:
       - "3002:3002"
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/dotnet-coverage-analyzer:/app/data
     networks:
@@ -95,10 +100,11 @@ services:
     ports:
       - "3004:3004"
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/playwright-analyzer:/app/data
     networks:
@@ -112,13 +118,17 @@ services:
     container_name: qe-playwright-generator
     ports:
       - "3005:3005"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     env_file:
       - .env
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/playwright-generator:/app/data
     networks:
@@ -132,13 +142,17 @@ services:
     container_name: qe-playwright-healer
     ports:
       - "3006:3006"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     env_file:
       - .env
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/playwright-healer:/app/data
     networks:
@@ -153,10 +167,11 @@ services:
     ports:
       - "3007:3007"
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/architecture-analyzer:/app/data
     networks:
@@ -171,10 +186,11 @@ services:
     ports:
       - "3008:3008"
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/integration-mapper:/app/data
     networks:
@@ -188,11 +204,15 @@ services:
     container_name: qe-risk-analyzer
     ports:
       - "3009:3009"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/risk-analyzer:/app/data
     networks:
@@ -207,10 +227,11 @@ services:
     ports:
       - "3010:3010"
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/workflow-analyzer:/app/data
     networks:
@@ -225,10 +246,11 @@ services:
     ports:
       - "3011:3011"
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/quality-metrics-analyzer:/app/data
     networks:
@@ -243,10 +265,11 @@ services:
     ports:
       - "3012:3012"
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/security-analyzer:/app/data
     networks:
@@ -261,10 +284,11 @@ services:
     ports:
       - "3013:3013"
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
       - ./config:/app/config:ro
       - ./data/data-model-analyzer:/app/data
     networks:

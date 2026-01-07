@@ -1,85 +1,69 @@
 import express from 'express';
-import { DotNetAnalyzer } from '../shared/dotnet-analyzer.js';
+import { RiskScorer } from './riskScorer.js';
 
 const app = express();
 const PORT = process.env.PORT || 3009;
 
 app.use(express.json());
 
-const analyzer = new DotNetAnalyzer();
+const riskScorer = new RiskScorer();
 
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
     service: 'risk-analyzer-mcp',
     timestamp: new Date().toISOString(),
-    version: '1.0.0'
+    version: '2.0.0'
   });
 });
 
 app.post('/analyze-risk', async (req, res) => {
   try {
-    const { app: appName } = req.body;
+    const { app: appName, story } = req.body;
 
     if (!appName) {
-      return res.status(400).json({ error: 'Application name is required' });
+      return res.status(400).json({
+        success: false,
+        error: 'app parameter required'
+      });
     }
 
-    console.log(`[risk-analyzer] Analyzing ${appName}...`);
-
-    const appConfig = await analyzer.loadAppConfig(appName);
-    const files = await analyzer.scanCSharpFiles(appConfig.path, false);
-
-    console.log(`[risk-analyzer] Found ${files.length} files`);
-
-    const parsedFiles = [];
-    for (const file of files) {
-      const parsed = await analyzer.parseFile(file.fullPath);
-      if (parsed) parsedFiles.push(parsed);
+    if (!story) {
+      return res.status(400).json({
+        success: false,
+        error: 'story parameter required (must include: id, title, description, acceptanceCriteria)'
+      });
     }
 
-    // Main analysis logic
-    const result = performAnalysis(parsedFiles, appConfig);
+    console.log(`[risk-analyzer] Analyzing story ${story.id} for app ${appName}...`);
+
+    // Calculate risk using the RiskScorer
+    const riskAnalysis = await riskScorer.calculateRisk(appName, story);
+
+    console.log(`[risk-analyzer] Risk analysis complete: ${riskAnalysis.level} (${riskAnalysis.score}/100)`);
 
     res.json({
       success: true,
       app: appName,
+      storyId: story.id,
       timestamp: new Date().toISOString(),
-      result
+      result: {
+        risk: riskAnalysis,
+        metadata: {
+          version: '2.0.0',
+          mcpType: 'risk-analyzer'
+        }
+      }
     });
 
   } catch (error) {
     console.error(`[risk-analyzer] Error:`, error);
-    res.status(500).json({ error: error.message });
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
   }
 });
-
-function performAnalysis(files, config) {
-  // Risk = complexity + coverage + dependencies
-  
-  const analysis = {
-    totalFiles: files.length,
-    totalClasses: files.reduce((sum, f) => sum + f.classes.length, 0),
-    findings: []
-  };
-
-  // Implement specific logic for risk-analyzer
-  for (const file of files) {
-    for (const cls of file.classes) {
-      // Analysis logic here
-      analysis.findings.push({
-        class: cls.name,
-        file: file.file,
-        metrics: {
-          methods: cls.methods.length,
-          complexity: cls.methods.reduce((s, m) => s + m.complexity, 0)
-        }
-      });
-    }
-  }
-
-  return analysis;
-}
 
 app.listen(PORT, () => {
   console.log(`risk-analyzer MCP running on port ${PORT}`);

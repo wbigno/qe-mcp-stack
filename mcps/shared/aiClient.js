@@ -8,17 +8,17 @@
 import Anthropic from '@anthropic-ai/sdk';
 import OpenAI from 'openai';
 
-// Initialize clients
+// Initialize clients with trimmed API keys (to handle trailing newlines from .env)
 const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
+  apiKey: process.env.ANTHROPIC_API_KEY?.trim()
 });
 
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY
+  apiKey: process.env.OPENAI_API_KEY?.trim()
 });
 
 // Default models
-const DEFAULT_ANTHROPIC_MODEL = 'claude-haiku-4-20250610';
+const DEFAULT_ANTHROPIC_MODEL = 'claude-3-haiku-20240307';
 const DEFAULT_OPENAI_MODEL = 'gpt-4o-mini';
 
 /**

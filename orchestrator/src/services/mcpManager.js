@@ -162,11 +162,12 @@ export class MCPManager {
 
   spawnStdioMcp(mcpName, command, args = []) {
     const mcpPath = `/app/mcps/${mcpName}/index.js`;
-    
+
     logger.info(`Spawning stdio MCP: ${mcpName}`);
 
     const child = spawn('node', [mcpPath, ...args], {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: process.env
     });
 
     this.stdioMcps[mcpName] = child;
