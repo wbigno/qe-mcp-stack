@@ -1,7 +1,0 @@
-{
-  "data": {
-    "app": "App1",
-    "entityName": "Order",
-    "sourceCode": "public enum OrderStatus\n{\n    Pending,\n    Processing,\n    Shipped,\n    Delivered,\n    Cancelled,\n    Refunded\n}\n\npublic class OrderService\n{\n    public void ProcessOrder(Order order)\n    {\n        switch (order.Status)\n        {\n            case OrderStatus.Pending:\n                order.Status = OrderStatus.Processing;\n                break;\n\n            case OrderStatus.Processing:\n                order.Status = OrderStatus.Shipped;\n                break;\n\n            case OrderStatus.Shipped:\n                order.Status = OrderStatus.Delivered;\n                break;\n\n            case OrderStatus.Pending:\n            case OrderStatus.Processing:\n                if (order.CancelRequested)\n                    order.Status = OrderStatus.Cancelled;\n                break;\n        }\n    }\n\n    public void RefundOrder(Order order)\n    {\n        if (order.Status == OrderStatus.Delivered)\n            order.Status = OrderStatus.Refunded;\n    }\n}"
-  }
-}

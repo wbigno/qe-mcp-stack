@@ -1,0 +1,93 @@
+##########################################################
+# Quality Analysis MCPs Pipeline
+# Deploys: risk-analyzer, integration-mapper, test-selector
+##########################################################
+
+steps:
+  - task: NodeTool@0
+    displayName: 'Install Node.js'
+    inputs:
+      versionSpec: '18.x'
+
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Download build artifacts'
+    inputs:
+      artifact: 'build-output'
+      path: '$(System.DefaultWorkingDirectory)'
+
+  - script: |
+      echo "Deploying Quality Analysis MCPs..."
+      echo "Environment: $(Build.SourceBranchName)"
+    displayName: 'Log deployment info'
+
+  ##########################################################
+  # Risk Analyzer MCP (Port 8300)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Risk Analyzer MCP'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-risk-analyzer-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/mcps/quality-analysis/risk-analyzer'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 8300
+        -NODE_ENV $(environment)
+        -ANTHROPIC_API_KEY $(ANTHROPIC_API_KEY)
+        -OPENAI_API_KEY $(OPENAI_API_KEY)
+
+  ##########################################################
+  # Integration Mapper MCP (Port 8301)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Integration Mapper MCP'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-integration-mapper-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/mcps/quality-analysis/integration-mapper'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 8301
+        -NODE_ENV $(environment)
+        -ANTHROPIC_API_KEY $(ANTHROPIC_API_KEY)
+
+  ##########################################################
+  # Test Selector MCP (Port 8302)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Test Selector MCP'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-test-selector-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/mcps/quality-analysis/test-selector'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 8302
+        -NODE_ENV $(environment)
+        -ANTHROPIC_API_KEY $(ANTHROPIC_API_KEY)
+
+  ##########################################################
+  # Health Check
+  ##########################################################
+  - script: |
+      echo "Waiting for services to start..."
+      sleep 30
+
+      echo "Checking Risk Analyzer MCP health..."
+      curl -f https://qe-mcp-risk-analyzer-$(environment).azurewebsites.net/health || exit 1
+
+      echo "Checking Integration Mapper MCP health..."
+      curl -f https://qe-mcp-integration-mapper-$(environment).azurewebsites.net/health || exit 1
+
+      echo "Checking Test Selector MCP health..."
+      curl -f https://qe-mcp-test-selector-$(environment).azurewebsites.net/health || exit 1
+
+      echo "All Quality Analysis MCPs are healthy!"
+    displayName: 'Health check Quality Analysis MCPs'
+    continueOnError: false

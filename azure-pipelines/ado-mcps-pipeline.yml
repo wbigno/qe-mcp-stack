@@ -1,0 +1,93 @@
+##########################################################
+# ADO Integration MCPs Pipeline
+# Deploys: azure-devops, third-party, test-plan-manager
+##########################################################
+
+steps:
+  - task: NodeTool@0
+    displayName: 'Install Node.js'
+    inputs:
+      versionSpec: '18.x'
+
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Download build artifacts'
+    inputs:
+      artifact: 'build-output'
+      path: '$(System.DefaultWorkingDirectory)'
+
+  - script: |
+      echo "Deploying ADO Integration MCPs..."
+      echo "Environment: $(Build.SourceBranchName)"
+    displayName: 'Log deployment info'
+
+  ##########################################################
+  # Azure DevOps MCP (Port 8100)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Azure DevOps MCP'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-azure-devops-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/mcps/integration/azure-devops'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 8100
+        -NODE_ENV $(environment)
+        -AZURE_DEVOPS_ORG $(AZURE_DEVOPS_ORG)
+        -AZURE_DEVOPS_PROJECT $(AZURE_DEVOPS_PROJECT)
+        -AZURE_DEVOPS_PAT $(AZURE_DEVOPS_PAT)
+
+  ##########################################################
+  # Third Party Integration MCP (Port 8101)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Third Party MCP'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-third-party-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/mcps/integration/third-party'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 8101
+        -NODE_ENV $(environment)
+
+  ##########################################################
+  # Test Plan Manager MCP (Port 8102)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Test Plan Manager MCP'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-test-plan-manager-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/mcps/integration/test-plan-manager'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 8102
+        -NODE_ENV $(environment)
+        -AZURE_DEVOPS_PAT $(AZURE_DEVOPS_PAT)
+
+  ##########################################################
+  # Health Check
+  ##########################################################
+  - script: |
+      echo "Waiting for services to start..."
+      sleep 30
+
+      echo "Checking Azure DevOps MCP health..."
+      curl -f https://qe-mcp-azure-devops-$(environment).azurewebsites.net/health || exit 1
+
+      echo "Checking Third Party MCP health..."
+      curl -f https://qe-mcp-third-party-$(environment).azurewebsites.net/health || exit 1
+
+      echo "Checking Test Plan Manager MCP health..."
+      curl -f https://qe-mcp-test-plan-manager-$(environment).azurewebsites.net/health || exit 1
+
+      echo "All ADO MCPs are healthy!"
+    displayName: 'Health check ADO MCPs'
+    continueOnError: false

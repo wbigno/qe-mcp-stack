@@ -1,0 +1,22 @@
+{
+  "name": "code-analyzer-mcp",
+  "version": "1.0.0",
+  "description": ".NET code analyzer MCP for scanning C# applications",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "keywords": ["mcp", "code-analysis", "dotnet", "csharp"],
+  "author": "Your Company",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "express": "^4.18.2",
+    "glob": "^10.3.10",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

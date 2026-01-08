@@ -1,0 +1,21 @@
+{
+  "name": "@qe-mcp-stack/test-plan-manager",
+  "version": "1.0.0",
+  "description": "Test plan management MCP for Azure DevOps test plans",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "keywords": ["mcp", "integration", "test-plan", "azure-devops"],
+  "author": "QE Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

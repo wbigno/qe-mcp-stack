@@ -5,11 +5,13 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import swaggerUi from 'swagger-ui-express';
 import mcpRouter from './routes/mcp.js';
 import analysisRouter from './routes/analysis.js';
 import adoRouter from './routes/ado.js';
 import testsRouter from './routes/tests.js';
-import dashboardRouter from './routes/dashboard.js';  // ← Moved up with other imports
+import dashboardRouter from './routes/dashboard.js';
+import swaggerRouter from './routes/swagger.js';
 import { logger } from './utils/logger.js';
 import { MCPManager } from './services/mcpManager.js';
 import path from 'path';
@@ -54,7 +56,24 @@ app.use('/api/mcp', mcpRouter);
 app.use('/api/analysis', analysisRouter);
 app.use('/api/ado', adoRouter);
 app.use('/api/tests', testsRouter);
-app.use('/api/dashboard', dashboardRouter);  // ← Only once!
+app.use('/api/dashboard', dashboardRouter);
+app.use('/api/swagger', swaggerRouter);
+
+// Aggregated Swagger UI
+app.use('/api-docs', async (req, res, next) => {
+  try {
+    const aggregatedSpec = await mcpManager.getAggregatedSwaggerSpec();
+    swaggerUi.setup(aggregatedSpec, {
+      explorer: true,
+      customCss: '.swagger-ui .topbar { display: none }',
+      customSiteTitle: 'QE MCP Stack - API Documentation'
+    })(req, res, next);
+  } catch (error) {
+    logger.error('Error loading aggregated Swagger UI:', error);
+    res.status(500).json({ error: 'Failed to load API documentation' });
+  }
+});
+app.use('/api-docs', swaggerUi.serve);
 
 // Serve dashboard static files
 app.use('/code-dashboard', express.static(path.join(__dirname, '../code-dashboard')));
@@ -96,11 +115,14 @@ app.get('/', (req, res) => {
       <h2>API Endpoints</h2>
       <ul>
         <li><a href="/health">Health Check</a></li>
+        <li>📚 <a href="/api-docs"><strong>API Documentation (Swagger)</strong></a></li>
         <li><a href="/api/mcp">/api/mcp</a> - MCP management</li>
         <li><a href="/api/analysis">/api/analysis</a> - Code analysis</li>
         <li><a href="/api/ado">/api/ado</a> - Azure DevOps</li>
         <li><a href="/api/tests">/api/tests</a> - Test generation</li>
         <li><a href="/api/dashboard">/api/dashboard</a> - Dashboard data</li>
+        <li><a href="/api/swagger/docs">/api/swagger/docs</a> - All MCP Swagger docs</li>
+        <li><a href="/api/swagger/aggregated.json">/api/swagger/aggregated.json</a> - Aggregated OpenAPI spec</li>
       </ul>
     </body>
     </html>

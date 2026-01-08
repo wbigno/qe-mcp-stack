@@ -1,8 +1,0 @@
-{
-  "data": {
-    "app": "App1",
-    "fileName": "OrderService.cs",
-    "severity": "all",
-    "sourceCode": "public class OrderService\n{\n    private readonly IOrderRepository _repository;\n    private readonly IEmailService _emailService;\n    private readonly IPaymentService _paymentService;\n\n    public async Task<Order> ProcessOrder(string customerEmail, string productId, int quantity, string shippingAddress, string billingAddress, string paymentMethod, decimal amount)\n    {\n        // Validate inputs\n        if (customerEmail == null || customerEmail.Length == 0 || !customerEmail.Contains(\"@\"))\n        {\n            throw new ArgumentException(\"Invalid email\");\n        }\n\n        if (quantity <= 0 || quantity > 100)\n        {\n            throw new ArgumentException(\"Invalid quantity\");\n        }\n\n        // Create order\n        var order = new Order\n        {\n            CustomerEmail = customerEmail,\n            ProductId = productId,\n            Quantity = quantity,\n            Amount = amount,\n            Status = \"Pending\"\n        };\n\n        // Process payment\n        var paymentResult = await _paymentService.ProcessPayment(paymentMethod, amount);\n        if (!paymentResult.Success)\n        {\n            order.Status = \"PaymentFailed\";\n            await _repository.Save(order);\n            return order;\n        }\n\n        order.Status = \"Confirmed\";\n        order.PaymentId = paymentResult.TransactionId;\n\n        // Send confirmation\n        await _emailService.SendOrderConfirmation(customerEmail, order.Id);\n\n        await _repository.Save(order);\n        return order;\n    }\n}"
-  }
-}

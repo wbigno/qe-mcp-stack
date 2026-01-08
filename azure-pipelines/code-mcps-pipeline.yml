@@ -1,0 +1,112 @@
+##########################################################
+# Code Analysis MCPs Pipeline
+# Deploys: code-analyzer, coverage-analyzer,
+#          playwright-generator, migration-analyzer
+##########################################################
+
+steps:
+  - task: NodeTool@0
+    displayName: 'Install Node.js'
+    inputs:
+      versionSpec: '18.x'
+
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Download build artifacts'
+    inputs:
+      artifact: 'build-output'
+      path: '$(System.DefaultWorkingDirectory)'
+
+  - script: |
+      echo "Deploying Code Analysis MCPs..."
+      echo "Environment: $(Build.SourceBranchName)"
+    displayName: 'Log deployment info'
+
+  ##########################################################
+  # Code Analyzer MCP (Port 8200)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Code Analyzer MCP'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-code-analyzer-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/mcps/code-analysis/code-analyzer'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 8200
+        -NODE_ENV $(environment)
+        -ANTHROPIC_API_KEY $(ANTHROPIC_API_KEY)
+
+  ##########################################################
+  # Coverage Analyzer MCP (Port 8201)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Coverage Analyzer MCP'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-coverage-analyzer-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/mcps/code-analysis/coverage-analyzer'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 8201
+        -NODE_ENV $(environment)
+
+  ##########################################################
+  # Playwright Generator MCP (Port 8202)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Playwright Generator MCP'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-playwright-generator-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/mcps/code-analysis/playwright-generator'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 8202
+        -NODE_ENV $(environment)
+        -ANTHROPIC_API_KEY $(ANTHROPIC_API_KEY)
+
+  ##########################################################
+  # Migration Analyzer MCP (Port 8203)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Migration Analyzer MCP'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-migration-analyzer-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/mcps/code-analysis/migration-analyzer'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 8203
+        -NODE_ENV $(environment)
+        -ANTHROPIC_API_KEY $(ANTHROPIC_API_KEY)
+
+  ##########################################################
+  # Health Check
+  ##########################################################
+  - script: |
+      echo "Waiting for services to start..."
+      sleep 30
+
+      echo "Checking Code Analyzer MCP health..."
+      curl -f https://qe-mcp-code-analyzer-$(environment).azurewebsites.net/health || exit 1
+
+      echo "Checking Coverage Analyzer MCP health..."
+      curl -f https://qe-mcp-coverage-analyzer-$(environment).azurewebsites.net/health || exit 1
+
+      echo "Checking Playwright Generator MCP health..."
+      curl -f https://qe-mcp-playwright-generator-$(environment).azurewebsites.net/health || exit 1
+
+      echo "Checking Migration Analyzer MCP health..."
+      curl -f https://qe-mcp-migration-analyzer-$(environment).azurewebsites.net/health || exit 1
+
+      echo "All Code Analysis MCPs are healthy!"
+    displayName: 'Health check Code Analysis MCPs'
+    continueOnError: false

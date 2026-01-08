@@ -1,0 +1,33 @@
+{
+  "name": "@qe-mcp-stack/test-framework",
+  "version": "1.0.0",
+  "description": "Playwright test framework and utilities",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "qe",
+    "playwright",
+    "testing",
+    "framework"
+  ],
+  "author": "QE Team",
+  "license": "MIT",
+  "dependencies": {
+    "@qe-mcp-stack/shared": "*",
+    "@playwright/test": "^1.41.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

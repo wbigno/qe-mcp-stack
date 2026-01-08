@@ -1,0 +1,199 @@
+##########################################################
+# Swagger Validation Pipeline
+# Validates all MCP Swagger/OpenAPI specifications
+##########################################################
+
+steps:
+  - task: NodeTool@0
+    displayName: 'Install Node.js'
+    inputs:
+      versionSpec: '18.x'
+
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Download build artifacts'
+    inputs:
+      artifact: 'build-output'
+      path: '$(System.DefaultWorkingDirectory)'
+
+  - script: npm install -g @apidevtools/swagger-cli
+    displayName: 'Install Swagger CLI tools'
+
+  ##########################################################
+  # Fetch All MCP Swagger Specs
+  ##########################################################
+  - script: |
+      echo "Fetching Swagger specifications from all MCPs..."
+
+      ORCHESTRATOR_URL="https://qe-mcp-orchestrator-$(environment).azurewebsites.net"
+
+      # Create directory for specs
+      mkdir -p swagger-specs
+
+      # Fetch aggregated spec
+      curl -s $ORCHESTRATOR_URL/api/swagger/aggregated.json > swagger-specs/aggregated.json
+
+      echo "✓ Downloaded aggregated Swagger specification"
+    displayName: 'Fetch Swagger Specifications'
+
+  ##########################################################
+  # Validate OpenAPI Specification
+  ##########################################################
+  - script: |
+      echo "Validating OpenAPI specification..."
+
+      # Validate aggregated spec
+      swagger-cli validate swagger-specs/aggregated.json
+
+      if [ $? -eq 0 ]; then
+        echo "✓ Aggregated specification is valid"
+      else
+        echo "✗ Aggregated specification validation failed"
+        exit 1
+      fi
+    displayName: 'Validate OpenAPI Specification'
+
+  ##########################################################
+  # Check Spec Completeness
+  ##########################################################
+  - script: |
+      echo "Checking specification completeness..."
+
+      SPEC_FILE="swagger-specs/aggregated.json"
+
+      # Check for required fields
+      if ! jq -e '.info.title' $SPEC_FILE > /dev/null; then
+        echo "✗ Missing info.title"
+        exit 1
+      fi
+
+      if ! jq -e '.info.version' $SPEC_FILE > /dev/null; then
+        echo "✗ Missing info.version"
+        exit 1
+      fi
+
+      if ! jq -e '.paths' $SPEC_FILE > /dev/null; then
+        echo "✗ Missing paths"
+        exit 1
+      fi
+
+      # Count endpoints
+      ENDPOINT_COUNT=$(jq '[.paths | keys[]] | length' $SPEC_FILE)
+      echo "Found $ENDPOINT_COUNT API endpoints"
+
+      if [ "$ENDPOINT_COUNT" -lt 10 ]; then
+        echo "✗ Expected at least 10 endpoints, found $ENDPOINT_COUNT"
+        exit 1
+      fi
+
+      echo "✓ Specification completeness check passed"
+    displayName: 'Check Spec Completeness'
+
+  ##########################################################
+  # Validate Response Schemas
+  ##########################################################
+  - script: |
+      echo "Validating response schemas..."
+
+      SPEC_FILE="swagger-specs/aggregated.json"
+
+      # Check that all endpoints have response definitions
+      ENDPOINTS_WITHOUT_RESPONSES=$(jq '[.paths[][] | select(.responses == null)] | length' $SPEC_FILE)
+
+      if [ "$ENDPOINTS_WITHOUT_RESPONSES" -gt 0 ]; then
+        echo "✗ Found $ENDPOINTS_WITHOUT_RESPONSES endpoints without response definitions"
+        exit 1
+      fi
+
+      echo "✓ All endpoints have response definitions"
+    displayName: 'Validate Response Schemas'
+
+  ##########################################################
+  # Check Security Definitions
+  ##########################################################
+  - script: |
+      echo "Checking security definitions..."
+
+      SPEC_FILE="swagger-specs/aggregated.json"
+
+      # Check for security schemes
+      if ! jq -e '.components.securitySchemes' $SPEC_FILE > /dev/null; then
+        echo "⚠ Warning: No security schemes defined"
+      else
+        SCHEME_COUNT=$(jq '[.components.securitySchemes | keys[]] | length' $SPEC_FILE)
+        echo "✓ Found $SCHEME_COUNT security scheme(s)"
+      fi
+    displayName: 'Check Security Definitions'
+
+  ##########################################################
+  # Validate MCP Categories
+  ##########################################################
+  - script: |
+      echo "Validating MCP categories..."
+
+      SPEC_FILE="swagger-specs/aggregated.json"
+
+      # Expected categories
+      EXPECTED_CATEGORIES=("integration" "code-analysis" "quality-analysis")
+
+      for category in "${EXPECTED_CATEGORIES[@]}"; do
+        if ! jq -e ".tags[] | select(.name == \"$category\")" $SPEC_FILE > /dev/null; then
+          echo "✗ Missing category: $category"
+          exit 1
+        fi
+        echo "✓ Found category: $category"
+      done
+
+      echo "✓ All expected MCP categories present"
+    displayName: 'Validate MCP Categories'
+
+  ##########################################################
+  # Generate Swagger Report
+  ##########################################################
+  - script: |
+      echo "Generating Swagger validation report..."
+
+      SPEC_FILE="swagger-specs/aggregated.json"
+      REPORT_FILE="swagger-validation-report.txt"
+
+      echo "=== Swagger Validation Report ===" > $REPORT_FILE
+      echo "" >> $REPORT_FILE
+      echo "Generated: $(date)" >> $REPORT_FILE
+      echo "Environment: $(environment)" >> $REPORT_FILE
+      echo "" >> $REPORT_FILE
+
+      echo "--- Specification Summary ---" >> $REPORT_FILE
+      echo "Title: $(jq -r '.info.title' $SPEC_FILE)" >> $REPORT_FILE
+      echo "Version: $(jq -r '.info.version' $SPEC_FILE)" >> $REPORT_FILE
+      echo "OpenAPI Version: $(jq -r '.openapi' $SPEC_FILE)" >> $REPORT_FILE
+      echo "" >> $REPORT_FILE
+
+      echo "--- Endpoints ---" >> $REPORT_FILE
+      ENDPOINT_COUNT=$(jq '[.paths | keys[]] | length' $SPEC_FILE)
+      echo "Total Endpoints: $ENDPOINT_COUNT" >> $REPORT_FILE
+      echo "" >> $REPORT_FILE
+
+      echo "--- Categories ---" >> $REPORT_FILE
+      jq -r '.tags[] | "- \(.name): \(.description)"' $SPEC_FILE >> $REPORT_FILE
+      echo "" >> $REPORT_FILE
+
+      echo "--- Schemas ---" >> $REPORT_FILE
+      SCHEMA_COUNT=$(jq '[.components.schemas | keys[]] | length' $SPEC_FILE)
+      echo "Total Schemas: $SCHEMA_COUNT" >> $REPORT_FILE
+
+      cat $REPORT_FILE
+    displayName: 'Generate Swagger Report'
+
+  ##########################################################
+  # Publish Validation Results
+  ##########################################################
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish Swagger specs and report'
+    inputs:
+      targetPath: 'swagger-specs'
+      artifact: 'swagger-validation-$(environment)'
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish validation report'
+    inputs:
+      targetPath: 'swagger-validation-report.txt'
+      artifact: 'swagger-report-$(environment)'

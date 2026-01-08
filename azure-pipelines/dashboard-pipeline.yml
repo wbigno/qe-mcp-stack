@@ -1,0 +1,108 @@
+##########################################################
+# Dashboard & Orchestrator Pipeline
+# Deploys: orchestrator, ado-dashboard, swagger-hub
+##########################################################
+
+steps:
+  - task: NodeTool@0
+    displayName: 'Install Node.js'
+    inputs:
+      versionSpec: '18.x'
+
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Download build artifacts'
+    inputs:
+      artifact: 'build-output'
+      path: '$(System.DefaultWorkingDirectory)'
+
+  - script: |
+      echo "Deploying Dashboard & Orchestrator..."
+      echo "Environment: $(Build.SourceBranchName)"
+    displayName: 'Log deployment info'
+
+  ##########################################################
+  # Orchestrator (Port 3000)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Orchestrator'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-orchestrator-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/orchestrator'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 3000
+        -NODE_ENV $(environment)
+        -AZURE_DEVOPS_PAT $(AZURE_DEVOPS_PAT)
+        -ANTHROPIC_API_KEY $(ANTHROPIC_API_KEY)
+        -OPENAI_API_KEY $(OPENAI_API_KEY)
+
+  ##########################################################
+  # ADO Dashboard (Port 5173)
+  ##########################################################
+  - task: AzureStaticWebApp@0
+    displayName: 'Deploy ADO Dashboard'
+    inputs:
+      app_location: '/ado-dashboard'
+      output_location: 'dist'
+      azure_static_web_apps_api_token: '$(staticWebAppToken)'
+    env:
+      VITE_ORCHESTRATOR_URL: 'https://qe-mcp-orchestrator-$(environment).azurewebsites.net'
+
+  ##########################################################
+  # Swagger Hub (Port 8000)
+  ##########################################################
+  - task: AzureWebApp@1
+    displayName: 'Deploy Swagger Hub'
+    inputs:
+      azureSubscription: '$(azureSubscription)'
+      appType: 'webAppLinux'
+      appName: 'qe-mcp-swagger-hub-$(environment)'
+      package: '$(System.DefaultWorkingDirectory)/swagger-hub'
+      runtimeStack: 'NODE|18-lts'
+      startUpCommand: 'npm start'
+      appSettings: |
+        -PORT 8000
+        -NODE_ENV $(environment)
+        -ORCHESTRATOR_URL https://qe-mcp-orchestrator-$(environment).azurewebsites.net
+
+  ##########################################################
+  # Health Check
+  ##########################################################
+  - script: |
+      echo "Waiting for services to start..."
+      sleep 30
+
+      echo "Checking Orchestrator health..."
+      curl -f https://qe-mcp-orchestrator-$(environment).azurewebsites.net/health || exit 1
+
+      echo "Checking Swagger Hub health..."
+      curl -f https://qe-mcp-swagger-hub-$(environment).azurewebsites.net/health || exit 1
+
+      echo "Dashboard & Orchestrator are healthy!"
+    displayName: 'Health check Dashboard & Orchestrator'
+    continueOnError: false
+
+  ##########################################################
+  # Verify All MCPs are Accessible
+  ##########################################################
+  - script: |
+      echo "Verifying MCP connectivity through Orchestrator..."
+
+      ORCHESTRATOR_URL="https://qe-mcp-orchestrator-$(environment).azurewebsites.net"
+
+      # Check orchestrator health endpoint returns all MCPs
+      HEALTH_RESPONSE=$(curl -s $ORCHESTRATOR_URL/health)
+
+      echo "Health response: $HEALTH_RESPONSE"
+
+      # Verify all expected MCPs are present
+      echo "$HEALTH_RESPONSE" | jq -e '.mcps.azureDevOps' || exit 1
+      echo "$HEALTH_RESPONSE" | jq -e '.mcps.codeAnalyzer' || exit 1
+      echo "$HEALTH_RESPONSE" | jq -e '.mcps.riskAnalyzer' || exit 1
+
+      echo "All MCPs are accessible through Orchestrator!"
+    displayName: 'Verify MCP connectivity'
+    continueOnError: false
