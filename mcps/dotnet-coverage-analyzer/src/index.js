@@ -13,6 +13,46 @@ const PORT = process.env.PORT || 3002;
 // Increase payload size limit to handle large method arrays
 app.use(express.json({ limit: '50mb' }));
 
+/**
+ * Comprehensive test file detection
+ * Filters out test files that should NEVER appear in coverage gaps
+ */
+function isTestFile(filePath) {
+  if (!filePath) return false;
+
+  const lowerPath = filePath.toLowerCase();
+  const fileName = path.basename(filePath).toLowerCase();
+
+  // Filename patterns (case insensitive)
+  const testFilePatterns = [
+    'test.cs',
+    'tests.cs',
+    '_test.cs',
+    '_tests.cs',
+    '.test.cs',
+    '.tests.cs'
+  ];
+
+  if (testFilePatterns.some(pattern => fileName.endsWith(pattern))) {
+    return true;
+  }
+
+  // Directory patterns (case insensitive)
+  const testDirectoryPatterns = [
+    '/test/',
+    '/tests/',
+    '/__tests__/',
+    '/testing/',
+    '/testproject/'
+  ];
+
+  if (testDirectoryPatterns.some(pattern => lowerPath.includes(pattern))) {
+    return true;
+  }
+
+  return false;
+}
+
 app.get('/health', (req, res) => {
   res.json({
     status: 'healthy',
@@ -110,38 +150,48 @@ async function parseCoverageFile(filePath) {
 }
 
 /**
- * Find test files in app directory
+ * Find ALL C# files that might contain test methods
+ * ✅ UPDATED: Search ALL .cs files, not just files with "Test" in the name
+ * This ensures we find test methods in any file, regardless of naming conventions
  */
 function findTestFiles(appDir) {
   try {
-    const patterns = [
-      `${appDir}/**/*Tests.cs`,
-      `${appDir}/**/*Test.cs`,
-      `${appDir}/**/Test*.cs`
+    // ✅ Search ALL .cs files, just like the code analyzer does
+    const pattern = `${appDir}/**/*.cs`;
+
+    // Exclude common directories that won't have tests
+    const excludePatterns = [
+      '**/bin/**',
+      '**/obj/**',
+      '**/packages/**',
+      '**/node_modules/**',
+      '**/.vs/**',
+      '**/TestResults/**'
     ];
 
-    const testFiles = new Set();
-    for (const pattern of patterns) {
-      const files = glob.sync(pattern, { nodir: true });
-      files.forEach(f => testFiles.add(f));
-    }
+    const files = glob.sync(pattern, {
+      nodir: true,
+      ignore: excludePatterns
+    });
 
-    return Array.from(testFiles);
+    console.log(`[Coverage Analyzer] Found ${files.length} C# files to scan for test methods`);
+    return files;
   } catch (error) {
-    console.error('Error finding test files:', error);
+    console.error('Error finding C# files:', error);
     return [];
   }
 }
 
 /**
- * Parse test file to find test methods
+ * Parse C# file to find test methods (with [Test], [Fact], [Theory], or [TestMethod] attributes)
+ * ✅ UPDATED: Can parse ANY .cs file, not just files with "Test" in the name
  */
 function parseTestFile(filePath) {
   try {
     const content = readFileSync(filePath, 'utf-8');
     const tests = [];
 
-    // Match test methods with [Test], [Fact], [Theory] attributes
+    // Match test methods with xUnit, MSTest, or NUnit attributes
     const testMethodRegex = /\[(Test|Fact|Theory|TestMethod)\][\s\S]*?(?:public|private|internal)\s+(?:async\s+)?(?:Task|void)\s+(\w+)/g;
 
     let match;
@@ -166,21 +216,26 @@ function parseTestFile(filePath) {
 }
 
 /**
- * Parse all test files once and return all test methods
+ * Parse all C# files once and return all test methods found
+ * ✅ UPDATED: Parses ALL .cs files to find test methods anywhere in the codebase
  */
 function parseAllTestFiles(testFiles) {
   const allTests = [];
+  let filesWithTests = 0;
 
   for (const testFile of testFiles) {
     try {
       const tests = parseTestFile(testFile);
-      allTests.push(...tests);
+      if (tests.length > 0) {
+        allTests.push(...tests);
+        filesWithTests++;
+      }
     } catch (error) {
-      console.error(`[Coverage Analyzer] Error parsing test file ${testFile}:`, error.message);
+      console.error(`[Coverage Analyzer] Error parsing file ${testFile}:`, error.message);
     }
   }
 
-  console.log(`[Coverage Analyzer] Parsed ${allTests.length} test methods from ${testFiles.length} test files`);
+  console.log(`[Coverage Analyzer] Parsed ${allTests.length} test methods from ${filesWithTests} files (scanned ${testFiles.length} total .cs files)`);
   return allTests;
 }
 
@@ -225,6 +280,17 @@ app.post('/analyze', async (req, res) => {
     const methods = codeStructure?.methods || codeStructure?.analysis?.methods || [];
     console.log(`[Coverage Analyzer] Extracted ${methods.length} methods for analysis`);
 
+    // DEBUG: Check if className is present in incoming methods
+    if (methods.length > 0) {
+      const sampleMethod = methods[0];
+      console.log(`[Coverage Analyzer] Sample method fields:`, Object.keys(sampleMethod));
+      if (sampleMethod.className) {
+        console.log(`[Coverage Analyzer] ✅ className field present: ${sampleMethod.className}`);
+      } else {
+        console.log(`[Coverage Analyzer] ❌ className field MISSING`);
+      }
+    }
+
     if (methods.length === 0) {
       return res.json({
         success: true,
@@ -261,8 +327,12 @@ app.post('/analyze', async (req, res) => {
     // Parse all test files ONCE upfront (major performance optimization)
     const allTests = parseAllTestFiles(testFiles);
 
+    // ✅ FILTER: Remove test files from analysis
+    const productionMethods = methods.filter(method => !isTestFile(method.file));
+    console.log(`[Coverage Analyzer] Filtered ${methods.length - productionMethods.length} test file methods, analyzing ${productionMethods.length} production methods`);
+
     // Analyze each method
-    const analyzedMethods = methods.map(method => {
+    const analyzedMethods = productionMethods.map(method => {
       // Get coverage from parsed data
       let coverage = null;
       if (coverageData) {
@@ -285,7 +355,13 @@ app.post('/analyze', async (req, res) => {
 
       return {
         name: method.name,
+        className: method.className || 'Unknown', // ✅ ADD: Class name for grouping
         file: method.file,
+        lineNumber: method.lineNumber, // ✅ ADD: Line number
+        visibility: method.visibility, // ✅ ADD: public/private/etc
+        isPublic: method.isPublic, // ✅ ADD: Boolean for quick checks
+        complexity: method.complexity || 1, // ✅ ADD: Cyclomatic complexity
+        fileType: method.fileType || 'Other', // ✅ ADD: Controller/Service/etc
         coverage: coverage, // null if no coverage data, number 0-100 if found
         hasTests: testDetection.hasTests,
         hasNegativeTests: testDetection.hasNegativeTests,

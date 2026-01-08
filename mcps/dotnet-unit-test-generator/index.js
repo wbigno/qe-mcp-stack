@@ -33,13 +33,14 @@ process.stdin.on('end', async () => {
       throw new Error('Missing "data" field in input');
     }
 
-    const { 
+    const {
       app,
-      className, 
+      className,
       methodName,
       sourceCode,
       includeNegativeTests = true,
-      includeMocks = true
+      includeMocks = true,
+      testFramework = 'xUnit' // Default to xUnit if not specified
     } = input.data;
 
     // Validate required fields
@@ -58,7 +59,8 @@ process.stdin.on('end', async () => {
       methodName,
       sourceCode,
       includeNegativeTests,
-      includeMocks
+      includeMocks,
+      testFramework
     });
 
     // Output result as JSON to stdout

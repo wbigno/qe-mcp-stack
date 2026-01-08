@@ -10,11 +10,12 @@
 
 ## Overview
 
-The **Unit Test Generator** is a STDIO MCP that uses AI (Anthropic Claude) to generate comprehensive xUnit unit tests for .NET C# classes and methods. It creates production-ready test code following best practices with proper Arrange-Act-Assert patterns, mocking, and comprehensive coverage.
+The **Unit Test Generator** is a STDIO MCP that uses AI (Anthropic Claude) to generate comprehensive unit tests for .NET C# classes and methods. It supports **xUnit, MSTest, and NUnit** frameworks and creates production-ready test code following best practices with proper Arrange-Act-Assert patterns, mocking, and comprehensive coverage.
 
 ### Purpose
 
-- ✅ Generate xUnit unit tests for C# classes
+- ✅ Generate unit tests for C# classes in **xUnit, MSTest, or NUnit** format
+- ✅ Automatic framework detection from app configuration
 - ✅ Create test fixtures with proper setup/teardown
 - ✅ Generate mock objects using Moq
 - ✅ Follow Arrange-Act-Assert (AAA) pattern
@@ -66,9 +67,17 @@ npm test
     sourceCode?: string;              // Optional: C# source code (or loaded from file)
     includeNegativeTests?: boolean;   // Default: true
     includeMocks?: boolean;           // Default: true
+    testFramework?: 'xUnit' | 'MSTest' | 'NUnit';  // Optional: Test framework (default: xUnit)
   }
 }
 ```
+
+### Test Framework Selection
+
+The generator automatically selects the test framework based on:
+1. **Explicit `testFramework` parameter** - If provided, uses specified framework
+2. **App configuration** - Reads `testFramework` from `config/apps.json` for the app
+3. **Default fallback** - Defaults to xUnit if not specified
 
 ---
 
@@ -341,6 +350,139 @@ public void MethodName_Scenario_ExpectedResult()
 
 ---
 
+## Supported Test Frameworks
+
+The generator supports three major .NET test frameworks with framework-specific syntax and conventions:
+
+### xUnit
+
+**Attributes:**
+- `[Fact]` - Single test method
+- `[Theory]` - Parameterized test with `[InlineData]`
+
+**Assertions:**
+- `Assert.Equal(expected, actual)`
+- `Assert.NotNull(value)`
+- `Assert.True(condition)`
+- `Assert.Throws<TException>(() => action())`
+
+**Namespaces:**
+```csharp
+using Xunit;
+using Moq;
+using System;
+```
+
+**Example:**
+```csharp
+[Fact]
+public void GetUserById_ValidId_ReturnsUser()
+{
+    // Arrange
+    var userId = 1;
+    var mockRepo = new Mock<IUserRepository>();
+    mockRepo.Setup(r => r.GetById(userId)).Returns(new User());
+
+    // Act
+    var result = service.GetUserById(userId);
+
+    // Assert
+    Assert.NotNull(result);
+    Assert.Equal(1, result.Id);
+}
+```
+
+### MSTest
+
+**Attributes:**
+- `[TestClass]` - Test class attribute (required)
+- `[TestMethod]` - Test method attribute
+- `[TestInitialize]` - Setup method
+- `[TestCleanup]` - Teardown method
+
+**Assertions:**
+- `Assert.AreEqual(expected, actual)`
+- `Assert.IsNotNull(value)`
+- `Assert.IsTrue(condition)`
+- `Assert.ThrowsException<TException>(() => action())`
+
+**Namespaces:**
+```csharp
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Moq;
+using System;
+```
+
+**Example:**
+```csharp
+[TestClass]
+public class UserServiceTests
+{
+    [TestMethod]
+    public void GetUserById_ValidId_ReturnsUser()
+    {
+        // Arrange
+        var userId = 1;
+        var mockRepo = new Mock<IUserRepository>();
+        mockRepo.Setup(r => r.GetById(userId)).Returns(new User());
+
+        // Act
+        var result = service.GetUserById(userId);
+
+        // Assert
+        Assert.IsNotNull(result);
+        Assert.AreEqual(1, result.Id);
+    }
+}
+```
+
+### NUnit
+
+**Attributes:**
+- `[TestFixture]` - Test class attribute (required)
+- `[Test]` - Test method attribute
+- `[SetUp]` - Setup method
+- `[TearDown]` - Teardown method
+
+**Assertions:**
+- `Assert.AreEqual(expected, actual)`
+- `Assert.That(actual, Is.EqualTo(expected))` - Constraint model
+- `Assert.IsNotNull(value)`
+- `Assert.IsTrue(condition)`
+- `Assert.Throws<TException>(() => action())`
+
+**Namespaces:**
+```csharp
+using NUnit.Framework;
+using Moq;
+using System;
+```
+
+**Example:**
+```csharp
+[TestFixture]
+public class UserServiceTests
+{
+    [Test]
+    public void GetUserById_ValidId_ReturnsUser()
+    {
+        // Arrange
+        var userId = 1;
+        var mockRepo = new Mock<IUserRepository>();
+        mockRepo.Setup(r => r.GetById(userId)).Returns(new User());
+
+        // Act
+        var result = service.GetUserById(userId);
+
+        // Assert
+        Assert.IsNotNull(result);
+        Assert.That(result.Id, Is.EqualTo(1));
+    }
+}
+```
+
+---
+
 ## Environment Requirements
 
 ### Required Environment Variables
@@ -478,6 +620,22 @@ The orchestrator calls this MCP to generate unit tests as part of the test autom
 ---
 
 ## Changelog
+
+### v2.0.0 (2026-01-08)
+- ✅ **Multi-framework support** - Added MSTest and NUnit framework support
+- ✅ **Auto-detection** - Reads testFramework from apps.json configuration
+- ✅ **Framework-specific prompts** - AI generates appropriate syntax for each framework
+- ✅ **Framework-specific namespaces** - Correct using statements for each framework
+- ✅ **Updated orchestrator** - Automatically passes framework to generator
+
+**Breaking Changes:**
+- Generated tests now respect the `testFramework` field in apps.json
+- Test generation API accepts new `testFramework` parameter
+
+**Supported Frameworks:**
+- xUnit (default, backwards compatible)
+- MSTest (for Core and PreCare apps)
+- NUnit (for apps with mixed test frameworks)
 
 ### v1.0.0 (2024-12-29)
 - ✅ Initial production release

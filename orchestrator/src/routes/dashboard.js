@@ -203,6 +203,7 @@ function transformCodeAnalysisForDashboard(codeData, coverageData, appName) {
     applications: [{ id: appName, name: appName }],
     files,
     classes,
+    methods: analysis.methods || [], // ✅ ADD: Include methods for complexity tab
     coverage: {
       overall: coverageData?.overall || coverageData?.coverage?.overall || 0,
       line: coverageData?.line || coverageData?.coverage?.line || 0,

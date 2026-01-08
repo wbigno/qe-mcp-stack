@@ -116,6 +116,13 @@ router.post('/test-gaps', async (req, res) => {
     const methods = codeStructure?.analysis?.methods || codeStructure?.methods || [];
     logger.info(`[Analysis] Sending ${methods.length} methods to coverage analyzer`);
 
+    // DEBUG: Check if className is present
+    if (methods.length > 0) {
+      const sampleMethod = methods[0];
+      logger.info(`[Analysis] Sample method keys: ${Object.keys(sampleMethod).join(', ')}`);
+      logger.info(`[Analysis] Sample className: ${sampleMethod.className || 'MISSING'}`);
+    }
+
     // Get coverage data - pass only methods array, not entire codeStructure
     const coverage = await req.mcpManager.callDockerMcp(
       'dotnetCoverageAnalyzer',
@@ -125,10 +132,19 @@ router.post('/test-gaps', async (req, res) => {
 
     // Identify gaps (methods without tests, missing negative tests, etc.)
     const coverageData = coverage.coverage || coverage;
+    const allMethods = coverageData.methods || [];
+
+    // ✅ FIX: Methods with tests but missing negative tests should NOT be in untestedMethods
     const gaps = {
-      untestedMethods: (coverageData.methods || []).filter(m => m.coverage === 0 || m.coverage === null),
-      partialCoverage: (coverageData.methods || []).filter(m => m.coverage !== null && m.coverage > 0 && m.coverage < 80),
-      missingNegativeTests: coverageData.negativeTestGaps || [],
+      untestedMethods: allMethods.filter(m =>
+        !m.hasTests && (m.coverage === 0 || m.coverage === null)
+      ),
+      partialCoverage: allMethods.filter(m =>
+        m.coverage !== null && m.coverage > 0 && m.coverage < 80
+      ),
+      missingNegativeTests: allMethods.filter(m =>
+        m.hasTests && !m.hasNegativeTests
+      ),
       criticalPaths: coverageData.criticalUntested || []
     };
 

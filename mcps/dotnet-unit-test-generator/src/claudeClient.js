@@ -20,7 +20,8 @@ export async function generateWithClaude(params) {
     includeNegativeTests,
     includeMocks,
     onlyNegativeTests,
-    model
+    model,
+    testFramework = 'xUnit' // Default to xUnit for backwards compatibility
   } = params;
 
   // Construct generation prompt
@@ -30,7 +31,8 @@ export async function generateWithClaude(params) {
     sourceCode,
     includeNegativeTests,
     includeMocks,
-    onlyNegativeTests
+    onlyNegativeTests,
+    testFramework
   );
 
   try {
@@ -63,7 +65,24 @@ export async function generateWithClaude(params) {
 /**
  * Build test generation prompt
  */
-function buildGenerationPrompt(className, methodName, sourceCode, includeNegativeTests, includeMocks, onlyNegativeTests) {
+function buildGenerationPrompt(className, methodName, sourceCode, includeNegativeTests, includeMocks, onlyNegativeTests, testFramework) {
+  // Delegate to framework-specific prompt builder
+  switch (testFramework.toLowerCase()) {
+    case 'xunit':
+      return buildXUnitPrompt(className, methodName, sourceCode, includeNegativeTests, includeMocks, onlyNegativeTests);
+    case 'mstest':
+      return buildMSTestPrompt(className, methodName, sourceCode, includeNegativeTests, includeMocks, onlyNegativeTests);
+    case 'nunit':
+      return buildNUnitPrompt(className, methodName, sourceCode, includeNegativeTests, includeMocks, onlyNegativeTests);
+    default:
+      throw new Error(`Unsupported test framework: ${testFramework}. Supported frameworks: xUnit, MSTest, NUnit`);
+  }
+}
+
+/**
+ * Build xUnit test generation prompt
+ */
+function buildXUnitPrompt(className, methodName, sourceCode, includeNegativeTests, includeMocks, onlyNegativeTests) {
   const methodScope = methodName ? `specifically the "${methodName}" method` : 'all public methods';
 
   // If generating only negative tests, customize the prompt
@@ -94,7 +113,38 @@ Generate xUnit unit tests following these requirements:
    - ❌ Boundary violations (negative numbers, empty strings, etc.)
    - ❌ Error conditions and failure scenarios
 
-${includeMocks ? `5. **Mocking:** Use Moq for dependencies when needed.` : ''}`;
+${includeMocks ? `5. **Mocking:** Use Moq for dependencies when needed.` : ''}
+
+**IMPORTANT**: Return ONLY a valid, properly-escaped JSON object. All string values (especially testCode and mockCode) must use \\n for newlines, not actual line breaks. The response must be parseable by JSON.parse().
+
+Return a JSON object with this structure:
+
+{
+  "tests": [
+    {
+      "testName": "MethodName_NullArgument_ThrowsArgumentNullException",
+      "testCode": "// Full xUnit negative test method code",
+      "description": "Validates that null arguments are properly rejected",
+      "category": "negative",
+      "dependencies": ["Interface1"],
+      "assertions": ["Assert.Throws<ArgumentNullException>"]
+    }
+  ],
+  "mocks": [
+    {
+      "interfaceName": "IUserRepository",
+      "mockCode": "// Mock setup code",
+      "purpose": "Why this mock is needed"
+    }
+  ],
+  "testFixture": {
+    "className": "ClassNameTests",
+    "namespaces": ["using Xunit;", "using Moq;"],
+    "setupCode": "// Constructor or IClassFixture setup if needed"
+  }
+}
+
+Focus on comprehensive negative test coverage for error scenarios.`;
   }
 
   // Original prompt for full test generation
@@ -194,6 +244,339 @@ Return a JSON object with this structure:
 - Add comments explaining complex setups
 - Use proper xUnit assertions (Assert.Equal, Assert.NotNull, etc.)
 - Follow C# coding conventions
+
+Generate 2-3 focused, high-value tests. Return ONLY the JSON object in compact format (no pretty-printing, all code as escaped single-line strings with \\n for line breaks).`;
+}
+
+/**
+ * Build MSTest test generation prompt
+ */
+function buildMSTestPrompt(className, methodName, sourceCode, includeNegativeTests, includeMocks, onlyNegativeTests) {
+  const methodScope = methodName ? `specifically the "${methodName}" method` : 'all public methods';
+
+  // If generating only negative tests, customize the prompt
+  if (onlyNegativeTests) {
+    return `You are an expert .NET test engineer. Generate ONLY negative/error scenario MSTest tests for methods that are missing negative test coverage.
+
+**Class Name:** ${className}
+**Test Scope:** ${methodScope}
+
+**Source Code:**
+\`\`\`csharp
+${sourceCode}
+\`\`\`
+
+---
+
+**CRITICAL**: Generate ONLY negative/error scenario tests. DO NOT generate positive tests or happy path tests.
+
+Generate MSTest unit tests following these requirements:
+
+1. **Test Framework:** MSTest for .NET
+2. **Naming Convention:** MethodName_InvalidScenario_ExpectedBehavior
+3. **Pattern:** Arrange-Act-Assert (AAA)
+4. **Focus ONLY on:**
+   - ❌ Null argument tests → ArgumentNullException
+   - ❌ Invalid input tests → ArgumentException
+   - ❌ Business rule violations → Custom exceptions
+   - ❌ Boundary violations (negative numbers, empty strings, etc.)
+   - ❌ Error conditions and failure scenarios
+
+${includeMocks ? `5. **Mocking:** Use Moq for dependencies when needed.` : ''}
+
+**IMPORTANT**: Return ONLY a valid, properly-escaped JSON object. All string values (especially testCode and mockCode) must use \\n for newlines, not actual line breaks. The response must be parseable by JSON.parse().
+
+Return a JSON object with this structure:
+
+{
+  "tests": [
+    {
+      "testName": "MethodName_NullArgument_ThrowsArgumentNullException",
+      "testCode": "// Full MSTest negative test method code with [TestMethod] attribute",
+      "description": "Validates that null arguments are properly rejected",
+      "category": "negative",
+      "dependencies": ["Interface1"],
+      "assertions": ["Assert.ThrowsException<ArgumentNullException>"]
+    }
+  ],
+  "mocks": [
+    {
+      "interfaceName": "IUserRepository",
+      "mockCode": "// Mock setup code",
+      "purpose": "Why this mock is needed"
+    }
+  ],
+  "testFixture": {
+    "className": "ClassNameTests",
+    "namespaces": ["using Microsoft.VisualStudio.TestTools.UnitTesting;", "using Moq;"],
+    "setupCode": "// Constructor or [TestInitialize] setup if needed"
+  }
+}
+
+Focus on comprehensive negative test coverage for error scenarios. Use MSTest assertions like Assert.ThrowsException<T>, Assert.AreEqual, Assert.IsTrue, Assert.IsNotNull.`;
+  }
+
+  // Original prompt for full test generation
+  return `You are an expert .NET test engineer. Generate 2-3 essential MSTest unit tests for a C# class.
+
+**Class Name:** ${className}
+**Test Scope:** ${methodScope}
+
+**Source Code:**
+\`\`\`csharp
+${sourceCode}
+\`\`\`
+
+---
+
+Generate MSTest unit tests following these requirements:
+
+1. **Test Framework:** MSTest for .NET
+2. **Naming Convention:** MethodName_Scenario_ExpectedBehavior
+3. **Pattern:** Arrange-Act-Assert (AAA)
+4. **Test Categories:**
+   - Positive tests (happy path)
+   ${includeNegativeTests ? '- Negative tests (error cases, invalid inputs)' : ''}
+   - Edge cases (null, empty, boundary values)
+
+${includeMocks ? `5. **Mocking:** Use Moq for dependencies. Create mock setup code for interfaces.` : ''}
+
+**IMPORTANT**: Return ONLY a valid, properly-escaped JSON object. All string values (especially testCode and mockCode) must use \\n for newlines, not actual line breaks. The response must be parseable by JSON.parse().
+
+Return a JSON object with this structure:
+
+{
+  "tests": [
+    {
+      "testName": "MethodName_ValidInput_ReturnsExpectedResult",
+      "testCode": "// Full MSTest test method code with [TestMethod] attribute",
+      "description": "What this test validates",
+      "category": "positive",
+      "dependencies": ["Interface1", "Interface2"],
+      "assertions": ["Assert.IsNotNull", "Assert.AreEqual"]
+    }
+  ],
+  "mocks": [
+    {
+      "interfaceName": "IUserRepository",
+      "mockCode": "// Mock setup code",
+      "purpose": "Why this mock is needed"
+    }
+  ],
+  "testFixture": {
+    "className": "ClassNameTests",
+    "namespaces": ["using Microsoft.VisualStudio.TestTools.UnitTesting;", "using Moq;"],
+    "setupCode": "// Constructor or [TestInitialize] setup if needed"
+  }
+}
+
+**Test Generation Guidelines:**
+
+1. **Test Class:** Must have [TestClass] attribute
+2. **Test Methods:** Must have [TestMethod] attribute
+3. **Arrange Section:**
+   - Set up test data
+   - Create mock objects
+   - Configure mock behavior
+   - Initialize system under test
+
+4. **Act Section:**
+   - Call the method being tested
+   - Capture return value or exception
+
+5. **Assert Section:**
+   - Use MSTest assertions: Assert.AreEqual, Assert.IsNotNull, Assert.IsTrue, Assert.IsFalse
+   - Verify mock interactions (VerifyAll, Verify)
+   - Check state changes
+
+6. **Positive Tests:** Cover main success scenarios
+7. **Negative Tests:**
+   - Null arguments → Assert.ThrowsException<ArgumentNullException>
+   - Invalid inputs → Assert.ThrowsException<ArgumentException>
+   - Business rule violations → Assert.ThrowsException<CustomException>
+
+8. **Edge Cases:**
+   - Empty strings/collections
+   - Boundary values (min, max)
+   - Special characters
+
+9. **Naming:**
+   - Test class: \`{ClassName}Tests\` with [TestClass] attribute
+   - Test methods: \`MethodName_Scenario_ExpectedResult\` with [TestMethod] attribute
+
+**Code Quality:**
+- Include all necessary using statements
+- Add comments explaining complex setups
+- Use proper MSTest assertions (Assert.AreEqual, Assert.IsNotNull, etc.)
+- Follow C# coding conventions
+- Mark test class with [TestClass] and test methods with [TestMethod]
+
+Generate 2-3 focused, high-value tests. Return ONLY the JSON object in compact format (no pretty-printing, all code as escaped single-line strings with \\n for line breaks).`;
+}
+
+/**
+ * Build NUnit test generation prompt
+ */
+function buildNUnitPrompt(className, methodName, sourceCode, includeNegativeTests, includeMocks, onlyNegativeTests) {
+  const methodScope = methodName ? `specifically the "${methodName}" method` : 'all public methods';
+
+  // If generating only negative tests, customize the prompt
+  if (onlyNegativeTests) {
+    return `You are an expert .NET test engineer. Generate ONLY negative/error scenario NUnit tests for methods that are missing negative test coverage.
+
+**Class Name:** ${className}
+**Test Scope:** ${methodScope}
+
+**Source Code:**
+\`\`\`csharp
+${sourceCode}
+\`\`\`
+
+---
+
+**CRITICAL**: Generate ONLY negative/error scenario tests. DO NOT generate positive tests or happy path tests.
+
+Generate NUnit unit tests following these requirements:
+
+1. **Test Framework:** NUnit for .NET
+2. **Naming Convention:** MethodName_InvalidScenario_ExpectedBehavior
+3. **Pattern:** Arrange-Act-Assert (AAA)
+4. **Focus ONLY on:**
+   - ❌ Null argument tests → ArgumentNullException
+   - ❌ Invalid input tests → ArgumentException
+   - ❌ Business rule violations → Custom exceptions
+   - ❌ Boundary violations (negative numbers, empty strings, etc.)
+   - ❌ Error conditions and failure scenarios
+
+${includeMocks ? `5. **Mocking:** Use Moq for dependencies when needed.` : ''}
+
+**IMPORTANT**: Return ONLY a valid, properly-escaped JSON object. All string values (especially testCode and mockCode) must use \\n for newlines, not actual line breaks. The response must be parseable by JSON.parse().
+
+Return a JSON object with this structure:
+
+{
+  "tests": [
+    {
+      "testName": "MethodName_NullArgument_ThrowsArgumentNullException",
+      "testCode": "// Full NUnit negative test method code with [Test] attribute",
+      "description": "Validates that null arguments are properly rejected",
+      "category": "negative",
+      "dependencies": ["Interface1"],
+      "assertions": ["Assert.Throws<ArgumentNullException>"]
+    }
+  ],
+  "mocks": [
+    {
+      "interfaceName": "IUserRepository",
+      "mockCode": "// Mock setup code",
+      "purpose": "Why this mock is needed"
+    }
+  ],
+  "testFixture": {
+    "className": "ClassNameTests",
+    "namespaces": ["using NUnit.Framework;", "using Moq;"],
+    "setupCode": "// [SetUp] method if needed"
+  }
+}
+
+Focus on comprehensive negative test coverage for error scenarios. Use NUnit assertions like Assert.Throws<T>, Assert.That, Assert.AreEqual, Assert.IsTrue, Assert.IsNotNull.`;
+  }
+
+  // Original prompt for full test generation
+  return `You are an expert .NET test engineer. Generate 2-3 essential NUnit unit tests for a C# class.
+
+**Class Name:** ${className}
+**Test Scope:** ${methodScope}
+
+**Source Code:**
+\`\`\`csharp
+${sourceCode}
+\`\`\`
+
+---
+
+Generate NUnit unit tests following these requirements:
+
+1. **Test Framework:** NUnit for .NET
+2. **Naming Convention:** MethodName_Scenario_ExpectedBehavior
+3. **Pattern:** Arrange-Act-Assert (AAA)
+4. **Test Categories:**
+   - Positive tests (happy path)
+   ${includeNegativeTests ? '- Negative tests (error cases, invalid inputs)' : ''}
+   - Edge cases (null, empty, boundary values)
+
+${includeMocks ? `5. **Mocking:** Use Moq for dependencies. Create mock setup code for interfaces.` : ''}
+
+**IMPORTANT**: Return ONLY a valid, properly-escaped JSON object. All string values (especially testCode and mockCode) must use \\n for newlines, not actual line breaks. The response must be parseable by JSON.parse().
+
+Return a JSON object with this structure:
+
+{
+  "tests": [
+    {
+      "testName": "MethodName_ValidInput_ReturnsExpectedResult",
+      "testCode": "// Full NUnit test method code with [Test] attribute",
+      "description": "What this test validates",
+      "category": "positive",
+      "dependencies": ["Interface1", "Interface2"],
+      "assertions": ["Assert.IsNotNull", "Assert.AreEqual"]
+    }
+  ],
+  "mocks": [
+    {
+      "interfaceName": "IUserRepository",
+      "mockCode": "// Mock setup code",
+      "purpose": "Why this mock is needed"
+    }
+  ],
+  "testFixture": {
+    "className": "ClassNameTests",
+    "namespaces": ["using NUnit.Framework;", "using Moq;"],
+    "setupCode": "// [SetUp] method if needed"
+  }
+}
+
+**Test Generation Guidelines:**
+
+1. **Test Class:** Must have [TestFixture] attribute
+2. **Test Methods:** Must have [Test] attribute
+3. **Arrange Section:**
+   - Set up test data
+   - Create mock objects
+   - Configure mock behavior
+   - Initialize system under test
+
+4. **Act Section:**
+   - Call the method being tested
+   - Capture return value or exception
+
+5. **Assert Section:**
+   - Use NUnit assertions: Assert.AreEqual, Assert.That, Assert.IsNotNull, Assert.IsTrue
+   - Use constraint model: Assert.That(actual, Is.EqualTo(expected))
+   - Verify mock interactions (VerifyAll, Verify)
+   - Check state changes
+
+6. **Positive Tests:** Cover main success scenarios
+7. **Negative Tests:**
+   - Null arguments → Assert.Throws<ArgumentNullException>
+   - Invalid inputs → Assert.Throws<ArgumentException>
+   - Business rule violations → Assert.Throws<CustomException>
+
+8. **Edge Cases:**
+   - Empty strings/collections
+   - Boundary values (min, max)
+   - Special characters
+
+9. **Naming:**
+   - Test class: \`{ClassName}Tests\` with [TestFixture] attribute
+   - Test methods: \`MethodName_Scenario_ExpectedResult\` with [Test] attribute
+
+**Code Quality:**
+- Include all necessary using statements
+- Add comments explaining complex setups
+- Use proper NUnit assertions (Assert.That, Assert.AreEqual, etc.)
+- Follow C# coding conventions
+- Mark test class with [TestFixture] and test methods with [Test]
 
 Generate 2-3 focused, high-value tests. Return ONLY the JSON object in compact format (no pretty-printing, all code as escaped single-line strings with \\n for line breaks).`;
 }

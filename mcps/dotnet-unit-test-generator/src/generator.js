@@ -21,7 +21,9 @@ export async function generateUnitTests(params) {
     methodName,
     sourceCode,
     includeNegativeTests = true,
-    includeMocks = true
+    includeMocks = true,
+    onlyNegativeTests = false,
+    testFramework = 'xUnit' // Default to xUnit for backwards compatibility
   } = params;
 
   // Validate input
@@ -36,11 +38,13 @@ export async function generateUnitTests(params) {
     methodName,
     sourceCode: code,
     includeNegativeTests,
-    includeMocks
+    includeMocks,
+    onlyNegativeTests,
+    testFramework
   });
 
   // Assemble complete test file
-  const completeTestFile = assembleTestFile(generated);
+  const completeTestFile = assembleTestFile(generated, testFramework);
 
   // Calculate statistics
   const stats = calculateStatistics(generated);
@@ -58,7 +62,8 @@ export async function generateUnitTests(params) {
       generatedAt: new Date().toISOString(),
       version: '1.0.0',
       includeNegativeTests,
-      includeMocks
+      includeMocks,
+      onlyNegativeTests
     }
   };
 }
@@ -112,9 +117,26 @@ function loadSourceCode(app, className) {
 }
 
 /**
+ * Get default namespaces based on test framework
+ */
+function getDefaultNamespaces(testFramework) {
+  switch (testFramework.toLowerCase()) {
+    case 'xunit':
+      return 'using Xunit;\nusing Moq;\nusing System;\n\n';
+    case 'mstest':
+      return 'using Microsoft.VisualStudio.TestTools.UnitTesting;\nusing Moq;\nusing System;\n\n';
+    case 'nunit':
+      return 'using NUnit.Framework;\nusing Moq;\nusing System;\n\n';
+    default:
+      // Default to xUnit for backwards compatibility
+      return 'using Xunit;\nusing Moq;\nusing System;\n\n';
+  }
+}
+
+/**
  * Assemble complete test file from generated components
  */
-function assembleTestFile(generated) {
+function assembleTestFile(generated, testFramework) {
   const { tests, mocks, testFixture } = generated;
   const { className, namespaces, setupCode } = testFixture;
 
@@ -127,10 +149,8 @@ function assembleTestFile(generated) {
   if (namespaces && namespaces.length > 0) {
     fileContent += namespaces.join('\n') + '\n\n';
   } else {
-    // Default namespaces
-    fileContent += 'using Xunit;\n';
-    fileContent += 'using Moq;\n';
-    fileContent += 'using System;\n\n';
+    // Default namespaces based on test framework
+    fileContent += getDefaultNamespaces(testFramework);
   }
 
   // Add test class

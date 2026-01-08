@@ -17,8 +17,10 @@ let state = {
     filters: {
         app: '',
         complexity: '',
-        coverage: ''
+        coverage: '',
+        gapType: ''
     },
+    categorizedGaps: null, // Store categorized test gaps for filtering
     isLoading: false
 };
 
@@ -329,22 +331,213 @@ function updateCoverageTab() {
 
 function updateComplexityTab() {
     const analysis = state.data.analysis;
-    
+
     if (!analysis) return;
-    
-    // Use files array directly from analysis
-    const files = analysis.files || [];
-    const total = files.length;
-    
-    // Update stats
-    document.getElementById('avgComplexity').textContent = '0.0';
-    document.getElementById('lowComplexity').textContent = total;
-    document.getElementById('mediumComplexity').textContent = '0';
-    document.getElementById('highComplexityCount').textContent = '0';
-    
-    // Update table
+
+    // Get methods from analysis
+    const methods = analysis.methods || [];
+
+    if (methods.length === 0) {
+        // No methods to analyze
+        document.getElementById('avgComplexity').textContent = '0.0';
+        document.getElementById('lowComplexity').textContent = '0';
+        document.getElementById('mediumComplexity').textContent = '0';
+        document.getElementById('highComplexityCount').textContent = '0';
+
+        const tbody = document.querySelector('#complexityTable tbody');
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8;">No methods found for complexity analysis.</td></tr>';
+        return;
+    }
+
+    // Group methods by file and calculate complexity stats per file
+    const fileComplexityMap = {};
+
+    for (const method of methods) {
+        const file = method.file || 'Unknown';
+        const complexity = method.complexity || 1;
+
+        if (!fileComplexityMap[file]) {
+            fileComplexityMap[file] = {
+                file: file,
+                complexities: [],
+                methods: []
+            };
+        }
+
+        fileComplexityMap[file].complexities.push(complexity);
+        fileComplexityMap[file].methods.push({
+            name: method.name,
+            complexity: complexity,
+            className: method.className
+        });
+    }
+
+    // Calculate avg and max complexity per file
+    const fileStats = Object.values(fileComplexityMap).map(fileData => {
+        const complexities = fileData.complexities;
+        const avgComplexity = complexities.reduce((sum, c) => sum + c, 0) / complexities.length;
+        const maxComplexity = Math.max(...complexities);
+
+        return {
+            file: fileData.file,
+            avgComplexity: avgComplexity,
+            maxComplexity: maxComplexity,
+            methodCount: fileData.methods.length,
+            methods: fileData.methods
+        };
+    });
+
+    // Calculate overall stats
+    const allComplexities = methods.map(m => m.complexity || 1);
+    const overallAvg = allComplexities.reduce((sum, c) => sum + c, 0) / allComplexities.length;
+
+    // Categorize by complexity levels
+    const lowComplexity = fileStats.filter(f => f.avgComplexity < 5);
+    const mediumComplexity = fileStats.filter(f => f.avgComplexity >= 5 && f.avgComplexity <= 10);
+    const highComplexity = fileStats.filter(f => f.avgComplexity > 10);
+
+    // Update stat cards
+    document.getElementById('avgComplexity').textContent = overallAvg.toFixed(1);
+    document.getElementById('lowComplexity').textContent = lowComplexity.length;
+    document.getElementById('mediumComplexity').textContent = mediumComplexity.length;
+    document.getElementById('highComplexityCount').textContent = highComplexity.length;
+
+    // Update table with high complexity files only
     const tbody = document.querySelector('#complexityTable tbody');
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8;">✅ No high complexity files found! All files have low complexity.</td></tr>';
+
+    if (highComplexity.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 40px; color: #94a3b8;">✅ No high complexity files found! All files have low or medium complexity.</td></tr>';
+        return;
+    }
+
+    // Sort by avgComplexity descending (worst first)
+    highComplexity.sort((a, b) => b.avgComplexity - a.avgComplexity);
+
+    // Build table rows
+    tbody.innerHTML = highComplexity.map(file => {
+        // Determine severity level
+        let severity, severityClass;
+        if (file.avgComplexity > 20) {
+            severity = '🔴 Critical';
+            severityClass = 'badge-danger';
+        } else if (file.avgComplexity > 15) {
+            severity = '🟠 High';
+            severityClass = 'badge-warning';
+        } else {
+            severity = '🟡 Moderate';
+            severityClass = 'badge-info';
+        }
+
+        // Shorten file path for display
+        const fileName = file.file.split('/').pop() || file.file;
+        const filePath = file.file.replace(/\\/g, '/');
+
+        return `
+            <tr class="clickable-row" data-file="${file.file}">
+                <td>
+                    <strong>${fileName}</strong>
+                    <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">${filePath}</div>
+                </td>
+                <td><strong style="color: #f59e0b;">${file.avgComplexity.toFixed(1)}</strong></td>
+                <td><strong style="color: #ef4444;">${file.maxComplexity}</strong></td>
+                <td>${file.methodCount} methods</td>
+                <td><span class="badge ${severityClass}">${severity}</span></td>
+            </tr>
+        `;
+    }).join('');
+
+    // Add click handlers to show method details
+    tbody.querySelectorAll('tr.clickable-row').forEach(row => {
+        row.addEventListener('click', () => {
+            const filePath = row.getAttribute('data-file');
+            const fileData = highComplexity.find(f => f.file === filePath);
+            showComplexityMethodDetails(fileData);
+        });
+    });
+
+    console.log('📊 COMPLEXITY TAB UPDATED:');
+    console.log('  Total methods:', methods.length);
+    console.log('  Overall avg complexity:', overallAvg.toFixed(1));
+    console.log('  Low complexity files:', lowComplexity.length);
+    console.log('  Medium complexity files:', mediumComplexity.length);
+    console.log('  High complexity files:', highComplexity.length);
+}
+
+// Show detailed method complexity breakdown for a file
+function showComplexityMethodDetails(fileData) {
+    // Sort methods by complexity descending
+    const sortedMethods = [...fileData.methods].sort((a, b) => b.complexity - a.complexity);
+
+    const methodsList = sortedMethods.map(method => {
+        let complexityBadge, complexityClass;
+        if (method.complexity > 10) {
+            complexityBadge = 'High';
+            complexityClass = 'badge-danger';
+        } else if (method.complexity >= 5) {
+            complexityBadge = 'Medium';
+            complexityClass = 'badge-warning';
+        } else {
+            complexityBadge = 'Low';
+            complexityClass = 'badge-success';
+        }
+
+        return `
+            <div style="padding: 10px; border-bottom: 1px solid #2d3748; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>${method.name}</strong>
+                    ${method.className ? `<span style="color: #94a3b8; margin-left: 8px;">(${method.className})</span>` : ''}
+                </div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <span style="color: #f59e0b; font-weight: bold;">Complexity: ${method.complexity}</span>
+                    <span class="badge ${complexityClass}">${complexityBadge}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    const modal = document.getElementById('complexityDetailsModal');
+    if (!modal) {
+        // Create modal if it doesn't exist
+        const modalHTML = `
+            <div id="complexityDetailsModal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 800px;">
+                    <div class="modal-header">
+                        <h3 id="complexityDetailsTitle">Method Complexity Details</h3>
+                        <span class="close" onclick="document.getElementById('complexityDetailsModal').style.display='none'">&times;</span>
+                    </div>
+                    <div id="complexityDetailsContent" style="max-height: 500px; overflow-y: auto;"></div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+    }
+
+    const fileName = fileData.file.split('/').pop() || fileData.file;
+    document.getElementById('complexityDetailsTitle').textContent = `Method Complexity: ${fileName}`;
+    document.getElementById('complexityDetailsContent').innerHTML = `
+        <div style="padding: 15px; background: #1a202c; border-radius: 8px; margin-bottom: 15px;">
+            <div style="display: flex; justify-content: space-around; text-align: center;">
+                <div>
+                    <div style="font-size: 24px; font-weight: bold; color: #f59e0b;">${fileData.avgComplexity.toFixed(1)}</div>
+                    <div style="color: #94a3b8; font-size: 12px;">Average</div>
+                </div>
+                <div>
+                    <div style="font-size: 24px; font-weight: bold; color: #ef4444;">${fileData.maxComplexity}</div>
+                    <div style="color: #94a3b8; font-size: 12px;">Maximum</div>
+                </div>
+                <div>
+                    <div style="font-size: 24px; font-weight: bold; color: #3b82f6;">${fileData.methodCount}</div>
+                    <div style="color: #94a3b8; font-size: 12px;">Methods</div>
+                </div>
+            </div>
+        </div>
+        <h4 style="margin: 20px 0 10px 0; color: #e2e8f0;">Methods (sorted by complexity)</h4>
+        <div style="border: 1px solid #2d3748; border-radius: 8px; overflow: hidden;">
+            ${methodsList}
+        </div>
+    `;
+
+    document.getElementById('complexityDetailsModal').style.display = 'block';
 }
 
 // ============================================
@@ -384,31 +577,81 @@ function updateTestGapsTab() {
     
     const gaps = testGapsData.gaps || {};
     const summary = testGapsData.summary || {};
-    
+
+    // ✅ NEW: Categorize test gaps to identify false positives
+    const categorizedGaps = categorizeTestGaps(gaps);
+    console.log('  🔍 Categorized gaps:', {
+        falsePositives: categorizedGaps.falsePositiveTests.length,
+        productionWithoutTests: categorizedGaps.productionWithoutTests.length,
+        needsMoreTests: categorizedGaps.needsMoreTests.length,
+        missingNegativeTests: categorizedGaps.missingNegativeTests.length
+    });
+
+    // ✅ DEBUG: Log some false positive examples
+    if (categorizedGaps.falsePositiveTests.length > 0) {
+        console.log('  🚨 FALSE POSITIVE EXAMPLES:');
+        categorizedGaps.falsePositiveTests.slice(0, 3).forEach(fp => {
+            console.log(`    - ${fp.name} in ${fp.file} (isTest=${fp.isTest})`);
+        });
+    } else {
+        console.log('  ℹ️ No false positives detected in current data');
+        console.log('  📊 Gap sources:', {
+            untested: gaps.untestedMethods?.length || 0,
+            partial: gaps.partialCoverage?.length || 0,
+            missingNegative: gaps.missingNegativeTests?.length || 0
+        });
+    }
+
+    // Store categorized gaps in state for filtering
+    state.categorizedGaps = categorizedGaps;
+
     // Categorize methods by FILE (not just by gap type)
-    const fileGroups = categorizeByFile(gaps);
-    
-    console.log('  📊 Files with gaps:', Object.keys(fileGroups).length);
+    let fileGroups = categorizeByFile(gaps, categorizedGaps);
+
+    console.log('  📊 Files with gaps (before filters):', Object.keys(fileGroups).length);
+
+    // Apply complexity and coverage filters
+    fileGroups = applyFiltersToFileGroups(fileGroups);
+
+    console.log('  📊 Files with gaps (after filters):', Object.keys(fileGroups).length);
+    if (state.filters.complexity) {
+        console.log('  🔍 Complexity filter:', state.filters.complexity);
+    }
+    if (state.filters.coverage) {
+        console.log('  🔍 Coverage filter:', state.filters.coverage);
+    }
     
     // Update stats
     const totalMethodsCount = summary.totalMethods || 0;
     const untestedFilesCount = Object.keys(fileGroups).length;
     const untestedMethodsCount = gaps.untestedMethods?.length || 0;
     const untestedPercent = totalMethodsCount > 0 ? Math.round((untestedMethodsCount / totalMethodsCount) * 100) : 0;
+    const falsePositiveCount = categorizedGaps.falsePositiveTests.length;
 
     document.getElementById('totalMethods').textContent = totalMethodsCount;
     document.getElementById('untestedMethods').textContent = untestedFilesCount;
     document.getElementById('untestedLabel').textContent = `Untested (${untestedPercent}%)`;
     document.getElementById('partialCoverage').textContent = gaps.partialCoverage?.length || 0;
     document.getElementById('missingNegativeTests').textContent = gaps.missingNegativeTests?.length || 0;
+
+    // ✅ NEW: Update false positive count if element exists
+    const falsePositiveEl = document.getElementById('falsePositiveTests');
+    if (falsePositiveEl) {
+        falsePositiveEl.textContent = falsePositiveCount;
+    }
     
     // Build file-grouped display
     const tbody = document.querySelector('#testGapsTable tbody');
-    
+
     let html = '';
-    
+
+    // ✅ Sort files alphabetically for easier navigation
+    const sortedFiles = Object.entries(fileGroups).sort((a, b) =>
+        a[0].localeCompare(b[0])
+    );
+
     // Group by files
-    Object.entries(fileGroups).forEach(([fileName, fileData]) => {
+    sortedFiles.forEach(([fileName, fileData]) => {
         html += createFileGroupSection(fileName, fileData);
     });
     
@@ -429,27 +672,277 @@ function updateTestGapsTab() {
 // FILE-BASED CATEGORIZATION
 // ============================================
 
-function categorizeByFile(gaps) {
+// ============================================
+// PRIORITY SCORING ALGORITHM
+// ============================================
+
+/**
+ * Multi-factor priority scoring algorithm
+ * Calculates priority based on 5 weighted factors
+ */
+function calculatePriorityScore(method, fileType) {
+    let score = 0;
+    const breakdown = {
+        coverage: 0,
+        complexity: 0,
+        visibility: 0,
+        fileType: 0,
+        callFrequency: 0
+    };
+
+    // Factor 1: Test Coverage Status (40% weight)
+    if (!method.hasTests) {
+        breakdown.coverage = 40; // No tests at all = URGENT
+    } else if (method.hasTests && !method.hasNegativeTests) {
+        breakdown.coverage = 20; // Has positive but no negative = IMPORTANT
+    } else {
+        breakdown.coverage = 0; // Fully covered
+    }
+
+    // Factor 2: Method Complexity (25% weight)
+    const complexity = method.complexity || 1;
+    if (complexity > 10) {
+        breakdown.complexity = 25; // High complexity
+    } else if (complexity >= 5) {
+        breakdown.complexity = 15; // Medium complexity
+    } else {
+        breakdown.complexity = 5; // Low complexity
+    }
+
+    // Factor 3: Visibility/Access Level (20% weight)
+    // Infer visibility from method name or default to public for production code
+    const isPublic = method.isPublic !== false; // Default to true if not specified
+    if (isPublic) {
+        breakdown.visibility = 20; // Public methods
+    } else {
+        breakdown.visibility = 5; // Private/internal
+    }
+
+    // Factor 4: File Type/Role (10% weight)
+    const fType = method.fileType || fileType || detectFileTypeFromPath(method.file);
+    const fileTypeScores = {
+        'Controller': 10,
+        'Service': 8,
+        'Repository': 8,
+        'Utility': 5,
+        'Model': 2,
+        'Other': 3
+    };
+    breakdown.fileType = fileTypeScores[fType] || 3;
+
+    // Factor 5: Call Frequency (5% weight) - placeholder for future
+    // For now, use default value since we don't have call graph data
+    breakdown.callFrequency = 0;
+
+    // Calculate total score
+    score = Object.values(breakdown).reduce((sum, val) => sum + val, 0);
+
+    // Map score to priority level
+    let priority;
+    if (score >= 70) {
+        priority = 'CRITICAL';
+    } else if (score >= 50) {
+        priority = 'HIGH';
+    } else if (score >= 30) {
+        priority = 'MEDIUM';
+    } else {
+        priority = 'LOW';
+    }
+
+    return {
+        score,
+        priority,
+        breakdown
+    };
+}
+
+/**
+ * Detect file type from path
+ */
+function detectFileTypeFromPath(filePath) {
+    if (!filePath) return 'Other';
+    const lower = filePath.toLowerCase();
+
+    if (lower.includes('controller')) return 'Controller';
+    if (lower.includes('service')) return 'Service';
+    if (lower.includes('repository')) return 'Repository';
+    if (lower.includes('helper') || lower.includes('util')) return 'Utility';
+    if (lower.includes('model') || lower.includes('dto')) return 'Model';
+
+    return 'Other';
+}
+
+/**
+ * Comprehensive test file detection
+ * Filters out test files that should NEVER appear in coverage gaps
+ */
+function isTestFile(filePath) {
+    if (!filePath) return false;
+
+    const lowerPath = filePath.toLowerCase();
+    const fileName = filePath.split('/').pop().toLowerCase();
+
+    // Filename patterns (case insensitive)
+    const testFilePatterns = [
+        'test.cs',
+        'tests.cs',
+        '_test.cs',
+        '_tests.cs',
+        '.test.cs',
+        '.tests.cs'
+    ];
+
+    if (testFilePatterns.some(pattern => fileName.endsWith(pattern))) {
+        return true;
+    }
+
+    // Directory patterns (case insensitive)
+    const testDirectoryPatterns = [
+        '/test/',
+        '/tests/',
+        '/__tests__/',
+        '/testing/',
+        '/testproject/'
+    ];
+
+    if (testDirectoryPatterns.some(pattern => lowerPath.includes(pattern))) {
+        return true;
+    }
+
+    return false;
+}
+
+/**
+ * Apply complexity and coverage threshold filters to file groups
+ * Filters methods within each file and removes files with no remaining methods
+ */
+function applyFiltersToFileGroups(fileGroups) {
+    const complexityFilter = state.filters.complexity;
+    const coverageFilter = state.filters.coverage;
+    const gapTypeFilter = state.filters.gapType;
+
+    // If no filters applied, return original data
+    if (!complexityFilter && !coverageFilter && !gapTypeFilter) {
+        return fileGroups;
+    }
+
+    const filteredGroups = {};
+
+    Object.entries(fileGroups).forEach(([fileName, fileData]) => {
+        // Filter methods based on complexity, coverage, and gap type
+        const filteredMethods = fileData.methods.filter(method => {
+            // ✅ NEW: Apply gap type filter using categorizedGaps
+            if (gapTypeFilter && state.categorizedGaps) {
+                const isInCategory = (() => {
+                    switch (gapTypeFilter) {
+                        case 'false-positive':
+                            return state.categorizedGaps.falsePositiveTests.some(
+                                m => m.name === method.name && m.file === method.file
+                            );
+                        case 'no-tests':
+                            return state.categorizedGaps.productionWithoutTests.some(
+                                m => m.name === method.name && m.file === method.file
+                            );
+                        case 'partial':
+                            return state.categorizedGaps.needsMoreTests.some(
+                                m => m.name === method.name && m.file === method.file
+                            );
+                        case 'no-negative':
+                            return state.categorizedGaps.missingNegativeTests.some(
+                                m => m.name === method.name && m.file === method.file
+                            );
+                        default:
+                            return true;
+                    }
+                })();
+
+                if (!isInCategory) return false;
+            }
+
+            // Apply complexity filter
+            if (complexityFilter) {
+                const complexity = method.complexity || 1;
+
+                switch (complexityFilter) {
+                    case 'low':
+                        if (complexity >= 5) return false;
+                        break;
+                    case 'medium':
+                        if (complexity < 5 || complexity > 10) return false;
+                        break;
+                    case 'high':
+                        if (complexity <= 10) return false;
+                        break;
+                }
+            }
+
+            // Apply coverage threshold filter
+            if (coverageFilter) {
+                const coverage = method.coverage;
+
+                // Note: coverage can be null (no coverage data), 0 (no coverage), or 1-100 (percentage)
+                switch (coverageFilter) {
+                    case 'high':
+                        // ≥ 80%
+                        if (coverage === null || coverage < 80) return false;
+                        break;
+                    case 'medium':
+                        // 50-80%
+                        if (coverage === null || coverage < 50 || coverage >= 80) return false;
+                        break;
+                    case 'low':
+                        // < 50% (includes null and 0)
+                        if (coverage !== null && coverage >= 50) return false;
+                        break;
+                }
+            }
+
+            return true;
+        });
+
+        // Only include file if it has remaining methods after filtering
+        if (filteredMethods.length > 0) {
+            // Recalculate counts based on filtered methods
+            const untestedCount = filteredMethods.filter(m => m.gapType === 'UNTESTED').length;
+            const partialCount = filteredMethods.filter(m => m.gapType === 'PARTIAL').length;
+            const negativeTestCount = filteredMethods.filter(m => m.gapType === 'MISSING_NEGATIVE').length;
+
+            filteredGroups[fileName] = {
+                ...fileData,
+                methods: filteredMethods,
+                untestedCount,
+                partialCount,
+                negativeTestCount,
+                totalGaps: filteredMethods.length
+            };
+        }
+    });
+
+    return filteredGroups;
+}
+
+function categorizeByFile(gaps, categorizedGaps) {
     const fileGroups = {};
-    
+
     // ✅ FIX: Handle undefined gaps
     if (!gaps) return fileGroups;
-    
+
     // ✅ FIX: Use safe defaults for arrays
     const untestedMethods = gaps.untestedMethods || [];
     const partialCoverage = gaps.partialCoverage || [];
+    const falsePositiveTests = categorizedGaps?.falsePositiveTests || [];
     
     // Process all untested methods
     untestedMethods.forEach(method => {
         // ✅ FIX: Skip invalid methods
         if (!method || !method.file) return;
 
-        const fileName = method.file.split('/').pop();
-
-        // ✅ FIX: Skip test files (they shouldn't show in test gaps!)
-        if (fileName.includes('Test.cs') || fileName.includes('Tests.cs')) {
+        // ✅ ENHANCED: Comprehensive test file filtering
+        if (isTestFile(method.file)) {
             return;
         }
+
+        const fileName = method.file.split('/').pop();
         
         if (!fileGroups[fileName]) {
             fileGroups[fileName] = {
@@ -458,36 +951,44 @@ function categorizeByFile(gaps) {
                 methods: [],
                 needsUnitTests: false,
                 needsIntegrationTests: false,
+                needsNegativeTests: false,
                 untestedCount: 0,
                 partialCount: 0,
+                negativeTestCount: 0,
+                falsePositiveCount: 0,
                 totalGaps: 0
             };
         }
-        
+
+        // ✅ Calculate priority score
+        const priorityData = calculatePriorityScore(method);
+
         fileGroups[fileName].methods.push({
             ...method,
             gapType: 'UNTESTED',
-            priority: 'HIGH'
+            priority: priorityData.priority,
+            priorityScore: priorityData.score,
+            priorityBreakdown: priorityData.breakdown
         });
         fileGroups[fileName].untestedCount++;
         fileGroups[fileName].totalGaps++;
-        
+
         // Detect test type needs
         detectTestTypeNeeds(fileGroups[fileName], method);
     });
-    
+
     // Process partial coverage methods
     partialCoverage.forEach(method => {
         // ✅ FIX: Skip invalid methods
         if (!method || !method.file) return;
 
-        const fileName = method.file.split('/').pop();
-
-        // ✅ FIX: Skip test files
-        if (fileName.includes('Test.cs') || fileName.includes('Tests.cs')) {
+        // ✅ ENHANCED: Comprehensive test file filtering
+        if (isTestFile(method.file)) {
             return;
         }
-        
+
+        const fileName = method.file.split('/').pop();
+
         if (!fileGroups[fileName]) {
             fileGroups[fileName] = {
                 fullPath: method.file,
@@ -495,49 +996,168 @@ function categorizeByFile(gaps) {
                 methods: [],
                 needsUnitTests: false,
                 needsIntegrationTests: false,
+                needsNegativeTests: false,
                 untestedCount: 0,
                 partialCount: 0,
+                negativeTestCount: 0,
+                falsePositiveCount: 0,
                 totalGaps: 0
             };
         }
-        
+
+        // ✅ Calculate priority score
+        const priorityData = calculatePriorityScore(method);
+
         fileGroups[fileName].methods.push({
             ...method,
             gapType: 'PARTIAL',
-            priority: 'MEDIUM'
+            priority: priorityData.priority,
+            priorityScore: priorityData.score,
+            priorityBreakdown: priorityData.breakdown
         });
         fileGroups[fileName].partialCount++;
         fileGroups[fileName].totalGaps++;
         
         detectTestTypeNeeds(fileGroups[fileName], method);
     });
-    
+
+    // ✅ Process methods missing negative tests
+    const missingNegativeTests = gaps.missingNegativeTests || [];
+    missingNegativeTests.forEach(method => {
+        // ✅ FIX: Skip invalid methods
+        if (!method || !method.file) return;
+
+        // ✅ ENHANCED: Comprehensive test file filtering
+        if (isTestFile(method.file)) {
+            return;
+        }
+
+        const fileName = method.file.split('/').pop();
+
+        if (!fileGroups[fileName]) {
+            fileGroups[fileName] = {
+                fullPath: method.file,
+                fileName: fileName,
+                methods: [],
+                needsUnitTests: false,
+                needsIntegrationTests: false,
+                needsNegativeTests: false,
+                untestedCount: 0,
+                partialCount: 0,
+                negativeTestCount: 0,
+                falsePositiveCount: 0,
+                totalGaps: 0
+            };
+        }
+
+        // ✅ Calculate priority score
+        const priorityData = calculatePriorityScore(method);
+
+        fileGroups[fileName].methods.push({
+            ...method,
+            gapType: 'MISSING_NEGATIVE',
+            priority: priorityData.priority,
+            priorityScore: priorityData.score,
+            priorityBreakdown: priorityData.breakdown
+        });
+        fileGroups[fileName].negativeTestCount = (fileGroups[fileName].negativeTestCount || 0) + 1;
+        fileGroups[fileName].totalGaps++;
+
+        detectTestTypeNeeds(fileGroups[fileName], method);
+    });
+
+    // ✅ NEW: Count false positives per file
+    // Note: False positives are already included in untestedMethods or missingNegativeTests
+    // We need to count how many methods in each file group are false positives
+    // IMPORTANT: Match by FULL PATH, not just filename, to avoid counting test file methods
+    // against production files with the same name
+    Object.keys(fileGroups).forEach(fileName => {
+        const fileGroup = fileGroups[fileName];
+        const fullPath = fileGroup.fullPath;
+
+        // Count how many of THIS file's methods are false positives
+        fileGroup.falsePositiveCount = falsePositiveTests.filter(fp =>
+            fp.file === fullPath
+        ).length;
+    });
+
     return fileGroups;
+}
+
+/**
+ * Smart button logic - shows ONLY ONE appropriate button per file
+ * Priority: Untested > Negative Tests > Integration Tests > Fully Covered
+ */
+function getFileActionButtons(fileData, safeFileName, safeFullPath) {
+    let buttons = '';
+
+    // Priority 1: If file has any untested methods, show "Generate Unit Tests" ONLY
+    if (fileData.untestedCount > 0) {
+        buttons += `
+            <button class="btn-generate-unit"
+                    data-filename="${safeFileName}"
+                    data-fullpath="${safeFullPath}">
+                🧪 Generate Unit Tests
+            </button>
+        `;
+    }
+    // Priority 2: Else if file ONLY has methods missing negative tests
+    else if (fileData.negativeTestCount > 0 && fileData.untestedCount === 0) {
+        buttons += `
+            <button class="btn-generate-negative"
+                    data-filename="${safeFileName}"
+                    data-fullpath="${safeFullPath}">
+                ❌ Generate Negative Tests
+            </button>
+        `;
+    }
+    // Priority 3: Else if file needs integration tests
+    else if (fileData.needsIntegrationTests) {
+        buttons += `
+            <button class="btn-generate-integration"
+                    data-filename="${safeFileName}"
+                    data-fullpath="${safeFullPath}">
+                🔗 Generate Integration Tests
+            </button>
+        `;
+    }
+    // Else: Fully covered
+    else {
+        buttons += `<span style="color: #4ade80; font-weight: 500;">✅ Fully Covered</span>`;
+    }
+
+    return buttons;
 }
 
 function detectTestTypeNeeds(fileData, method) {
     const fileName = fileData.fileName;
-    
+
     // Controllers need integration tests
     if (fileName.includes('Controller')) {
         fileData.needsIntegrationTests = true;
     }
-    
+
     // Services, Repositories need unit tests
     if (fileName.includes('Service') || fileName.includes('Repository')) {
         fileData.needsUnitTests = true;
     }
-    
+
     // Methods with external calls need integration tests
-    if (method.calls?.some(c => 
+    if (method.calls?.some(c =>
         c.includes('Epic') || c.includes('Financial') || c.includes('HttpClient')
     )) {
         fileData.needsIntegrationTests = true;
     }
-    
+
     // All non-test files need unit tests
     if (!fileName.includes('Test')) {
         fileData.needsUnitTests = true;
+    }
+
+    // ✅ NEW: Detect if file needs negative tests
+    // File needs negative tests if methods have tests but are missing negative test coverage
+    if (method.hasTests && !method.hasNegativeTests) {
+        fileData.needsNegativeTests = true;
     }
 }
 
@@ -560,25 +1180,12 @@ function createFileGroupSection(fileName, fileData) {
                     <div class="file-info">
                         <strong>📄 ${fileName}</strong>
                         <span class="file-stats">
-                            ${fileData.totalGaps} gaps (${fileData.untestedCount} untested, ${fileData.partialCount} partial)
+                            ${fileData.totalGaps} gaps (${fileData.untestedCount || 0} untested, ${fileData.partialCount || 0} partial, ${fileData.negativeTestCount || 0} missing negative${fileData.falsePositiveCount > 0 ? `, ${fileData.falsePositiveCount} false positive` : ''})
                         </span>
                         <span class="test-needs">${needsIcon} ${needsText}</span>
                     </div>
                     <div class="file-actions">
-                        ${fileData.needsUnitTests ? `
-                            <button class="btn-generate-unit" 
-                                    data-filename="${safeFileName}"
-                                    data-fullpath="${safeFullPath}">
-                                🧪 Generate Unit Tests
-                            </button>
-                        ` : ''}
-                        ${fileData.needsIntegrationTests ? `
-                            <button class="btn-generate-integration"
-                                    data-filename="${safeFileName}"
-                                    data-fullpath="${safeFullPath}">
-                                🔗 Generate Integration Tests
-                            </button>
-                        ` : ''}
+                        ${getFileActionButtons(fileData, safeFileName, safeFullPath)}
                         <button class="btn-toggle-methods" data-filename="${safeFileName}">
                             ▼ Show Methods
                         </button>
@@ -588,11 +1195,42 @@ function createFileGroupSection(fileName, fileData) {
         </tr>
     `;
     
+    // ✅ Group methods by className for multi-class file support
+    const methodsByClass = {};
+    fileData.methods.forEach(method => {
+        const className = method.className || 'Unknown';
+        if (!methodsByClass[className]) {
+            methodsByClass[className] = [];
+        }
+        methodsByClass[className].push(method);
+    });
+
+    const classNames = Object.keys(methodsByClass).sort();
+    const hasMultipleClasses = classNames.length > 1;
+
     // Add methods (initially hidden)
     html += `
         <tr class="file-methods-group hidden" data-file="${fileName}">
             <td colspan="6">
-                <table class="methods-table">
+    `;
+
+    // Loop through each class
+    classNames.forEach((className, classIndex) => {
+        const classMethods = methodsByClass[className];
+
+        // ✅ Show class header if file has multiple classes
+        if (hasMultipleClasses) {
+            html += `
+                <div class="class-header">
+                    <span class="class-name">📦 Class: ${className}</span>
+                    <span class="class-method-count">${classMethods.length} method${classMethods.length !== 1 ? 's' : ''}</span>
+                </div>
+            `;
+        }
+
+        // Methods table for this class
+        html += `
+                <table class="methods-table ${hasMultipleClasses ? 'class-methods-table' : ''}">
                     <thead>
                         <tr>
                             <th>Method</th>
@@ -604,32 +1242,36 @@ function createFileGroupSection(fileName, fileData) {
                         </tr>
                     </thead>
                     <tbody>
-    `;
-    
-    fileData.methods.forEach(method => {
-        const safeMethodName = method.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        const covDisplay = method.coverage !== null ? `${method.coverage}%` : 'N/A';
-        html += `
-            <tr>
-                <td><strong>${method.name}</strong></td>
-                <td>${covDisplay}</td>
-                <td>${method.hasTests ? '✅' : '❌'}</td>
-                <td>${method.hasNegativeTests ? '✅' : '❌'}</td>
-                <td><span class="badge badge-${method.priority.toLowerCase()}">${method.priority}</span></td>
-                <td>
-                    <button class="btn-view-method" 
-                            data-filename="${safeFileName}"
-                            data-methodname="${safeMethodName}">
-                        View Details
-                    </button>
-                </td>
-            </tr>
         `;
-    });
-    
-    html += `
+
+        classMethods.forEach(method => {
+            const safeMethodName = method.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            const covDisplay = method.coverage !== null ? `${method.coverage}%` : 'N/A';
+            html += `
+                <tr>
+                    <td><strong>${method.name}</strong></td>
+                    <td>${covDisplay}</td>
+                    <td>${method.hasTests ? '✅' : '❌'}</td>
+                    <td>${method.hasNegativeTests ? '✅' : '❌'}</td>
+                    <td><span class="badge badge-${method.priority.toLowerCase()}">${method.priority}</span></td>
+                    <td>
+                        <button class="btn-view-method"
+                                data-filename="${safeFileName}"
+                                data-methodname="${safeMethodName}">
+                            View Details
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
                     </tbody>
                 </table>
+        `;
+    });
+
+    html += `
             </td>
         </tr>
     `;
@@ -759,7 +1401,7 @@ function showTestGenerationUI(fileName, fullPath, testType, analysis) {
         <div class="modal-content test-gen-content">
             <div class="modal-header">
                 <div>
-                    <h2>${testType === 'unit' ? '🧪' : '🔗'} Generate ${testType === 'unit' ? 'Unit' : 'Integration'} Tests</h2>
+                    <h2>${testType === 'unit' ? '🧪 Generate Unit' : testType === 'negative' ? '❌ Generate Negative' : '🔗 Generate Integration'} Tests</h2>
                     <p class="file-name">📄 ${fileName}</p>
                 </div>
                 <button class="btn-close" data-action="close-modal">✕</button>
@@ -812,6 +1454,12 @@ function showTestGenerationUI(fileName, fullPath, testType, analysis) {
                             <input type="checkbox" id="includeMocks" checked />
                             Generate mocks (Moq)
                         </label>
+                    ` : testType === 'negative' ? `
+                        <label>
+                            <input type="checkbox" id="includeMocks" checked />
+                            Generate mocks (Moq)
+                        </label>
+                        <p class="info-text">⚠️ This will generate ONLY negative/error scenario tests (null checks, invalid inputs, exceptions)</p>
                     ` : `
                         <label>
                             <input type="checkbox" id="includeAuth" checked />
@@ -867,12 +1515,21 @@ async function generateTestsForFile(fileName, fullPath, testType, analysis) {
     
     try {
         let response;
-        
-        if (testType === 'unit') {
-            // Generate unit tests
-            const includeNegative = document.getElementById('includeNegative').checked;
+
+        if (testType === 'unit' || testType === 'negative') {
+            // Generate unit tests or negative tests
+            const includeNegative = document.getElementById('includeNegative')?.checked ?? true;
             const includeMocks = document.getElementById('includeMocks').checked;
             const { model } = modelSelector.getSelection();
+
+            // ✅ Get className from classes array, or fallback to method's className, or extract from filename
+            const className = analysis.classes[0] ||
+                             analysis.methods[0]?.className ||
+                             fileName.replace(/\.(aspx\.)?cs$/, '').replace(/\./g, '');
+
+            if (!className) {
+                throw new Error('Could not determine class name for test generation. File may not contain any classes.');
+            }
 
             response = await fetch(`${API_BASE_URL}/api/tests/generate-for-file`, {
                 method: 'POST',
@@ -880,9 +1537,10 @@ async function generateTestsForFile(fileName, fullPath, testType, analysis) {
                 body: JSON.stringify({
                     app: state.currentApp,
                     file: fullPath,
-                    className: analysis.classes[0], // First class in file
+                    className: className, // ✅ First class, or method's class, or filename
                     includeNegativeTests: includeNegative,
                     includeMocks: includeMocks,
+                    onlyNegativeTests: testType === 'negative', // ✅ NEW: Only generate negative tests
                     model
                 })
             });
@@ -1211,44 +1869,52 @@ function categorizeTestGaps(gaps) {
     
     // Categorize untested methods (0% coverage)
     (gaps.untestedMethods || []).forEach(method => {
-        const isTestFile = method.file.includes('Tests.cs') || method.file.includes('Test.cs');
-        
-        if (isTestFile && method.hasTests) {
-            // Test method that exists but never executes - FALSE POSITIVE!
+        // ✅ IMPROVED: Check if method itself is a test method (has [Test]/[Fact]/[Theory]/[TestMethod] attribute)
+        // This works regardless of filename - catches tests in any file
+        const isTestMethod = method.isTest === true;
+
+        // Fallback to filename check if isTest flag not available (backwards compatibility)
+        // ✅ FIX: Check if "test" appears ANYWHERE in filename (case insensitive)
+        const fileName = method.file.toLowerCase();
+        const isTestFile = fileName.includes('test.cs') || fileName.includes('tests.cs') ||
+                          fileName.includes('test\\') || fileName.includes('tests\\') ||
+                          fileName.includes('test/') || fileName.includes('tests/');
+
+        if (isTestMethod || isTestFile) {
+            // ✅ Any test method with 0% coverage is a false positive
+            // Catches: tests in standard test files, tests in helper files, tests anywhere
             categories.falsePositiveTests.push({
                 ...method,
-                issue: 'Test exists but never runs',
+                issue: 'Test exists but never runs (0% coverage)',
                 type: 'TEST_METHOD'
             });
-        } else if (!isTestFile && !method.hasTests) {
+        } else if (!method.hasTests) {
             // Production method with no tests
             categories.productionWithoutTests.push({
                 ...method,
                 issue: 'No unit test exists',
                 type: 'PRODUCTION_METHOD'
             });
-        } else if (!isTestFile && method.hasTests) {
+        } else {
             // Production method that has test but 0% coverage (test might not be running)
             categories.productionWithoutTests.push({
                 ...method,
                 issue: 'Test exists but provides 0% coverage',
                 type: 'PRODUCTION_METHOD'
             });
-        } else {
-            // Test file without hasTests flag - probably untested test helper
-            categories.productionWithoutTests.push({
-                ...method,
-                issue: 'Untested test helper/utility',
-                type: 'TEST_HELPER'
-            });
         }
     });
     
     // Categorize partial coverage methods
     (gaps.partialCoverage || []).forEach(method => {
-        const isTestFile = method.file.includes('Tests.cs') || method.file.includes('Test.cs');
-        
-        if (isTestFile) {
+        // ✅ IMPROVED: Check if method is a test method (same logic as above)
+        const isTestMethod = method.isTest === true;
+        const fileName = method.file.toLowerCase();
+        const isTestFile = fileName.includes('test.cs') || fileName.includes('tests.cs') ||
+                          fileName.includes('test\\') || fileName.includes('tests\\') ||
+                          fileName.includes('test/') || fileName.includes('tests/');
+
+        if (isTestMethod || isTestFile) {
             // Test method with partial execution - might be flaky
             categories.needsMoreTests.push({
                 ...method,
@@ -1268,7 +1934,22 @@ function categorizeTestGaps(gaps) {
     
     // Missing negative tests
     (gaps.missingNegativeTests || []).forEach(method => {
-        if (!categories.needsMoreTests.find(m => m.name === method.name && m.file === method.file)) {
+        // ✅ FIX: Check if this is actually a test method in a test file (false positive!)
+        const isTestMethod = method.isTest === true;
+        const fileName = method.file.toLowerCase();
+        const isTestFile = fileName.includes('test.cs') || fileName.includes('tests.cs') ||
+                          fileName.includes('test\\') || fileName.includes('tests\\') ||
+                          fileName.includes('test/') || fileName.includes('tests/');
+
+        if (isTestMethod || isTestFile) {
+            // Test method with no negative tests = FALSE POSITIVE (should have been caught as untested)
+            // This happens when test methods match themselves and report hasTests=true
+            categories.falsePositiveTests.push({
+                ...method,
+                issue: 'Test exists but likely never runs or only partially executes',
+                type: 'TEST_METHOD'
+            });
+        } else if (!categories.needsMoreTests.find(m => m.name === method.name && m.file === method.file)) {
             categories.missingNegativeTests.push({
                 ...method,
                 issue: 'Missing error scenario tests',
@@ -1276,7 +1957,7 @@ function categorizeTestGaps(gaps) {
             });
         }
     });
-    
+
     return categories;
 }
 
@@ -1285,15 +1966,27 @@ function createTestGapRow(method, priority, priorityClass) {
     const hasNegative = method.hasNegativeTests ? '✅' : '❌';
     const coverage = method.coverage !== null && method.coverage !== undefined ? `${method.coverage}%` : 'N/A';
     const fileName = method.file.split('/').pop();
-    const typeIcon = method.type === 'TEST_METHOD' ? '🧪' : 
+
+    // ✅ NEW: Check if this is a false positive test
+    const isFalsePositive = state.categorizedGaps?.falsePositiveTests.some(
+        fp => fp.name === method.name && fp.file === method.file
+    );
+
+    const typeIcon = isFalsePositive ? '🚨' :
+                     method.type === 'TEST_METHOD' ? '🧪' :
                      method.type === 'PRODUCTION_METHOD' ? '⚙️' : '🔧';
-    
+
+    // ✅ NEW: Add special styling for false positive rows
+    const rowClass = isFalsePositive ? 'class="false-positive-row"' : '';
+    const issueBadge = isFalsePositive ? '<span class="badge badge-warning" style="margin-left: 8px;">⚠️ FALSE POSITIVE</span>' : '';
+
     return `
-        <tr>
+        <tr ${rowClass}>
             <td>
                 <strong style="display: inline-flex; align-items: center; gap: 6px;">
                     <span>${typeIcon}</span>
                     <span>${method.name}</span>
+                    ${issueBadge}
                 </strong>
                 <div style="font-size: 11px; color: #94a3b8; margin-top: 4px;">${method.issue}</div>
             </td>
@@ -1329,7 +2022,15 @@ function initializeTestGapsEventListeners() {
             const fullPath = target.dataset.fullpath;
             openTestGenerator(fileName, fullPath, 'unit');
         }
-        
+
+        // Handle "Generate Negative Tests" button
+        if (target.classList.contains('btn-generate-negative')) {
+            e.preventDefault();
+            const fileName = target.dataset.filename;
+            const fullPath = target.dataset.fullpath;
+            openTestGenerator(fileName, fullPath, 'negative');
+        }
+
         // Handle "Generate Integration Tests" button
         if (target.classList.contains('btn-generate-integration')) {
             e.preventDefault();
@@ -1422,20 +2123,84 @@ function initializeFilterBar() {
 
 function initializeFilters() {
     const appFilter = document.getElementById('appFilter');
+    const complexityFilter = document.getElementById('complexityFilter');
+    const coverageFilter = document.getElementById('coverageFilter');
+    const gapTypeFilter = document.getElementById('gapTypeFilter');
+    const applyBtn = document.getElementById('applyFiltersBtn');
+    const clearBtn = document.getElementById('clearFiltersBtn');
     const refreshBtn = document.getElementById('refreshBtn');
-    
-    // App filter
-    appFilter.addEventListener('change', async (e) => {
-        const appName = e.target.value;
-        if (appName) {
-            await loadAppData(appName);
+
+    // App filter - just store the selection, don't trigger API call
+    appFilter.addEventListener('change', (e) => {
+        state.filters.app = e.target.value;
+        console.log('App filter changed:', state.filters.app);
+    });
+
+    // Complexity filter - just store the selection
+    complexityFilter.addEventListener('change', (e) => {
+        state.filters.complexity = e.target.value;
+        console.log('Complexity filter changed:', state.filters.complexity);
+    });
+
+    // Coverage threshold filter - just store the selection
+    coverageFilter.addEventListener('change', (e) => {
+        state.filters.coverage = e.target.value;
+        console.log('Coverage filter changed:', state.filters.coverage);
+    });
+
+    // ✅ NEW: Gap type filter - filters test gaps by category
+    gapTypeFilter.addEventListener('change', (e) => {
+        state.filters.gapType = e.target.value;
+        console.log('Gap type filter changed:', state.filters.gapType);
+        // Apply filter immediately to current view
+        if (state.currentTab === 'test-gaps' && state.data.testGaps) {
+            updateTestGapsTab();
         }
     });
-    
-    // Refresh button
+
+    // Apply button - trigger API call with all filters
+    applyBtn.addEventListener('click', async () => {
+        const appName = state.filters.app || appFilter.value;
+
+        if (!appName) {
+            showStatus('⚠️ Please select an application first', 'warning');
+            return;
+        }
+
+        console.log('📋 Applying filters:', state.filters);
+        await loadAppData(appName);
+    });
+
+    // Clear button - reset all filters
+    clearBtn.addEventListener('click', () => {
+        appFilter.value = '';
+        complexityFilter.value = '';
+        coverageFilter.value = '';
+        gapTypeFilter.value = '';
+
+        state.filters = {
+            app: '',
+            complexity: '',
+            coverage: '',
+            gapType: ''
+        };
+
+        // Clear all tabs
+        document.getElementById('totalFiles').textContent = '-';
+        document.getElementById('overallCoverage').textContent = '-';
+        document.getElementById('highComplexity').textContent = '-';
+        document.getElementById('testGaps').textContent = '-';
+
+        showStatus('🧹 Filters cleared', 'info');
+        console.log('Filters cleared');
+    });
+
+    // Refresh button - reload current app with current filters
     refreshBtn.addEventListener('click', async () => {
         if (state.currentApp) {
             await loadAppData(state.currentApp);
+        } else {
+            showStatus('⚠️ Please select an application first', 'warning');
         }
     });
 }

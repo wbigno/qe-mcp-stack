@@ -7,7 +7,7 @@
       "localPath": "/Users/williambigno/dev/git/Core",
       "type": "dotnet",
       "framework": "net48",
-      "testFramework": "xUnit",
+      "testFramework": "MSTest",
       "excludePaths": [
         "bin",
         "obj",
@@ -76,7 +76,7 @@
       "localPath": "/Users/williambigno/dev/git/PreCare",
       "type": "dotnet",
       "framework": "net6.0",
-      "testFramework": "xUnit",
+      "testFramework": "MSTest",
       "excludePaths": [
         "bin",
         "obj",
