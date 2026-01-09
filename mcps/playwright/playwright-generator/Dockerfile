@@ -5,24 +5,24 @@ WORKDIR /app
 # Copy root package files
 COPY package.json package-lock.json* ./
 COPY packages ./packages
-COPY mcps/code-analysis/playwright-generator ./mcps/code-analysis/playwright-generator
+COPY mcps/playwright/playwright-generator ./mcps/playwright/playwright-generator
 
 # Install dependencies
 RUN npm install
 
 # Build shared packages and this MCP
 RUN npm run build:packages || true
-RUN cd mcps/code-analysis/playwright-generator && npm install
+RUN cd mcps/playwright/playwright-generator && npm install
 
 # Set working directory to MCP
-WORKDIR /app/mcps/code-analysis/playwright-generator
+WORKDIR /app/mcps/playwright/playwright-generator
 
 # Expose port
-EXPOSE 8202
+EXPOSE 8400
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8202/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
+  CMD node -e "require('http').get('http://localhost:8400/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1))"
 
 # Start the service
 CMD ["npm", "start"]

@@ -23,8 +23,9 @@ qe-mcp-stack/
 │   └── test-framework/   # Playwright test framework
 ├── mcps/                 # MCP microservices
 │   ├── integration/      # Azure DevOps, Test Plan Manager, Third-Party
-│   ├── code-analysis/    # Code Analyzer, Coverage Analyzer, Playwright Generator, Migration Analyzer
-│   └── quality-analysis/ # Risk Analyzer, Integration Mapper, Test Selector
+│   ├── code-analysis/    # Code Analyzer, Coverage Analyzer, Migration Analyzer
+│   ├── quality-analysis/ # Risk Analyzer, Integration Mapper, Test Selector
+│   └── playwright/       # Playwright Generator, Analyzer, Healer
 ├── orchestrator/         # API gateway (port 3000)
 ├── ado-dashboard/        # Dashboard UI (port 5173)
 ├── swagger-hub/          # API docs landing page (port 8000)
@@ -210,13 +211,17 @@ npx playwright test --debug
 ### Code Analysis MCPs (8200-8299)
 - **8200** - Code Analyzer MCP
 - **8201** - Coverage Analyzer MCP
-- **8202** - Playwright Generator MCP
 - **8203** - Migration Analyzer MCP
 
 ### Quality Analysis MCPs (8300-8399)
 - **8300** - Risk Analyzer MCP
 - **8301** - Integration Mapper MCP
 - **8302** - Test Selector MCP
+
+### Playwright MCPs (8400-8499)
+- **8400** - Playwright Generator MCP
+- **8401** - Playwright Analyzer MCP
+- **8402** - Playwright Healer MCP
 
 ## MCP Services
 
@@ -249,11 +254,6 @@ npx playwright test --debug
 - **Features**: Code coverage analysis, gap identification, test categorization
 - **Docs**: http://localhost:8201/api-docs
 
-#### Playwright Generator MCP (8202)
-- **Purpose**: Generate Playwright tests from templates
-- **Features**: Test scaffolding, page object generation, API test generation
-- **Docs**: http://localhost:8202/api-docs
-
 #### Migration Analyzer MCP (8203)
 - **Purpose**: Track Core → Core.Common migration progress
 - **Features**: Migration gap detection, dependency analysis, risk assessment
@@ -275,6 +275,23 @@ npx playwright test --debug
 - **Purpose**: Intelligently select tests based on code changes
 - **Features**: Change impact analysis, test selection optimization, execution planning
 - **Docs**: http://localhost:8302/api-docs
+
+### Playwright MCPs
+
+#### Playwright Generator MCP (8400)
+- **Purpose**: Generate Playwright tests from acceptance criteria or paths
+- **Features**: Test scaffolding from discovered paths, page object generation, fixture generation
+- **Docs**: http://localhost:8400/api-docs
+
+#### Playwright Analyzer MCP (8401)
+- **Purpose**: Discover critical UI paths that need testing
+- **Features**: Path discovery, risk-based prioritization, coverage mapping
+- **Docs**: http://localhost:8401/api-docs
+
+#### Playwright Healer MCP (8402)
+- **Purpose**: Automatically detect and fix broken Playwright tests
+- **Features**: Failure analysis, automated healing, flaky test detection
+- **Docs**: http://localhost:8402/api-docs
 
 ## Shared Packages
 

@@ -15,7 +15,6 @@ export class MCPManager {
     this.codeAnalysisMcps = {
       codeAnalyzer: { url: 'http://code-analyzer:8200', status: 'unknown', category: 'code-analysis' },
       coverageAnalyzer: { url: 'http://coverage-analyzer:8201', status: 'unknown', category: 'code-analysis' },
-      playwrightGenerator: { url: 'http://playwright-generator:8202', status: 'unknown', category: 'code-analysis' },
       migrationAnalyzer: { url: 'http://migration-analyzer:8203', status: 'unknown', category: 'code-analysis' },
     };
 
@@ -26,11 +25,19 @@ export class MCPManager {
       testSelector: { url: 'http://test-selector:8302', status: 'unknown', category: 'quality-analysis' },
     };
 
+    // Playwright MCPs (8400-8499)
+    this.playwrightMcps = {
+      playwrightGenerator: { url: 'http://playwright-generator:8400', status: 'unknown', category: 'playwright' },
+      playwrightAnalyzer: { url: 'http://playwright-analyzer:8401', status: 'unknown', category: 'playwright' },
+      playwrightHealer: { url: 'http://playwright-healer:8402', status: 'unknown', category: 'playwright' },
+    };
+
     // All MCPs combined for easy iteration
     this.dockerMcps = {
       ...this.integrationMcps,
       ...this.codeAnalysisMcps,
-      ...this.qualityAnalysisMcps
+      ...this.qualityAnalysisMcps,
+      ...this.playwrightMcps
     };
     
     // Dashboard Services (Static file servers - no health check)
@@ -256,6 +263,13 @@ export class MCPManager {
           category: mcp.category
         }])
       ),
+      playwright: Object.fromEntries(
+        Object.entries(this.playwrightMcps).map(([name, mcp]) => [name, {
+          status: mcp.status,
+          url: mcp.url,
+          category: mcp.category
+        }])
+      ),
       // Dashboards
       dashboards: Object.fromEntries(
         Object.entries(this.dashboards).map(([name, dashboard]) => [name, {
@@ -341,7 +355,6 @@ Services that integrate with external systems:
 Services for analyzing and generating code:
 - Code Analyzer (8200): Static code analysis for .NET
 - Coverage Analyzer (8201): Test coverage analysis
-- Playwright Generator (8202): Generate Playwright tests from specs
 - Migration Analyzer (8203): Track Core → Core.Common migration
 
 ### Quality Analysis MCPs (8300-8399)
@@ -349,6 +362,12 @@ Services for quality assessment and risk analysis:
 - Risk Analyzer (8300): AI-powered risk assessment
 - Integration Mapper (8301): Map integration points and dependencies
 - Test Selector (8302): Intelligent test selection based on changes
+
+### Playwright MCPs (8400-8499)
+End-to-end test automation services:
+- Playwright Generator (8400): Generate Playwright tests from acceptance criteria
+- Playwright Analyzer (8401): Discover critical UI paths for testing
+- Playwright Healer (8402): Automatically fix broken Playwright tests
         `,
       },
       servers: [

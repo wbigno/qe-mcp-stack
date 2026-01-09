@@ -12,6 +12,7 @@ import adoRouter from './routes/ado.js';
 import testsRouter from './routes/tests.js';
 import dashboardRouter from './routes/dashboard.js';
 import swaggerRouter from './routes/swagger.js';
+import playwrightRouter from './routes/playwright.js';
 import { logger } from './utils/logger.js';
 import { MCPManager } from './services/mcpManager.js';
 import path from 'path';
@@ -58,6 +59,7 @@ app.use('/api/ado', adoRouter);
 app.use('/api/tests', testsRouter);
 app.use('/api/dashboard', dashboardRouter);
 app.use('/api/swagger', swaggerRouter);
+app.use('/api/playwright', playwrightRouter);
 
 // Aggregated Swagger UI
 app.use('/api-docs', async (req, res, next) => {

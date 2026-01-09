@@ -1,0 +1,15 @@
+{
+  "name": "playwright-healer-mcp",
+  "version": "1.0.0",
+  "description": "Docker MCP for playwright-healer - Automatically detect and fix broken Playwright tests",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "playwright": "^1.40.0",
+    "@anthropic-ai/sdk": "^0.27.0"
+  }
+}

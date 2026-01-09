@@ -12,6 +12,9 @@ volumes:
   coverage-analyzer-data:
   risk-analyzer-data:
   integration-mapper-data:
+  playwright-generator-data:
+  playwright-analyzer-data:
+  playwright-healer-data:
 
 services:
   # =============================================================================
@@ -35,11 +38,13 @@ services:
       - TEST_PLAN_MANAGER_MCP_URL=http://test-plan-manager:8102
       - CODE_ANALYZER_MCP_URL=http://code-analyzer:8200
       - COVERAGE_ANALYZER_MCP_URL=http://coverage-analyzer:8201
-      - PLAYWRIGHT_GENERATOR_MCP_URL=http://playwright-generator:8202
       - MIGRATION_ANALYZER_MCP_URL=http://migration-analyzer:8203
       - RISK_ANALYZER_MCP_URL=http://risk-analyzer:8300
       - INTEGRATION_MAPPER_MCP_URL=http://integration-mapper:8301
       - TEST_SELECTOR_MCP_URL=http://test-selector:8302
+      - PLAYWRIGHT_GENERATOR_MCP_URL=http://playwright-generator:8400
+      - PLAYWRIGHT_ANALYZER_MCP_URL=http://playwright-analyzer:8401
+      - PLAYWRIGHT_HEALER_MCP_URL=http://playwright-healer:8402
     env_file:
       - .env
     volumes:
@@ -105,11 +110,13 @@ services:
       - TEST_PLAN_MANAGER_URL=http://test-plan-manager:8102
       - CODE_ANALYZER_URL=http://code-analyzer:8200
       - COVERAGE_ANALYZER_URL=http://coverage-analyzer:8201
-      - PLAYWRIGHT_GENERATOR_URL=http://playwright-generator:8202
       - MIGRATION_ANALYZER_URL=http://migration-analyzer:8203
       - RISK_ANALYZER_URL=http://risk-analyzer:8300
       - INTEGRATION_MAPPER_URL=http://integration-mapper:8301
       - TEST_SELECTOR_URL=http://test-selector:8302
+      - PLAYWRIGHT_GENERATOR_URL=http://playwright-generator:8400
+      - PLAYWRIGHT_ANALYZER_URL=http://playwright-analyzer:8401
+      - PLAYWRIGHT_HEALER_URL=http://playwright-healer:8402
     networks:
       - qe-network
     restart: unless-stopped
@@ -262,37 +269,6 @@ services:
       retries: 3
       start_period: 20s
 
-  playwright-generator:
-    build:
-      context: ./mcps/code-analysis/playwright-generator
-      dockerfile: Dockerfile
-    container_name: qe-playwright-generator
-    ports:
-      - "8202:8202"
-    environment:
-      - NODE_ENV=production
-      - PORT=8202
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-    env_file:
-      - .env
-    volumes:
-      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
-      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
-      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
-      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
-      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
-      - ./config:/app/config:ro
-      - ./data/playwright-generator:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8202/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-
   migration-analyzer:
     build:
       context: ./mcps/code-analysis/migration-analyzer
@@ -414,3 +390,103 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+
+  # =============================================================================
+  # Playwright MCPs (8400-8499)
+  # =============================================================================
+
+  playwright-generator:
+    build:
+      context: .
+      dockerfile: mcps/playwright/playwright-generator/Dockerfile
+    container_name: qe-playwright-generator
+    ports:
+      - "8400:8400"
+    environment:
+      - NODE_ENV=production
+      - PORT=8400
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_MODEL=claude-sonnet-4-20250514
+    env_file:
+      - .env
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - playwright-generator-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8400/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  playwright-analyzer:
+    build:
+      context: .
+      dockerfile: mcps/playwright/playwright-analyzer/Dockerfile
+    container_name: qe-playwright-analyzer
+    ports:
+      - "8401:8401"
+    environment:
+      - NODE_ENV=production
+      - PORT=8401
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_MODEL=claude-sonnet-4-20250514
+    env_file:
+      - .env
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - playwright-analyzer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8401/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  playwright-healer:
+    build:
+      context: .
+      dockerfile: mcps/playwright/playwright-healer/Dockerfile
+    container_name: qe-playwright-healer
+    ports:
+      - "8402:8402"
+    environment:
+      - NODE_ENV=production
+      - PORT=8402
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_MODEL=claude-sonnet-4-20250514
+    env_file:
+      - .env
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - playwright-healer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8402/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
