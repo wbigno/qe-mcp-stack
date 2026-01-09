@@ -62,35 +62,52 @@ app.get('/api/swagger/aggregated.json', async (req, res) => {
   }
 });
 
-// Aggregated API Documentation UI
-app.use('/api-docs', async (req, res, next) => {
-  try {
-    const response = await axios.get(`${ORCHESTRATOR_URL}/api/swagger/aggregated.json`, {
+// Aggregated API Documentation UI - fetch spec once at startup
+let cachedSwaggerSpec = null;
+let specFetchPromise = null;
+
+async function getSwaggerSpec() {
+  if (cachedSwaggerSpec) {
+    return cachedSwaggerSpec;
+  }
+
+  if (!specFetchPromise) {
+    specFetchPromise = axios.get(`${ORCHESTRATOR_URL}/api/swagger/aggregated.json`, {
       timeout: 10000
+    }).then(response => {
+      cachedSwaggerSpec = response.data;
+      cachedSwaggerSpec.servers = [
+        {
+          url: 'http://localhost:3000',
+          description: 'Orchestrator (local development)'
+        },
+        {
+          url: ORCHESTRATOR_URL,
+          description: 'Orchestrator'
+        }
+      ];
+      return cachedSwaggerSpec;
+    }).catch(error => {
+      specFetchPromise = null;
+      throw error;
     });
+  }
 
-    const swaggerSpec = response.data;
+  return specFetchPromise;
+}
 
-    // Update servers to point to actual MCP services
-    swaggerSpec.servers = [
-      {
-        url: 'http://localhost:3000',
-        description: 'Orchestrator (local development)'
-      },
-      {
-        url: ORCHESTRATOR_URL,
-        description: 'Orchestrator'
-      }
-    ];
-
+// Serve Swagger UI with dynamically loaded spec
+app.use('/api-docs', swaggerUi.serve);
+app.get('/api-docs', async (req, res) => {
+  try {
+    const swaggerSpec = await getSwaggerSpec();
     const swaggerUiHandler = swaggerUi.setup(swaggerSpec, {
       explorer: true,
       customCss: '.swagger-ui .topbar { display: none }',
       customSiteTitle: 'QE MCP Stack - Aggregated API Documentation',
       customCssUrl: '/css/swagger-custom.css'
     });
-
-    swaggerUiHandler(req, res, next);
+    swaggerUiHandler(req, res);
   } catch (error) {
     console.error('Error loading Swagger UI:', error.message);
     res.status(503).send(`
@@ -137,7 +154,6 @@ app.use('/api-docs', async (req, res, next) => {
     `);
   }
 });
-app.use('/api-docs', swaggerUi.serve);
 
 // Health check
 app.get('/health', (req, res) => {

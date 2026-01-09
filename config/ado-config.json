@@ -1,6 +1,6 @@
 {
-  "organization": "williambigno",
-  "project": "test",
+  "organization": "carepayment",
+  "project": "core",
   "apiVersion": "7.0",
   "baseUrl": "https://dev.azure.com",
   "workItemTypes": [

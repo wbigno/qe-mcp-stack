@@ -1,5 +1,6 @@
 import express from 'express';
 import { logger } from '../utils/logger.js';
+import { callClaude } from '../utils/aiHelper.js';
 
 const router = express.Router();
 
@@ -34,51 +35,195 @@ router.post('/pull-stories', async (req, res) => {
   }
 });
 
-// Analyze requirements using requirements-analyzer STDIO MCP
+// Analyze requirements using AI (Claude)
 router.post('/analyze-requirements', async (req, res) => {
   try {
-    const { storyIds, includeGapAnalysis = true } = req.body;
+    const { storyIds, includeGapAnalysis = true, model } = req.body;
 
-    logger.info(`Analyzing requirements for ${storyIds?.length || 0} stories`);
+    logger.info(`Analyzing requirements for ${storyIds?.length || 0} stories with AI`);
 
-    // Get stories from ADO
+    if (!storyIds || storyIds.length === 0) {
+      return res.status(400).json({
+        error: 'Story IDs required',
+        message: 'Please provide at least one story ID'
+      });
+    }
+
+    // Get stories from Azure DevOps
     const stories = await req.mcpManager.callDockerMcp(
       'azureDevOps',
       '/work-items/get',
-      { ids: storyIds }
+      { ids: storyIds.map(id => parseInt(id)) }
     );
 
-    const results = [];
-
-    // Analyze each story using requirements-analyzer STDIO MCP
-    for (const story of stories) {
-      const input = {
-        data: {
-          storyId: story.id,
-          storyContent: {
-            title: story.fields['System.Title'] || '',
-            description: story.fields['System.Description'] || '',
-            acceptanceCriteria: story.fields['Microsoft.VSTS.Common.AcceptanceCriteria'] || ''
-          }
-        }
-      };
-
-      const analysis = await req.mcpManager.callStdioMcp(
-        'requirements-analyzer',
-        input
-      );
-
-      results.push({
-        storyId: story.id,
-        analysis
+    if (!stories || stories.length === 0) {
+      return res.status(404).json({
+        error: 'Stories not found',
+        message: 'No stories found for the provided IDs'
       });
     }
+
+    // Analyze each story using AI and risk-analyzer
+    const analysisResults = await Promise.all(
+      stories.map(async (story) => {
+        try {
+          const title = story.fields['System.Title'];
+          const description = story.fields['System.Description'] || '';
+          const acceptanceCriteria = story.fields['Microsoft.VSTS.Common.AcceptanceCriteria'] || '';
+
+          // Extract child tasks from relations
+          const childTasks = [];
+          if (story.relations && Array.isArray(story.relations)) {
+            for (const relation of story.relations) {
+              if (relation.rel === 'System.LinkTypes.Hierarchy-Forward') {
+                // This is a child work item
+                const childIdMatch = relation.url.match(/\/(\d+)$/);
+                if (childIdMatch) {
+                  childTasks.push({
+                    id: parseInt(childIdMatch[1]),
+                    url: relation.url
+                  });
+                }
+              }
+            }
+          }
+
+          // Strip HTML tags
+          const cleanDescription = description.replace(/<[^>]*>/g, '').trim();
+          const cleanCriteria = acceptanceCriteria.replace(/<[^>]*>/g, '').trim();
+
+          // Build AI prompt for requirements analysis
+          const prompt = `You are a QA analyst reviewing a user story for test planning.
+
+Story ID: ${story.id}
+Title: ${title}
+Description: ${cleanDescription || 'No description provided'}
+Acceptance Criteria: ${cleanCriteria || 'No acceptance criteria provided'}
+
+Please analyze this story and provide a structured requirements analysis in JSON format:
+
+{
+  "acceptanceCriteria": [
+    {
+      "criterion": "parsed requirement text",
+      "testable": true/false,
+      "testScenarios": ["scenario 1", "scenario 2"],
+      "ambiguities": ["any unclear points"]
+    }
+  ],
+  "requirementGaps": [
+    "missing requirement 1",
+    "missing requirement 2"
+  ],
+  "suggestedEdgeCases": [
+    "edge case 1",
+    "edge case 2"
+  ],
+  "integrationPoints": [
+    "external system 1",
+    "API endpoint 2"
+  ],
+  "testCoverageRecommendation": {
+    "functional": 5,
+    "integration": 3,
+    "negative": 4,
+    "edgeCase": 3,
+    "total": 15,
+    "rationale": "explanation of test count"
+  },
+  "prioritizedTestAreas": [
+    {"area": "test area", "priority": "High/Medium/Low", "reason": "why"}
+  ]
+}
+
+Return ONLY the JSON object, no markdown formatting.`;
+
+          // Call Claude AI
+          const aiResponse = await callClaude(prompt, model, 3000);
+
+          // Parse AI response
+          let requirementsAnalysis;
+          try {
+            // Remove markdown code blocks if present
+            const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+            const jsonText = jsonMatch ? jsonMatch[0] : aiResponse;
+            requirementsAnalysis = JSON.parse(jsonText);
+          } catch (parseError) {
+            logger.error(`Failed to parse AI response for story ${story.id}`);
+            requirementsAnalysis = {
+              acceptanceCriteria: [],
+              requirementGaps: ['AI response could not be parsed'],
+              suggestedEdgeCases: [],
+              integrationPoints: [],
+              testCoverageRecommendation: { total: 0 },
+              prioritizedTestAreas: []
+            };
+          }
+
+          // Also get risk analysis from risk-analyzer MCP
+          let riskAnalysis = { level: 'Medium', score: 50, recommendations: [] };
+          try {
+            const riskResponse = await req.mcpManager.callDockerMcp(
+              'riskAnalyzer',
+              '/analyze-risk',
+              {
+                app: 'ADO',
+                story: {
+                  id: story.id,
+                  title: title,
+                  description: cleanDescription,
+                  acceptanceCriteria: cleanCriteria,
+                  tags: story.fields['System.Tags'] || '',
+                  workItemType: story.fields['System.WorkItemType'],
+                  state: story.fields['System.State'],
+                  priority: story.fields['Microsoft.VSTS.Common.Priority']
+                }
+              }
+            );
+            riskAnalysis = riskResponse.result?.risk || riskAnalysis;
+          } catch (riskError) {
+            logger.warn(`Risk analysis unavailable for story ${story.id}: ${riskError.message}`);
+          }
+
+          return {
+            storyId: story.id,
+            title: title,
+            description: description,  // Include raw HTML description
+            acceptanceCriteria: acceptanceCriteria,  // Include raw HTML acceptance criteria
+            childTasks: childTasks,  // Include related child tasks
+            workItemType: story.fields['System.WorkItemType'],
+            state: story.fields['System.State'],
+            assignedTo: story.fields['System.AssignedTo']?.displayName || 'Unassigned',
+            requirementsAnalysis: requirementsAnalysis,
+            riskAnalysis: {
+              riskLevel: riskAnalysis.level || 'Medium',
+              riskScore: riskAnalysis.score || 50,
+              recommendations: riskAnalysis.recommendations || []
+            }
+          };
+
+        } catch (error) {
+          logger.error(`Error analyzing story ${story.id}:`, error);
+          return {
+            storyId: story.id,
+            title: story.fields['System.Title'],
+            error: error.message,
+            requirementsAnalysis: null,
+            riskAnalysis: null
+          };
+        }
+      })
+    );
 
     res.json({
       success: true,
       timestamp: new Date().toISOString(),
-      count: results.length,
-      results
+      count: analysisResults.length,
+      results: analysisResults,
+      summary: {
+        analyzed: analysisResults.filter(r => r.requirementsAnalysis).length,
+        failed: analysisResults.filter(r => r.error).length
+      }
     });
   } catch (error) {
     logger.error('Requirements analysis error:', error);
@@ -90,13 +235,13 @@ router.post('/analyze-requirements', async (req, res) => {
 });
 
 /**
- * Generate test cases for a user story
+ * Generate MANUAL test cases for a user story
  * POST /api/ado/generate-test-cases
- * Body: { storyId: number, updateADO?: boolean, includeNegativeTests?: boolean, includeEdgeCases?: boolean }
+ * Body: { storyId: number, updateADO?: boolean, includeNegativeTests?: boolean, includeEdgeCases?: boolean, model?: string }
  */
 router.post('/generate-test-cases', async (req, res) => {
   try {
-    const { storyId, updateADO = false, includeNegativeTests = false, includeEdgeCases = false } = req.body;
+    const { storyId, updateADO = false, includeNegativeTests = true, includeEdgeCases = true, model } = req.body;
 
     if (!storyId) {
       return res.status(400).json({
@@ -105,7 +250,7 @@ router.post('/generate-test-cases', async (req, res) => {
       });
     }
 
-    logger.info(`Generating test cases for story ${storyId}`);
+    logger.info(`Generating MANUAL test cases for story ${storyId}`);
 
     // Get the story from ADO first
     const stories = await req.mcpManager.callDockerMcp(
@@ -122,45 +267,129 @@ router.post('/generate-test-cases', async (req, res) => {
     }
 
     const story = stories[0];
+    const title = story.fields['System.Title'];
+    const description = story.fields['System.Description'] || '';
+    const acceptanceCriteria = story.fields['Microsoft.VSTS.Common.AcceptanceCriteria'] || '';
 
-    // Prepare input for test case generator
-    const input = {
-      data: {
-        storyId: story.id,
-        requirements: story.fields['System.Description'] || '',
-        acceptanceCriteria: story.fields['Microsoft.VSTS.Common.AcceptanceCriteria'] || '',
-        includeNegative: includeNegativeTests,
-        includeEdgeCases: includeEdgeCases
+    // Strip HTML tags
+    const cleanDescription = description.replace(/<[^>]*>/g, '').trim();
+    const cleanCriteria = acceptanceCriteria.replace(/<[^>]*>/g, '').trim();
+
+    // Build AI prompt for manual test case generation
+    const prompt = `You are a QA test case writer. Generate detailed MANUAL test cases for this user story.
+
+Story ID: ${storyId}
+Title: ${title}
+Description: ${cleanDescription || 'No description provided'}
+Acceptance Criteria: ${cleanCriteria || 'No acceptance criteria provided'}
+
+Generate comprehensive manual test cases including:
+- Positive test scenarios (happy path)
+${includeNegativeTests ? '- Negative test scenarios (error handling, invalid inputs)' : ''}
+${includeEdgeCases ? '- Edge case scenarios (boundary conditions, empty values, special characters)' : ''}
+
+For each test case, provide:
+1. Test Case Title (clear, descriptive)
+2. Test Type (Functional, Integration, Negative, Edge Case, etc.)
+3. Priority (1=High, 2=Medium, 3=Low)
+4. Preconditions (what must be true before test starts)
+5. Test Steps (detailed step-by-step instructions)
+6. Expected Results (what should happen for each step)
+7. Test Data (any specific data needed)
+
+Return the response in this JSON format:
+{
+  "testCases": [
+    {
+      "title": "Test case title",
+      "type": "Functional|Integration|Negative|EdgeCase",
+      "priority": 1,
+      "preconditions": ["precondition 1", "precondition 2"],
+      "steps": ["step 1", "step 2", "step 3"],
+      "expectedResults": ["expected result for step 1", "expected result for step 2"],
+      "testData": {"field": "value"},
+      "notes": "any additional notes"
+    }
+  ]
+}
+
+Generate 5-10 test cases covering all important scenarios. Return ONLY the JSON object, no markdown formatting.`;
+
+    try {
+      logger.info(`Calling Claude AI to generate manual test cases`);
+
+      // Call Claude AI
+      const aiResponse = await callClaude(prompt, model, 4096);
+
+      // Parse AI response
+      let testCasesData;
+      try {
+        // Remove markdown code blocks if present
+        const jsonMatch = aiResponse.match(/\{[\s\S]*\}/);
+        const jsonText = jsonMatch ? jsonMatch[0] : aiResponse;
+        testCasesData = JSON.parse(jsonText);
+      } catch (parseError) {
+        logger.error(`Failed to parse AI response for story ${storyId}`);
+        return res.status(500).json({
+          error: 'AI response parsing failed',
+          message: 'Could not parse test cases from AI response',
+          storyId: parseInt(storyId),
+          storyTitle: title
+        });
       }
-    };
 
-    // Call the test-case-planner STDIO MCP
-    const mcpResponse = await req.mcpManager.callStdioMcp(
-      'test-case-planner',
-      input
-    );
+      const testCases = testCasesData.testCases || [];
 
-    // The MCP returns { success: true, result: { testCases: [...], summary: {...}, metadata: {...} } }
-    if (!mcpResponse || !mcpResponse.success || !mcpResponse.result) {
-      throw new Error('Test case generation returned no results');
+      // Add IDs and automated flag
+      testCases.forEach((tc, index) => {
+        tc.id = index + 1;
+        tc.automated = false; // These are MANUAL test cases
+        tc.storyId = parseInt(storyId);
+      });
+
+      const response = {
+        success: true,
+        timestamp: new Date().toISOString(),
+        storyId: parseInt(storyId),
+        storyTitle: title,
+        testCases: testCases,
+        summary: {
+          totalTestCases: testCases.length,
+          functionalTests: testCases.filter(tc => tc.type === 'Functional').length,
+          integrationTests: testCases.filter(tc => tc.type === 'Integration').length,
+          negativeTests: testCases.filter(tc => tc.type === 'Negative').length,
+          edgeCaseTests: testCases.filter(tc => tc.type === 'EdgeCase').length,
+          highPriority: testCases.filter(tc => tc.priority === 1).length,
+          mediumPriority: testCases.filter(tc => tc.priority === 2).length,
+          lowPriority: testCases.filter(tc => tc.priority === 3).length
+        }
+      };
+
+      // If updateADO is true, add test cases to Azure DevOps
+      if (updateADO) {
+        try {
+          // Note: This would require implementing test case creation in Azure DevOps MCP
+          logger.info(`Would update ADO with ${testCases.length} test cases for story ${storyId}`);
+          response.adoUpdateStatus = 'Feature not yet implemented - test cases not added to ADO';
+          response.adoUpdateMessage = 'Azure DevOps Test Case creation API not yet implemented';
+        } catch (adoError) {
+          logger.error('Failed to update ADO:', adoError);
+          response.adoUpdateStatus = 'Failed';
+          response.adoUpdateError = adoError.message;
+        }
+      }
+
+      res.json(response);
+
+    } catch (genError) {
+      logger.error('Test generation failed:', genError);
+      return res.status(500).json({
+        error: 'Test generation failed',
+        message: genError.message,
+        storyId: parseInt(storyId),
+        storyTitle: title
+      });
     }
-
-    const { testCases, summary, metadata } = mcpResponse.result;
-
-    if (!testCases || testCases.length === 0) {
-      throw new Error('Test case generation returned no test cases');
-    }
-
-    res.json({
-      success: true,
-      timestamp: new Date().toISOString(),
-      storyId: parseInt(storyId),
-      count: testCases.length,
-      testCases: testCases,
-      summary: summary,
-      metadata: metadata,
-      updatedInADO: updateADO
-    });
 
   } catch (error) {
     logger.error('Test case generation error:', error);
@@ -170,6 +399,59 @@ router.post('/generate-test-cases', async (req, res) => {
     });
   }
 });
+
+/**
+ * Helper function to parse test cases from Playwright test code
+ */
+function parseTestCasesFromPlaywrightTest(code, storyTitle) {
+  const testCases = [];
+  let testId = 1;
+
+  // Match test() blocks
+  const testRegex = /test\(['"`](.+?)['"`]/g;
+  let match;
+
+  while ((match = testRegex.exec(code)) !== null) {
+    const testName = match[1];
+    let type = 'positive';
+
+    // Determine test type based on name
+    if (testName.toLowerCase().includes('error') ||
+        testName.toLowerCase().includes('invalid') ||
+        testName.toLowerCase().includes('fail') ||
+        testName.toLowerCase().includes('negative')) {
+      type = 'negative';
+    } else if (testName.toLowerCase().includes('edge') ||
+               testName.toLowerCase().includes('boundary') ||
+               testName.toLowerCase().includes('empty') ||
+               testName.toLowerCase().includes('null')) {
+      type = 'edge-case';
+    }
+
+    testCases.push({
+      id: testId++,
+      title: testName,
+      type: type,
+      description: `Automated test generated from story: ${storyTitle}`,
+      priority: type === 'positive' ? 1 : 2,
+      automated: true
+    });
+  }
+
+  // If no tests found, create a default test case
+  if (testCases.length === 0) {
+    testCases.push({
+      id: 1,
+      title: `Verify ${storyTitle}`,
+      type: 'positive',
+      description: `Test case for: ${storyTitle}`,
+      priority: 1,
+      automated: true
+    });
+  }
+
+  return testCases;
+}
 
 // ... (keep all other existing endpoints: analyze-requirements, generate-test-cases, etc.)
 

@@ -1,5 +1,5 @@
 import express from 'express';
-import { generateCompletion } from '../shared/aiClient.js';
+import { generateCompletion } from '../../../shared/aiClient.js';
 
 const app = express();
 const PORT = process.env.PORT || 3005;

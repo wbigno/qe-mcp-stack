@@ -24,6 +24,21 @@ router.get('/docs', async (req, res) => {
 });
 
 /**
+ * GET /api/swagger/aggregated.json
+ * Returns aggregated OpenAPI spec combining all MCPs
+ * IMPORTANT: Must be defined BEFORE /:mcpName to avoid matching as a parameter
+ */
+router.get('/aggregated.json', async (req, res) => {
+  try {
+    const aggregatedSpec = await req.mcpManager.getAggregatedSwaggerSpec();
+    res.json(aggregatedSpec);
+  } catch (error) {
+    logger.error('Error generating aggregated Swagger spec:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+/**
  * GET /api/swagger/:mcpName
  * Returns Swagger documentation for a specific MCP
  */
@@ -38,20 +53,6 @@ router.get('/:mcpName', async (req, res) => {
       success: false,
       error: error.message
     });
-  }
-});
-
-/**
- * GET /api/swagger/aggregated.json
- * Returns aggregated OpenAPI spec combining all MCPs
- */
-router.get('/aggregated.json', async (req, res) => {
-  try {
-    const aggregatedSpec = await req.mcpManager.getAggregatedSwaggerSpec();
-    res.json(aggregatedSpec);
-  } catch (error) {
-    logger.error('Error generating aggregated Swagger spec:', error);
-    res.status(500).json({ success: false, error: error.message });
   }
 });
 

@@ -131,6 +131,137 @@ router.get('/coverage', async (req, res) => {
 // Frontend uses POST /api/analysis/test-gaps instead
 // Removed on 2026-01-07 during API consolidation
 
+/**
+ * Get JavaScript code analysis
+ * GET /api/dashboard/javascript-analysis?app=App1
+ */
+router.get('/javascript-analysis', async (req, res) => {
+  try {
+    const appName = req.query.app || 'App1';
+
+    logger.info(`[Dashboard] Getting JavaScript analysis for ${appName}`);
+
+    // Call JavaScript Code Analyzer MCP
+    const response = await req.mcpManager.callDockerMcp(
+      'javascriptCodeAnalyzer',
+      '/analyze',
+      {
+        app: appName,
+        includeTests: false,
+        detailed: true
+      }
+    );
+
+    // Call JavaScript Coverage Analyzer MCP
+    const coverage = await req.mcpManager.callDockerMcp(
+      'javascriptCoverageAnalyzer',
+      '/analyze',
+      {
+        app: appName,
+        codeStructure: response.analysis
+      }
+    );
+
+    // Transform to dashboard format
+    const dashboardData = transformJavaScriptAnalysisForDashboard(response, coverage, appName);
+
+    res.json(dashboardData);
+
+  } catch (error) {
+    logger.error('[Dashboard] JavaScript analysis error:', error);
+    res.status(500).json({
+      error: 'Failed to get JavaScript analysis',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Get JavaScript coverage analysis
+ * GET /api/dashboard/javascript-coverage?app=App1
+ */
+router.get('/javascript-coverage', async (req, res) => {
+  try {
+    const appName = req.query.app || 'App1';
+
+    logger.info(`[Dashboard] Getting JavaScript coverage for ${appName}`);
+
+    const coverage = await req.mcpManager.callDockerMcp(
+      'javascriptCoverageAnalyzer',
+      '/analyze',
+      { app: appName, detailed: true }
+    );
+
+    res.json(coverage);
+
+  } catch (error) {
+    logger.error('[Dashboard] JavaScript coverage error:', error);
+    res.status(500).json({
+      error: 'Failed to get JavaScript coverage',
+      message: error.message
+    });
+  }
+});
+
+/**
+ * Get overview analysis (aggregates .NET + JavaScript)
+ * GET /api/dashboard/overview?app=App1
+ */
+router.get('/overview', async (req, res) => {
+  try {
+    const appName = req.query.app || 'App1';
+
+    logger.info(`[Dashboard] Getting overview for ${appName}`);
+
+    // Run both .NET and JavaScript analysis in parallel
+    const [dotnetCode, dotnetCoverage, jsCode, jsCoverage] = await Promise.all([
+      req.mcpManager.callDockerMcp('dotnetCodeAnalyzer', '/analyze', { app: appName, includeTests: true }),
+      req.mcpManager.callDockerMcp('dotnetCoverageAnalyzer', '/analyze', { app: appName }),
+      req.mcpManager.callDockerMcp('javascriptCodeAnalyzer', '/analyze', { app: appName, includeTests: false }).catch(() => ({ analysis: { components: [], functions: [] } })),
+      req.mcpManager.callDockerMcp('javascriptCoverageAnalyzer', '/analyze', { app: appName }).catch(() => ({ coverage: { functions: [] } }))
+    ]);
+
+    const overview = {
+      app: appName,
+      timestamp: new Date().toISOString(),
+      backend: {
+        files: dotnetCode.analysis?.totalFiles || 0,
+        classes: dotnetCode.analysis?.classes?.length || 0,
+        methods: dotnetCode.analysis?.methods?.length || 0,
+        coverage: dotnetCoverage.coverage?.overallPercentage || 0,
+        untestedMethods: (dotnetCoverage.coverage?.methods || []).filter(m => !m.hasTests).length
+      },
+      frontend: {
+        files: jsCode.analysis?.totalFiles || 0,
+        components: jsCode.analysis?.components?.length || 0,
+        functions: jsCode.analysis?.functions?.length || 0,
+        hooks: jsCode.analysis?.hooks?.length || 0,
+        coverage: jsCoverage.coverage?.overallPercentage || 0,
+        untestedFunctions: (jsCoverage.coverage?.functions || []).filter(f => !f.hasTests).length
+      },
+      combined: {
+        totalFiles: (dotnetCode.analysis?.totalFiles || 0) + (jsCode.analysis?.totalFiles || 0),
+        totalCodeUnits: ((dotnetCode.analysis?.methods?.length || 0) + (jsCode.analysis?.functions?.length || 0)),
+        averageCoverage: Math.round(
+          ((dotnetCoverage.coverage?.overallPercentage || 0) + (jsCoverage.coverage?.overallPercentage || 0)) / 2
+        ),
+        totalUntested:
+          ((dotnetCoverage.coverage?.methods || []).filter(m => !m.hasTests).length) +
+          ((jsCoverage.coverage?.functions || []).filter(f => !f.hasTests).length)
+      }
+    };
+
+    res.json(overview);
+
+  } catch (error) {
+    logger.error('[Dashboard] Overview error:', error);
+    res.status(500).json({
+      error: 'Failed to get overview',
+      message: error.message
+    });
+  }
+});
+
 // ============================================
 // DATA TRANSFORMERS
 // ============================================
@@ -217,6 +348,127 @@ function transformCodeAnalysisForDashboard(codeData, coverageData, appName) {
     },
     dependencyDetails: []
   };
+}
+
+/**
+ * Transform JavaScript analysis data for dashboard display
+ */
+function transformJavaScriptAnalysisForDashboard(codeData, coverageData, appName) {
+  const analysis = codeData.analysis || codeData;
+
+  // Group components and functions by file
+  const fileMap = new Map();
+
+  // Add components
+  (analysis.components || []).forEach((component) => {
+    const filePath = component.file || 'Unknown';
+    if (!fileMap.has(filePath)) {
+      fileMap.set(filePath, {
+        path: filePath,
+        name: path.basename(filePath),
+        components: [],
+        functions: [],
+        hooks: []
+      });
+    }
+    fileMap.get(filePath).components.push(component);
+  });
+
+  // Add functions
+  (analysis.functions || []).forEach((func) => {
+    const filePath = func.file || 'Unknown';
+    if (!fileMap.has(filePath)) {
+      fileMap.set(filePath, {
+        path: filePath,
+        name: path.basename(filePath),
+        components: [],
+        functions: [],
+        hooks: []
+      });
+    }
+    fileMap.get(filePath).functions.push(func);
+  });
+
+  // Add hooks
+  (analysis.hooks || []).forEach((hook) => {
+    const filePath = hook.file || 'Unknown';
+    if (fileMap.has(filePath)) {
+      fileMap.get(filePath).hooks.push(hook);
+    }
+  });
+
+  // Convert to files array
+  const files = Array.from(fileMap.values()).map((file, idx) => ({
+    id: `jsf${idx + 1}`,
+    name: file.name,
+    path: file.path,
+    applicationId: appName,
+    type: detectFileType(file.path),
+    componentCount: file.components.length,
+    functionCount: file.functions.length,
+    hookCount: file.hooks.length,
+    avgComplexity: file.functions.length > 0
+      ? file.functions.reduce((sum, f) => sum + (f.complexity || 0), 0) / file.functions.length
+      : 0,
+    maxComplexity: file.functions.length > 0
+      ? Math.max(...file.functions.map(f => f.complexity || 0))
+      : 0,
+    coverage: getCoverageForFile(file.path, coverageData),
+    lastModified: new Date().toISOString()
+  }));
+
+  return {
+    applications: [{ id: appName, name: appName }],
+    files,
+    components: analysis.components || [],
+    functions: analysis.functions || [],
+    hooks: analysis.hooks || [],
+    coverage: {
+      overall: coverageData?.coverage?.overallPercentage || 0,
+      functions: coverageData?.coverage?.functionsWithTests || 0,
+      untested: coverageData?.coverage?.untestedCount || 0
+    },
+    summary: {
+      totalFiles: files.length,
+      totalComponents: (analysis.components || []).length,
+      totalFunctions: (analysis.functions || []).length,
+      totalHooks: (analysis.hooks || []).length,
+      averageComplexity: analysis.summary?.averageComplexity || 0
+    }
+  };
+}
+
+/**
+ * Detect file type from path
+ */
+function detectFileType(filePath) {
+  if (!filePath) return 'Other';
+
+  const lower = filePath.toLowerCase();
+  if (lower.includes('/components/')) return 'Component';
+  if (lower.includes('/hooks/')) return 'Hook';
+  if (lower.includes('/pages/') || lower.includes('/routes/')) return 'Page';
+  if (lower.includes('/utils/') || lower.includes('/helpers/')) return 'Utility';
+  if (lower.includes('/services/') || lower.includes('/api/')) return 'Service';
+  if (lower.includes('/store/') || lower.includes('/redux/')) return 'State';
+  if (lower.endsWith('.config.js') || lower.endsWith('.config.ts')) return 'Config';
+
+  return 'Other';
+}
+
+/**
+ * Get coverage percentage for a file
+ */
+function getCoverageForFile(filePath, coverageData) {
+  if (!coverageData || !coverageData.coverage) return 0;
+
+  const functions = coverageData.coverage.functions || [];
+  const fileFunctions = functions.filter(f => f.file === filePath);
+
+  if (fileFunctions.length === 0) return 0;
+
+  const coveredFunctions = fileFunctions.filter(f => f.coverage > 0);
+  return Math.round((coveredFunctions.length / fileFunctions.length) * 100);
 }
 
 // ============================================

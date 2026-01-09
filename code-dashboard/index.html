@@ -13,23 +13,23 @@
             <div class="header-title">
                 <h1>💻 Code Analysis Dashboard</h1>
             </div>
-            
-            <!-- Tab Navigation -->
+
+            <!-- Main Tab Navigation -->
             <nav class="tab-nav">
                 <button class="tab-btn active" data-tab="overview">📊 Overview</button>
-                <button class="tab-btn" data-tab="coverage">🎯 Coverage</button>
-                <button class="tab-btn" data-tab="complexity">🧮 Complexity</button>
+                <button class="tab-btn" data-tab="backend">🔷 Backend (.NET)</button>
+                <button class="tab-btn" data-tab="frontend">🟨 Frontend (JS)</button>
                 <button class="tab-btn" data-tab="test-gaps">🔍 Test Gaps</button>
             </nav>
         </header>
 
-        <!-- Collapsible Filter Bar -->
+        <!-- Filter Bar -->
         <div class="filter-bar-wrapper">
             <div class="filter-bar-header" id="filterBarToggle">
                 <span>🔍 Filters & Actions</span>
                 <span class="toggle-icon">▼</span>
             </div>
-            
+
             <div class="filter-bar-content" id="filterBarContent">
                 <div class="filter-controls">
                     <div class="filter-group">
@@ -38,349 +38,285 @@
                             <option value="">Select Application...</option>
                         </select>
                     </div>
-                    
-                    <div class="filter-group">
-                        <label>Complexity</label>
-                        <select id="complexityFilter">
-                            <option value="">All</option>
-                            <option value="low">Low</option>
-                            <option value="medium">Medium</option>
-                            <option value="high">High</option>
-                        </select>
-                    </div>
-                    
-                    <div class="filter-group">
-                        <label>Coverage Threshold</label>
-                        <select id="coverageFilter">
-                            <option value="">All</option>
-                            <option value="high">≥ 80%</option>
-                            <option value="medium">50-80%</option>
-                            <option value="low">< 50%</option>
-                        </select>
-                    </div>
 
                     <div class="filter-group">
-                        <label>Gap Type</label>
-                        <select id="gapTypeFilter">
-                            <option value="">All Test Gaps</option>
-                            <option value="false-positive">🚨 False Positive Tests</option>
-                            <option value="no-tests">❌ Missing Unit Tests</option>
-                            <option value="partial">⚠️ Partial Coverage</option>
-                            <option value="no-negative">🔸 Missing Negative Tests</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-actions">
-                        <button id="applyFiltersBtn" class="btn btn-primary">Apply</button>
-                        <button id="clearFiltersBtn" class="btn btn-secondary">Clear</button>
-                        <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh</button>
+                        <button id="refreshBtn" class="action-btn primary">
+                            🔄 Refresh Data
+                        </button>
                     </div>
                 </div>
-                
-                <div id="statusMessage"></div>
             </div>
         </div>
 
+        <!-- Status Bar -->
+        <div id="statusBar" class="status-bar"></div>
+        <div id="loadingIndicator" class="loading-indicator" style="display: none;">
+            <div class="spinner"></div>
+            <span id="loadingText">Loading...</span>
+        </div>
+
         <!-- Main Content Area -->
-        <main class="dashboard-main">
-            <!-- Overview Tab -->
+        <main class="dashboard-content">
+
+            <!-- OVERVIEW TAB -->
             <div id="overview-tab" class="tab-content active">
+                <div class="overview-header">
+                    <h2>📊 System Overview</h2>
+                    <p class="tab-description">Aggregate statistics from both Backend (.NET) and Frontend (JavaScript) analysis</p>
+                </div>
+
+                <div class="stats-grid-3col">
+                    <div class="stat-card gradient-blue">
+                        <div class="stat-header">Backend (.NET)</div>
+                        <div class="stat-row">
+                            <span class="stat-label">Files:</span>
+                            <span class="stat-value" id="overview-backend-files">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Classes:</span>
+                            <span class="stat-value" id="overview-backend-classes">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Methods:</span>
+                            <span class="stat-value" id="overview-backend-methods">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Coverage:</span>
+                            <span class="stat-value" id="overview-backend-coverage">-%</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Untested:</span>
+                            <span class="stat-value warning" id="overview-backend-untested">-</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card gradient-yellow">
+                        <div class="stat-header">Frontend (JavaScript)</div>
+                        <div class="stat-row">
+                            <span class="stat-label">Files:</span>
+                            <span class="stat-value" id="overview-frontend-files">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Components:</span>
+                            <span class="stat-value" id="overview-frontend-components">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Functions:</span>
+                            <span class="stat-value" id="overview-frontend-functions">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Coverage:</span>
+                            <span class="stat-value" id="overview-frontend-coverage">-%</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Untested:</span>
+                            <span class="stat-value warning" id="overview-frontend-untested">-</span>
+                        </div>
+                    </div>
+
+                    <div class="stat-card gradient-green">
+                        <div class="stat-header">Combined Totals</div>
+                        <div class="stat-row">
+                            <span class="stat-label">Total Files:</span>
+                            <span class="stat-value" id="overview-combined-files">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Code Units:</span>
+                            <span class="stat-value" id="overview-combined-units">-</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Avg Coverage:</span>
+                            <span class="stat-value" id="overview-combined-coverage">-%</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Total Untested:</span>
+                            <span class="stat-value warning" id="overview-combined-untested">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="panel mt-20">
+                    <h3>Coverage Distribution</h3>
+                    <div class="coverage-bars">
+                        <div class="coverage-bar-item">
+                            <div class="coverage-bar-label">Backend (.NET)</div>
+                            <div class="coverage-bar-container">
+                                <div class="coverage-bar-fill" id="overview-backend-bar" style="width: 0%"></div>
+                                <div class="coverage-bar-text" id="overview-backend-bar-text">0%</div>
+                            </div>
+                        </div>
+                        <div class="coverage-bar-item">
+                            <div class="coverage-bar-label">Frontend (JavaScript)</div>
+                            <div class="coverage-bar-container">
+                                <div class="coverage-bar-fill" id="overview-frontend-bar" style="width: 0%"></div>
+                                <div class="coverage-bar-text" id="overview-frontend-bar-text">0%</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- BACKEND TAB -->
+            <div id="backend-tab" class="tab-content">
+                <div class="tab-header">
+                    <h2>🔷 Backend (.NET) Analysis</h2>
+                    <p class="tab-description">C# code structure, xUnit/NUnit/MSTest coverage</p>
+                </div>
+
                 <div class="metrics-grid">
                     <div class="metric-card gradient-blue">
-                        <div class="metric-value" id="totalFiles">-</div>
-                        <div class="metric-label">Total Files</div>
-                    </div>
-                    <div class="metric-card gradient-purple">
-                        <div class="metric-value" id="overallCoverage">-</div>
-                        <div class="metric-label">Overall Coverage</div>
+                        <div class="metric-value" id="backend-files">-</div>
+                        <div class="metric-label">Files</div>
                     </div>
                     <div class="metric-card gradient-green">
-                        <div class="metric-value" id="highComplexity">-</div>
-                        <div class="metric-label">High Complexity Files</div>
+                        <div class="metric-value" id="backend-classes">-</div>
+                        <div class="metric-label">Classes</div>
+                    </div>
+                    <div class="metric-card gradient-purple">
+                        <div class="metric-value" id="backend-methods">-</div>
+                        <div class="metric-label">Methods</div>
                     </div>
                     <div class="metric-card gradient-orange">
-                        <div class="metric-value" id="testGaps">-</div>
-                        <div class="metric-label">Test Gaps</div>
+                        <div class="metric-value" id="backend-coverage">-%</div>
+                        <div class="metric-label">Coverage</div>
                     </div>
                 </div>
 
-                <div class="content-grid">
-                    <div class="panel">
-                        <h2>Coverage by Type</h2>
-                        <div id="coverageByAppChart"></div>
-                    </div>
-                    
-                    <div class="panel">
-                        <h2>Complexity Distribution</h2>
-                        <div id="complexityChart"></div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Coverage Tab -->
-            <div id="coverage-tab" class="tab-content">
-                <div class="stats-row">
-                    <div class="stat-box">
-                        <div class="stat-value" id="lineCoverage">0%</div>
-                        <div class="stat-label">Line Coverage</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value" id="branchCoverage">0%</div>
-                        <div class="stat-label">Branch Coverage</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value" id="methodCoverage">0%</div>
-                        <div class="stat-label">Method Coverage</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value" id="linesCovered">0</div>
-                        <div class="stat-label">Lines Covered</div>
-                    </div>
-                </div>
-
-                <div class="panel">
-                    <h2>Coverage Details</h2>
+                <div class="panel mt-20">
+                    <h3>Backend Files</h3>
                     <div class="table-container">
-                        <table class="data-table" id="coverageTable">
+                        <table class="data-table" id="backend-files-table">
                             <thead>
                                 <tr>
                                     <th>File</th>
-                                    <th>Application</th>
-                                    <th>Line Coverage</th>
-                                    <th>Branch Coverage</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Populated by JavaScript -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Complexity Tab -->
-            <div id="complexity-tab" class="tab-content">
-                <div class="stats-row">
-                    <div class="stat-box">
-                        <div class="stat-value" id="avgComplexity">0.0</div>
-                        <div class="stat-label">Avg Complexity</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value" id="lowComplexity">9</div>
-                        <div class="stat-label">Low</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value" id="mediumComplexity">0</div>
-                        <div class="stat-label">Medium</div>
-                    </div>
-                    <div class="stat-box">
-                        <div class="stat-value" id="highComplexityCount">0</div>
-                        <div class="stat-label">High</div>
-                    </div>
-                </div>
-
-                <div class="panel">
-                    <h2>High Complexity Files</h2>
-                    <div class="table-container">
-                        <table class="data-table" id="complexityTable">
-                            <thead>
-                                <tr>
-                                    <th>File</th>
-                                    <th>Avg Complexity</th>
-                                    <th>Max Complexity</th>
+                                    <th>Classes</th>
                                     <th>Methods</th>
-                                    <th>Severity</th>
+                                    <th>Avg Complexity</th>
+                                    <th>Coverage</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <!-- Populated by JavaScript -->
+                            <tbody id="backend-files-tbody">
+                                <tr><td colspan="5" class="no-data">No data available</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- Test Gaps Tab -->
-            <div id="test-gaps-tab" class="tab-content">
-                <div class="stats-row">
-                    <div class="stat-box">
-                        <div class="stat-value" id="totalMethods">0</div>
-                        <div class="stat-label">Total Methods</div>
+            <!-- FRONTEND TAB -->
+            <div id="frontend-tab" class="tab-content">
+                <div class="tab-header">
+                    <h2>🟨 Frontend (JavaScript) Analysis</h2>
+                    <p class="tab-description">React/Vue components, TypeScript, Jest/Vitest coverage</p>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card gradient-yellow">
+                        <div class="metric-value" id="frontend-files">-</div>
+                        <div class="metric-label">Files</div>
                     </div>
-                    <div class="stat-box">
-                        <div class="stat-value" id="untestedMethods">0</div>
-                        <div class="stat-label" id="untestedLabel">Untested (0%)</div>
+                    <div class="metric-card gradient-blue">
+                        <div class="metric-value" id="frontend-components">-</div>
+                        <div class="metric-label">Components</div>
                     </div>
-                    <div class="stat-box">
-                        <div class="stat-value" id="partialCoverage">0</div>
-                        <div class="stat-label">Partial Coverage</div>
+                    <div class="metric-card gradient-green">
+                        <div class="metric-value" id="frontend-functions">-</div>
+                        <div class="metric-label">Functions</div>
                     </div>
-                    <div class="stat-box">
-                        <div class="stat-value" id="missingNegativeTests">0</div>
-                        <div class="stat-label">Missing Negative Tests</div>
+                    <div class="metric-card gradient-purple">
+                        <div class="metric-value" id="frontend-hooks">-</div>
+                        <div class="metric-label">Custom Hooks</div>
                     </div>
-                    <div class="stat-box stat-box-warning">
-                        <div class="stat-value" id="falsePositiveTests">0</div>
-                        <div class="stat-label">🚨 False Positive Tests</div>
+                    <div class="metric-card gradient-orange">
+                        <div class="metric-value" id="frontend-coverage">-%</div>
+                        <div class="metric-label">Coverage</div>
                     </div>
                 </div>
 
-                <div class="panel">
-                    <h2>Files Missing Tests</h2>
-                    <p style="color: #94a3b8; margin-bottom: 15px;">Files with no or insufficient test coverage</p>
+                <div class="panel mt-20">
+                    <h3>Frontend Components</h3>
                     <div class="table-container">
-                        <table class="data-table" id="testGapsTable">
+                        <table class="data-table" id="frontend-components-table">
                             <thead>
                                 <tr>
-                                    <th>Method</th>
+                                    <th>Component</th>
+                                    <th>Type</th>
                                     <th>File</th>
-                                    <th>Coverage</th>
-                                    <th>Has Tests</th>
-                                    <th>Has Negative Tests</th>
-                                    <th>Priority</th>
+                                    <th>Hooks Used</th>
+                                    <th>Complexity</th>
                                 </tr>
                             </thead>
-                            <tbody>
-                                <!-- Populated by JavaScript -->
+                            <tbody id="frontend-components-tbody">
+                                <tr><td colspan="5" class="no-data">No data available</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
 
-                <div class="panel">
-                    <h2>Recommended Actions</h2>
-                    <div id="recommendedActions">
-                        <p style="color: #94a3b8;">No recommendations needed! 🎉</p>
-                    </div>
-                </div>
-
-                <!-- Priority Explanation Section -->
-                <div class="panel" style="margin-top: 30px; background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border: 1px solid #475569;">
-                    <h2 style="color: #f1f5f9;">📊 How Priority is Calculated</h2>
-                    <p style="color: #cbd5e1; margin-bottom: 20px;">
-                        Priority ratings help you focus on the most critical testing gaps. Our system uses a multi-factor scoring algorithm to determine which methods need testing most urgently.
-                    </p>
-
-                    <!-- Priority Levels Grid -->
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 15px; margin-bottom: 25px;">
-                        <!-- CRITICAL -->
-                        <div style="background: #450a0a; border: 2px solid #991b1b; border-radius: 8px; padding: 15px;">
-                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                                <span style="font-size: 24px;">🔥</span>
-                                <span class="badge badge-critical" style="font-size: 14px;">CRITICAL</span>
-                            </div>
-                            <div style="color: #fecaca; font-size: 13px; margin-bottom: 5px;">Score: 70-100 points</div>
-                            <div style="color: #fca5a5; font-size: 12px; line-height: 1.5;">
-                                Public methods with NO tests and high complexity (>10). Test immediately - high risk!
-                            </div>
-                        </div>
-
-                        <!-- HIGH -->
-                        <div style="background: #431407; border: 2px solid #c2410c; border-radius: 8px; padding: 15px;">
-                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                                <span style="font-size: 24px;">⚠️</span>
-                                <span class="badge badge-high" style="font-size: 14px;">HIGH</span>
-                            </div>
-                            <div style="color: #fed7aa; font-size: 13px; margin-bottom: 5px;">Score: 50-69 points</div>
-                            <div style="color: #fdba74; font-size: 12px; line-height: 1.5;">
-                                Public methods without tests OR high complexity with partial coverage. Prioritize for next cycle.
-                            </div>
-                        </div>
-
-                        <!-- MEDIUM -->
-                        <div style="background: #422006; border: 2px solid #ca8a04; border-radius: 8px; padding: 15px;">
-                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                                <span style="font-size: 24px;">⚡</span>
-                                <span class="badge badge-medium" style="font-size: 14px;">MEDIUM</span>
-                            </div>
-                            <div style="color: #fde68a; font-size: 13px; margin-bottom: 5px;">Score: 30-49 points</div>
-                            <div style="color: #fcd34d; font-size: 12px; line-height: 1.5;">
-                                Has positive tests but missing negative tests. Add error scenario tests when possible.
-                            </div>
-                        </div>
-
-                        <!-- LOW -->
-                        <div style="background: #1e293b; border: 2px solid #475569; border-radius: 8px; padding: 15px;">
-                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
-                                <span style="font-size: 24px;">ℹ️</span>
-                                <span class="badge badge-low" style="font-size: 14px;">LOW</span>
-                            </div>
-                            <div style="color: #cbd5e1; font-size: 13px; margin-bottom: 5px;">Score: 0-29 points</div>
-                            <div style="color: #94a3b8; font-size: 12px; line-height: 1.5;">
-                                Simple methods with some coverage. Nice to have, not urgent.
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Scoring Factors -->
-                    <details style="background: #0f172a; border-radius: 8px; padding: 15px; cursor: pointer;">
-                        <summary style="color: #e2e8f0; font-weight: 600; cursor: pointer; user-select: none;">
-                            📝 Scoring Breakdown (click to expand)
-                        </summary>
-                        <div style="margin-top: 15px; color: #cbd5e1; font-size: 13px;">
-                            <table style="width: 100%; border-collapse: collapse;">
-                                <thead>
-                                    <tr style="border-bottom: 1px solid #334155;">
-                                        <th style="text-align: left; padding: 8px; color: #f1f5f9;">Factor</th>
-                                        <th style="text-align: center; padding: 8px; color: #f1f5f9;">Weight</th>
-                                        <th style="text-align: left; padding: 8px; color: #f1f5f9;">Description</th>
-                                    </tr>
-                                </thead>
-                                <tbody style="font-size: 12px;">
-                                    <tr style="border-bottom: 1px solid #1e293b;">
-                                        <td style="padding: 8px; color: #fca5a5;">Test Coverage Status</td>
-                                        <td style="padding: 8px; text-align: center; color: #fca5a5;">40%</td>
-                                        <td style="padding: 8px; color: #cbd5e1;">No tests = 40pts | Has tests but no negative = 20pts</td>
-                                    </tr>
-                                    <tr style="border-bottom: 1px solid #1e293b;">
-                                        <td style="padding: 8px; color: #fdba74;">Method Complexity</td>
-                                        <td style="padding: 8px; text-align: center; color: #fdba74;">25%</td>
-                                        <td style="padding: 8px; color: #cbd5e1;">High (>10) = 25pts | Medium (5-10) = 15pts | Low (<5) = 5pts</td>
-                                    </tr>
-                                    <tr style="border-bottom: 1px solid #1e293b;">
-                                        <td style="padding: 8px; color: #fcd34d;">Visibility Level</td>
-                                        <td style="padding: 8px; text-align: center; color: #fcd34d;">20%</td>
-                                        <td style="padding: 8px; color: #cbd5e1;">Public = 20pts | Internal/Protected = 10pts | Private = 5pts</td>
-                                    </tr>
-                                    <tr style="border-bottom: 1px solid #1e293b;">
-                                        <td style="padding: 8px; color: #a78bfa;">File Type/Role</td>
-                                        <td style="padding: 8px; text-align: center; color: #a78bfa;">10%</td>
-                                        <td style="padding: 8px; color: #cbd5e1;">Controller = 10pts | Service/Repository = 8pts | Utility = 5pts | Model = 2pts</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 8px; color: #94a3b8;">Call Frequency</td>
-                                        <td style="padding: 8px; text-align: center; color: #94a3b8;">5%</td>
-                                        <td style="padding: 8px; color: #cbd5e1;">How often method is called by others (future enhancement)</td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </details>
-
-                    <!-- Example -->
-                    <div style="background: #0f172a; border-left: 4px solid #3b82f6; border-radius: 4px; padding: 15px; margin-top: 20px;">
-                        <div style="color: #93c5fd; font-weight: 600; margin-bottom: 8px;">💡 Example Calculation:</div>
-                        <div style="color: #cbd5e1; font-size: 13px; line-height: 1.6;">
-                            <strong style="color: #f1f5f9;">Public CreatePayment() method in PaymentService.cs</strong><br/>
-                            • No tests: <span style="color: #fca5a5;">+40 points</span><br/>
-                            • Complexity 12 (high): <span style="color: #fdba74;">+25 points</span><br/>
-                            • Public visibility: <span style="color: #fcd34d;">+20 points</span><br/>
-                            • Service file: <span style="color: #a78bfa;">+8 points</span><br/>
-                            • Call frequency N/A: <span style="color: #94a3b8;">+0 points</span><br/>
-                            <strong style="color: #f87171;">= 93 points → CRITICAL priority 🔥</strong>
-                        </div>
-                    </div>
-
-                    <!-- Recommendation -->
-                    <div style="background: #064e3b; border: 1px solid #059669; border-radius: 8px; padding: 15px; margin-top: 20px;">
-                        <div style="color: #6ee7b7; font-weight: 600; margin-bottom: 5px;">✅ Recommendation:</div>
-                        <div style="color: #d1fae5; font-size: 13px;">
-                            Focus on CRITICAL and HIGH priority items first. These represent the highest risk to your application and should be tested immediately.
-                        </div>
+                <div class="panel mt-20">
+                    <h3>Frontend Functions</h3>
+                    <div class="table-container">
+                        <table class="data-table" id="frontend-functions-table">
+                            <thead>
+                                <tr>
+                                    <th>Function</th>
+                                    <th>File</th>
+                                    <th>Type</th>
+                                    <th>Complexity</th>
+                                    <th>Has Tests</th>
+                                </tr>
+                            </thead>
+                            <tbody id="frontend-functions-tbody">
+                                <tr><td colspan="5" class="no-data">No data available</td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
+
+            <!-- TEST GAPS TAB -->
+            <div id="test-gaps-tab" class="tab-content">
+                <div class="tab-header">
+                    <h2>🔍 Test Gaps Analysis</h2>
+                    <p class="tab-description">Untested methods, partial coverage, missing negative tests</p>
+                </div>
+
+                <div class="metrics-grid">
+                    <div class="metric-card gradient-red">
+                        <div class="metric-value" id="gaps-untested">-</div>
+                        <div class="metric-label">Untested</div>
+                    </div>
+                    <div class="metric-card gradient-orange">
+                        <div class="metric-value" id="gaps-partial">-</div>
+                        <div class="metric-label">Partial Coverage</div>
+                    </div>
+                    <div class="metric-card gradient-yellow">
+                        <div class="metric-value" id="gaps-negative">-</div>
+                        <div class="metric-label">Missing Negative Tests</div>
+                    </div>
+                </div>
+
+                <div class="panel mt-20">
+                    <h3>Untested Methods & Functions</h3>
+                    <div class="table-container">
+                        <table class="data-table" id="gaps-untested-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>File</th>
+                                    <th>Type</th>
+                                    <th>Complexity</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="gaps-untested-tbody">
+                                <tr><td colspan="5" class="no-data">No data available</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
         </main>
     </div>
 

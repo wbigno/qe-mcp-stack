@@ -27,7 +27,8 @@ qe-mcp-stack/
 │   ├── quality-analysis/ # Risk Analyzer, Integration Mapper, Test Selector
 │   └── playwright/       # Playwright Generator, Analyzer, Healer
 ├── orchestrator/         # API gateway (port 3000)
-├── ado-dashboard/        # Dashboard UI (port 5173)
+├── ado-dashboard/        # ADO Dashboard UI (port 5173)
+├── code-dashboard/       # Code Dashboard UI (port 8081)
 ├── swagger-hub/          # API docs landing page (port 8000)
 ├── tests/                # Playwright test suites
 │   ├── payments/         # Payments app tests
@@ -83,8 +84,9 @@ After starting, access services at:
 
 - **Swagger Hub**: http://localhost:8000 (API documentation portal)
 - **Orchestrator**: http://localhost:3000 (API gateway)
-- **Dashboard**: http://localhost:5173 (React UI)
-- **MCPs**: Ports 8100-8399 (see Port Assignments below)
+- **ADO Dashboard**: http://localhost:5173 (Azure DevOps integration UI)
+- **Code Dashboard**: http://localhost:8081 (Code analysis UI)
+- **MCPs**: Ports 8100-8499 (see Port Assignments below)
 
 ## Development
 
@@ -200,7 +202,8 @@ npx playwright test --debug
 
 ### Core Services
 - **3000** - Orchestrator (API Gateway)
-- **5173** - Dashboard (React UI)
+- **5173** - ADO Dashboard (Azure DevOps Integration UI)
+- **8081** - Code Dashboard (Code Analysis UI)
 - **8000** - Swagger Hub (API Docs Landing)
 
 ### Integration MCPs (8100-8199)
@@ -209,9 +212,11 @@ npx playwright test --debug
 - **8102** - Test Plan Manager MCP
 
 ### Code Analysis MCPs (8200-8299)
-- **8200** - Code Analyzer MCP
-- **8201** - Coverage Analyzer MCP
-- **8203** - Migration Analyzer MCP
+- **8200** - .NET Code Analyzer MCP (C# code structure analysis)
+- **8201** - .NET Coverage Analyzer MCP (xUnit/NUnit/MSTest coverage)
+- **8203** - Migration Analyzer MCP (Core → Core.Common migration tracking)
+- **8204** - JavaScript Code Analyzer MCP (React/Vue/TypeScript analysis)
+- **8205** - JavaScript Coverage Analyzer MCP (Jest/Vitest coverage)
 
 ### Quality Analysis MCPs (8300-8399)
 - **8300** - Risk Analyzer MCP
@@ -244,15 +249,29 @@ npx playwright test --debug
 
 ### Code Analysis MCPs
 
-#### Code Analyzer MCP (8200)
-- **Purpose**: Analyze .NET codebase for complexity and quality
-- **Features**: Cyclomatic complexity, code metrics, method analysis
+#### .NET Code Analyzer MCP (8200)
+- **Purpose**: Analyze .NET/C# codebase for complexity and quality
+- **Features**: C# file parsing, cyclomatic complexity, method analysis, LINQ detection
+- **Tech Stack**: Roslyn-inspired parsing, C# syntax analysis
 - **Docs**: http://localhost:8200/api-docs
 
-#### Coverage Analyzer MCP (8201)
-- **Purpose**: Analyze test coverage and gap detection
-- **Features**: Code coverage analysis, gap identification, test categorization
+#### .NET Coverage Analyzer MCP (8201)
+- **Purpose**: Analyze .NET test coverage and gap detection
+- **Features**: Cobertura XML parsing, xUnit/NUnit/MSTest detection, negative test identification
+- **Tech Stack**: XML parsing, test framework pattern matching
 - **Docs**: http://localhost:8201/api-docs
+
+#### JavaScript Code Analyzer MCP (8204)
+- **Purpose**: Analyze JavaScript/TypeScript codebase (React, Vue, Node.js)
+- **Features**: AST parsing, component analysis, hook dependencies, cognitive complexity
+- **Tech Stack**: @babel/parser, vue-template-compiler, TypeScript support
+- **Docs**: http://localhost:8204/api-docs
+
+#### JavaScript Coverage Analyzer MCP (8205)
+- **Purpose**: Analyze JavaScript test coverage (Jest, Vitest, Cypress)
+- **Features**: Istanbul coverage parsing, test framework detection, component test matching
+- **Tech Stack**: istanbul-lib-coverage, JSON coverage reports
+- **Docs**: http://localhost:8205/api-docs
 
 #### Migration Analyzer MCP (8203)
 - **Purpose**: Track Core → Core.Common migration progress
@@ -292,6 +311,132 @@ npx playwright test --debug
 - **Purpose**: Automatically detect and fix broken Playwright tests
 - **Features**: Failure analysis, automated healing, flaky test detection
 - **Docs**: http://localhost:8402/api-docs
+
+## API Usage Examples
+
+### Code Analysis Workflows
+
+#### 1. Analyze .NET Backend Code
+```bash
+# Get .NET code analysis
+curl "http://localhost:3000/api/dashboard/code-analysis?app=Core"
+
+# Get .NET coverage
+curl "http://localhost:3000/api/dashboard/coverage?app=Core"
+```
+
+#### 2. Analyze JavaScript Frontend Code
+```bash
+# Get JavaScript/TypeScript analysis
+curl "http://localhost:3000/api/dashboard/javascript-analysis?app=Core"
+
+# Get JavaScript coverage (Jest/Vitest)
+curl "http://localhost:3000/api/dashboard/javascript-coverage?app=Core"
+```
+
+#### 3. Get Combined Overview
+```bash
+# Get aggregate stats from both .NET and JavaScript
+curl "http://localhost:3000/api/dashboard/overview?app=Core" | jq '.'
+
+# Example output:
+# {
+#   "backend": {
+#     "files": 6735,
+#     "classes": 7182,
+#     "methods": 17641,
+#     "coverage": 78,
+#     "untestedMethods": 3891
+#   },
+#   "frontend": {
+#     "files": 150,
+#     "components": 45,
+#     "functions": 210,
+#     "hooks": 18,
+#     "coverage": 65,
+#     "untestedFunctions": 73
+#   },
+#   "combined": {
+#     "totalFiles": 6885,
+#     "totalCodeUnits": 17851,
+#     "averageCoverage": 72,
+#     "totalUntested": 3964
+#   }
+# }
+```
+
+#### 4. Find Test Gaps
+```bash
+# Identify untested methods and functions
+curl -X POST "http://localhost:3000/api/analysis/test-gaps" \
+  -H "Content-Type: application/json" \
+  -d '{"app": "Core"}' | jq '.gaps'
+```
+
+#### 5. Direct MCP Access
+```bash
+# Call .NET Code Analyzer directly
+curl -X POST http://localhost:8200/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"app": "Core", "includeTests": true}'
+
+# Call JavaScript Code Analyzer directly
+curl -X POST http://localhost:8204/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"app": "Core", "detailed": true}'
+
+# Call JavaScript Coverage Analyzer directly
+curl -X POST http://localhost:8205/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"app": "Core", "detailed": true}'
+```
+
+### Azure DevOps Integration
+
+#### 1. Get Sprint Work Items
+```bash
+curl "http://localhost:3000/api/dashboard/aod-summary?sprint=Sprint%2042"
+```
+
+#### 2. Analyze Story Risk
+```bash
+curl -X POST "http://localhost:3000/api/analysis/risk/analyze-story" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app": "Core",
+    "story": {
+      "id": 12345,
+      "title": "Implement user authentication",
+      "description": "Add OAuth2 support"
+    }
+  }'
+```
+
+### Test Generation
+
+#### 1. Generate Unit Tests (.NET)
+```bash
+curl -X POST "http://localhost:3000/api/tests/generate-for-file" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app": "Core",
+    "file": "/mnt/apps/Core/Services/UserService.cs",
+    "className": "UserService",
+    "includeNegativeTests": true,
+    "model": "claude-sonnet-4-20250514"
+  }'
+```
+
+#### 2. Generate Playwright Tests
+```bash
+curl -X POST http://localhost:8400/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "app": "Core",
+    "scenario": "User login flow",
+    "includePageObjects": true
+  }'
+```
 
 ## Shared Packages
 

@@ -1,6 +1,7 @@
 import { spawn } from 'child_process';
 import axios from 'axios';
 import { logger } from '../utils/logger.js';
+import { orchestratorApiSpec } from '../swagger/orchestrator-api-spec.js';
 
 export class MCPManager {
   constructor() {
@@ -13,8 +14,10 @@ export class MCPManager {
 
     // Code Analysis MCPs (8200-8299)
     this.codeAnalysisMcps = {
-      codeAnalyzer: { url: 'http://code-analyzer:8200', status: 'unknown', category: 'code-analysis' },
-      coverageAnalyzer: { url: 'http://coverage-analyzer:8201', status: 'unknown', category: 'code-analysis' },
+      dotnetCodeAnalyzer: { url: 'http://code-analyzer:8200', status: 'unknown', category: 'code-analysis' },
+      dotnetCoverageAnalyzer: { url: 'http://coverage-analyzer:8201', status: 'unknown', category: 'code-analysis' },
+      javascriptCodeAnalyzer: { url: 'http://javascript-code-analyzer:8204', status: 'unknown', category: 'code-analysis' },
+      javascriptCoverageAnalyzer: { url: 'http://javascript-coverage-analyzer:8205', status: 'unknown', category: 'code-analysis' },
       migrationAnalyzer: { url: 'http://migration-analyzer:8203', status: 'unknown', category: 'code-analysis' },
     };
 
@@ -333,129 +336,13 @@ export class MCPManager {
   }
 
   async getAggregatedSwaggerSpec() {
-    logger.info('Aggregating Swagger specifications from all MCPs...');
+    logger.info('Returning orchestrator API specification...');
 
-    const aggregatedSpec = {
-      openapi: '3.0.0',
-      info: {
-        title: 'QE MCP Stack - Aggregated API',
-        version: '1.0.0',
-        description: `
-Aggregated API documentation for all QE MCP services.
-
-## Service Categories
-
-### Integration MCPs (8100-8199)
-Services that integrate with external systems:
-- Azure DevOps (8100): Work item management and sprint tracking
-- Third Party (8101): External API integrations (Stripe, etc.)
-- Test Plan Manager (8102): Test plan creation and management
-
-### Code Analysis MCPs (8200-8299)
-Services for analyzing and generating code:
-- Code Analyzer (8200): Static code analysis for .NET
-- Coverage Analyzer (8201): Test coverage analysis
-- Migration Analyzer (8203): Track Core → Core.Common migration
-
-### Quality Analysis MCPs (8300-8399)
-Services for quality assessment and risk analysis:
-- Risk Analyzer (8300): AI-powered risk assessment
-- Integration Mapper (8301): Map integration points and dependencies
-- Test Selector (8302): Intelligent test selection based on changes
-
-### Playwright MCPs (8400-8499)
-End-to-end test automation services:
-- Playwright Generator (8400): Generate Playwright tests from acceptance criteria
-- Playwright Analyzer (8401): Discover critical UI paths for testing
-- Playwright Healer (8402): Automatically fix broken Playwright tests
-        `,
-      },
-      servers: [
-        {
-          url: 'http://localhost:3000',
-          description: 'Orchestrator (local development)'
-        },
-        {
-          url: 'http://orchestrator:3000',
-          description: 'Orchestrator (Docker)'
-        }
-      ],
-      tags: [],
-      paths: {},
-      components: {
-        schemas: {},
-        securitySchemes: {
-          bearerAuth: {
-            type: 'http',
-            scheme: 'bearer',
-            bearerFormat: 'JWT',
-          },
-          apiKeyAuth: {
-            type: 'apiKey',
-            in: 'header',
-            name: 'Authorization',
-          },
-        }
-      }
-    };
-
-    // Fetch all MCP specs
-    for (const [mcpName, mcp] of Object.entries(this.dockerMcps)) {
-      if (mcp.status !== 'healthy') {
-        logger.warn(`Skipping ${mcpName} (not healthy)`);
-        continue;
-      }
-
-      try {
-        const spec = await this.getSwaggerDocs(mcpName);
-
-        // Add tag for this MCP category
-        const categoryTag = {
-          name: mcp.category,
-          description: `${mcpName} - ${spec.info?.description || ''}`
-        };
-
-        if (!aggregatedSpec.tags.find(t => t.name === categoryTag.name)) {
-          aggregatedSpec.tags.push(categoryTag);
-        }
-
-        // Merge paths with MCP prefix
-        if (spec.paths) {
-          for (const [path, pathItem] of Object.entries(spec.paths)) {
-            const prefixedPath = `/api/${mcpName}${path}`;
-
-            // Add MCP category tag to all operations
-            for (const [method, operation] of Object.entries(pathItem)) {
-              if (operation && typeof operation === 'object') {
-                operation.tags = operation.tags || [];
-                if (!operation.tags.includes(mcp.category)) {
-                  operation.tags.push(mcp.category);
-                }
-                // Add server override for this path
-                operation.servers = [{ url: mcp.url, description: `${mcpName} service` }];
-              }
-            }
-
-            aggregatedSpec.paths[prefixedPath] = pathItem;
-          }
-        }
-
-        // Merge schemas
-        if (spec.components?.schemas) {
-          for (const [schemaName, schema] of Object.entries(spec.components.schemas)) {
-            const prefixedSchemaName = `${mcpName}_${schemaName}`;
-            aggregatedSpec.components.schemas[prefixedSchemaName] = schema;
-          }
-        }
-
-        logger.info(`✓ Aggregated ${Object.keys(spec.paths || {}).length} paths from ${mcpName}`);
-      } catch (error) {
-        logger.error(`Failed to aggregate ${mcpName}: ${error.message}`);
-      }
-    }
-
-    logger.info(`Aggregation complete: ${Object.keys(aggregatedSpec.paths).length} total paths`);
-    return aggregatedSpec;
+    // Return the comprehensive orchestrator API spec
+    // MCPs are internal services - the orchestrator is the public API gateway
+    // All API endpoints are exposed through the orchestrator
+    logger.info(`API specification includes ${Object.keys(orchestratorApiSpec.paths).length} endpoints`);
+    return orchestratorApiSpec;
   }
 
   async shutdown() {

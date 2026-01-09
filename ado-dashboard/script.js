@@ -1977,6 +1977,7 @@ async function analyzeStoryFull(storyId) {
             const analysisResponse = await fetch(analysisUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
+                cache: 'no-cache',
                 body: JSON.stringify({
                     storyIds: [parseInt(storyId)],
                     includeGapAnalysis: true,
@@ -1991,7 +1992,7 @@ async function analyzeStoryFull(storyId) {
                 console.log('[Story Analyzer] Analysis data:', analysisData);
 
                 if (analysisData.results && analysisData.results.length > 0) {
-                    requirementsAnalysis = analysisData.results[0].analysis;
+                    requirementsAnalysis = analysisData.results[0];  // Changed from .analysis to get full result object
                     console.log('[Story Analyzer] Requirements analysis retrieved');
                 } else {
                     console.warn('[Story Analyzer] No results in analysis data');
@@ -2006,6 +2007,29 @@ async function analyzeStoryFull(storyId) {
 
         // Display results
         console.log('[Story Analyzer] Step 3: Preparing display data...');
+
+        // Extract fields from the full result object if we got it from API
+        let actualRequirementsAnalysis = null;
+        let descriptionFromAPI = story.fields['System.Description'] || '';
+        let acceptanceCriteriaFromAPI = story.fields['Microsoft.VSTS.Common.AcceptanceCriteria'] || '';
+        let childTasksFromAPI = [];
+
+        if (requirementsAnalysis) {
+            // requirementsAnalysis is the full result object from API
+            actualRequirementsAnalysis = requirementsAnalysis.requirementsAnalysis || null;
+
+            // Use API-provided fields if available (they're more complete)
+            if (requirementsAnalysis.description) {
+                descriptionFromAPI = requirementsAnalysis.description;
+            }
+            if (requirementsAnalysis.acceptanceCriteria) {
+                acceptanceCriteriaFromAPI = requirementsAnalysis.acceptanceCriteria;
+            }
+            if (requirementsAnalysis.childTasks) {
+                childTasksFromAPI = requirementsAnalysis.childTasks;
+            }
+        }
+
         const displayData = {
             workItem: {
                 id: story.id,
@@ -2013,17 +2037,19 @@ async function analyzeStoryFull(storyId) {
                 type: story.fields['System.WorkItemType'] || 'N/A',
                 state: story.fields['System.State'] || 'N/A',
                 assignedTo: story.fields['System.AssignedTo']?.displayName || 'Unassigned',
-                description: story.fields['System.Description'] || '',
-                acceptanceCriteria: story.fields['Microsoft.VSTS.Common.AcceptanceCriteria'] || ''
+                description: descriptionFromAPI,
+                acceptanceCriteria: acceptanceCriteriaFromAPI,
+                childTasks: childTasksFromAPI
             },
-            requirementsAnalysis: requirementsAnalysis
+            requirementsAnalysis: actualRequirementsAnalysis
         };
+
         console.log('[Story Analyzer] Display data prepared:', displayData);
 
         console.log('[Story Analyzer] Displaying analysis results...');
         displayAnalysisResults(displayData);
 
-        if (requirementsAnalysis) {
+        if (actualRequirementsAnalysis) {
             console.log('[Story Analyzer] ✅ Analysis complete with AI analysis');
             showStatusMessage('Story analyzed successfully!', 'success');
         } else {
@@ -2196,18 +2222,60 @@ function displayAnalysisResults(data) {
             if (data.workItem.description) {
                 const descDiv = document.createElement('div');
                 descDiv.style.cssText = 'margin-top: 16px; padding-top: 16px; border-top: 1px solid #334155;';
-                
+
                 const descLabel = document.createElement('strong');
                 descLabel.style.color = '#e2e8f0';
                 descLabel.textContent = 'Description:';
                 descDiv.appendChild(descLabel);
-                
+
                 const descContent = document.createElement('div');
                 descContent.style.cssText = 'margin-top: 8px; color: #94a3b8;';
                 descContent.innerHTML = sanitizeHtmlContent(data.workItem.description);
                 descDiv.appendChild(descContent);
-                
+
                 detailsBox.appendChild(descDiv);
+            }
+
+            // Add acceptance criteria if exists
+            if (data.workItem.acceptanceCriteria) {
+                const acDiv = document.createElement('div');
+                acDiv.style.cssText = 'margin-top: 16px; padding-top: 16px; border-top: 1px solid #334155;';
+
+                const acLabel = document.createElement('strong');
+                acLabel.style.color = '#e2e8f0';
+                acLabel.textContent = 'Acceptance Criteria:';
+                acDiv.appendChild(acLabel);
+
+                const acContent = document.createElement('div');
+                acContent.style.cssText = 'margin-top: 8px; color: #94a3b8;';
+                acContent.innerHTML = sanitizeHtmlContent(data.workItem.acceptanceCriteria);
+                acDiv.appendChild(acContent);
+
+                detailsBox.appendChild(acDiv);
+            }
+
+            // Add child tasks if exists
+            if (data.workItem.childTasks && data.workItem.childTasks.length > 0) {
+                const tasksDiv = document.createElement('div');
+                tasksDiv.style.cssText = 'margin-top: 16px; padding-top: 16px; border-top: 1px solid #334155;';
+
+                const tasksLabel = document.createElement('strong');
+                tasksLabel.style.color = '#e2e8f0';
+                tasksLabel.textContent = `Child Tasks (${data.workItem.childTasks.length}):`;
+                tasksDiv.appendChild(tasksLabel);
+
+                const tasksList = document.createElement('ul');
+                tasksList.style.cssText = 'margin-top: 8px; margin-left: 20px; color: #94a3b8;';
+
+                data.workItem.childTasks.forEach(task => {
+                    const li = document.createElement('li');
+                    li.style.cssText = 'margin-bottom: 4px;';
+                    li.textContent = `Task #${task.id}`;
+                    tasksList.appendChild(li);
+                });
+
+                tasksDiv.appendChild(tasksList);
+                detailsBox.appendChild(tasksDiv);
             }
         }
         
@@ -2215,159 +2283,183 @@ function displayAnalysisResults(data) {
         
         // Add Requirements Analysis section if available
         if (data.requirementsAnalysis) {
-            // The data is nested in a result object
-            const req = data.requirementsAnalysis.result || data.requirementsAnalysis;
-            
+            const req = data.requirementsAnalysis;
+
             const analysisHeader = document.createElement('h3');
             analysisHeader.style.cssText = 'color: var(--text-primary); margin-bottom: 16px; font-size: 18px;';
-            analysisHeader.textContent = '🔍 Requirements Analysis';
+            analysisHeader.textContent = '🔍 AI Requirements Analysis';
             wrapper.appendChild(analysisHeader);
-            
+
             const analysisBox = document.createElement('div');
             analysisBox.style.cssText = 'background: var(--bg-primary); padding: 16px; border-radius: 8px; margin-bottom: 20px;';
-            
-            // Completeness Score
-            if (req.completenessScore !== undefined) {
-                const scoreDiv = document.createElement('div');
-                scoreDiv.style.cssText = 'margin-bottom: 12px; color: var(--text-secondary);';
-                
-                const label = document.createElement('strong');
-                label.textContent = 'Completeness Score: ';
-                scoreDiv.appendChild(label);
-                
-                const score = document.createElement('span');
-                const color = req.completenessScore >= 80 ? '#4ade80' : req.completenessScore >= 50 ? '#fbbf24' : '#f87171';
-                score.style.color = color;
-                score.textContent = `${req.completenessScore}%`;
-                scoreDiv.appendChild(score);
-                
-                analysisBox.appendChild(scoreDiv);
-            }
-            
-            // Testability Score
-            if (req.testabilityScore !== undefined) {
-                const scoreDiv = document.createElement('div');
-                scoreDiv.style.cssText = 'margin-bottom: 12px; color: var(--text-secondary);';
-                
-                const label = document.createElement('strong');
-                label.textContent = 'Testability Score: ';
-                scoreDiv.appendChild(label);
-                
-                const score = document.createElement('span');
-                const color = req.testabilityScore >= 80 ? '#4ade80' : req.testabilityScore >= 50 ? '#fbbf24' : '#f87171';
-                score.style.color = color;
-                score.textContent = `${req.testabilityScore}%`;
-                scoreDiv.appendChild(score);
-                
-                analysisBox.appendChild(scoreDiv);
-            }
-            
-            // Missing Requirements
-            if (req.missingRequirements && req.missingRequirements.length > 0) {
-                const missingDiv = document.createElement('div');
-                missingDiv.style.cssText = 'margin-top: 16px;';
-                
-                const label = document.createElement('strong');
-                label.textContent = 'Missing Requirements:';
-                missingDiv.appendChild(label);
-                
-                const ul = document.createElement('ul');
-                ul.style.cssText = 'margin-top: 8px; margin-left: 20px;';
-                
-                req.missingRequirements.forEach(item => {
-                    const li = document.createElement('li');
-                    li.style.cssText = 'color: #94a3b8; margin-bottom: 4px;';
-                    li.textContent = item;
-                    ul.appendChild(li);
+
+            // Test Coverage Recommendation
+            if (req.testCoverageRecommendation) {
+                const coverageDiv = document.createElement('div');
+                coverageDiv.style.cssText = 'margin-bottom: 16px; padding: 12px; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border-left: 4px solid #3b82f6;';
+
+                const coverageTitle = document.createElement('strong');
+                coverageTitle.style.cssText = 'color: #60a5fa; display: block; margin-bottom: 8px;';
+                coverageTitle.textContent = '📊 Recommended Test Coverage';
+                coverageDiv.appendChild(coverageTitle);
+
+                const coverageGrid = document.createElement('div');
+                coverageGrid.style.cssText = 'display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 8px;';
+
+                const testTypes = [
+                    { label: 'Functional', value: req.testCoverageRecommendation.functional, color: '#10b981' },
+                    { label: 'Integration', value: req.testCoverageRecommendation.integration, color: '#3b82f6' },
+                    { label: 'Negative', value: req.testCoverageRecommendation.negative, color: '#f59e0b' },
+                    { label: 'Edge Case', value: req.testCoverageRecommendation.edgeCase, color: '#8b5cf6' },
+                    { label: 'Total', value: req.testCoverageRecommendation.total, color: '#ec4899' }
+                ];
+
+                testTypes.forEach(type => {
+                    const typeDiv = document.createElement('div');
+                    typeDiv.style.cssText = 'text-align: center;';
+
+                    const valueSpan = document.createElement('div');
+                    valueSpan.style.cssText = `font-size: 24px; font-weight: bold; color: ${type.color};`;
+                    valueSpan.textContent = type.value;
+
+                    const labelSpan = document.createElement('div');
+                    labelSpan.style.cssText = 'font-size: 12px; color: #94a3b8;';
+                    labelSpan.textContent = type.label;
+
+                    typeDiv.appendChild(valueSpan);
+                    typeDiv.appendChild(labelSpan);
+                    coverageGrid.appendChild(typeDiv);
                 });
-                
-                missingDiv.appendChild(ul);
-                analysisBox.appendChild(missingDiv);
+
+                coverageDiv.appendChild(coverageGrid);
+
+                if (req.testCoverageRecommendation.rationale) {
+                    const rationale = document.createElement('div');
+                    rationale.style.cssText = 'font-size: 13px; color: #94a3b8; font-style: italic;';
+                    rationale.textContent = req.testCoverageRecommendation.rationale;
+                    coverageDiv.appendChild(rationale);
+                }
+
+                analysisBox.appendChild(coverageDiv);
             }
-            
-            // Recommendations
-            if (req.recommendations && req.recommendations.length > 0) {
-                const recDiv = document.createElement('div');
-                recDiv.style.cssText = 'margin-top: 16px;';
-                
-                const label = document.createElement('strong');
-                label.textContent = 'Recommendations:';
-                recDiv.appendChild(label);
-                
-                const ul = document.createElement('ul');
-                ul.style.cssText = 'margin-top: 8px; margin-left: 20px;';
-                
-                req.recommendations.forEach(item => {
-                    const li = document.createElement('li');
-                    li.style.cssText = 'color: #94a3b8; margin-bottom: 4px;';
-                    li.textContent = item;
-                    ul.appendChild(li);
-                });
-                
-                recDiv.appendChild(ul);
-                analysisBox.appendChild(recDiv);
-            }
-            
-            // Ambiguous Requirements
-            if (req.ambiguousRequirements && req.ambiguousRequirements.length > 0) {
-                const ambigDiv = document.createElement('div');
-                ambigDiv.style.cssText = 'margin-top: 16px;';
-                
-                const label = document.createElement('strong');
-                label.textContent = 'Ambiguous Requirements:';
-                label.style.color = '#fbbf24';
-                ambigDiv.appendChild(label);
-                
-                const ul = document.createElement('ul');
-                ul.style.cssText = 'margin-top: 8px; margin-left: 20px;';
-                
-                req.ambiguousRequirements.forEach(item => {
-                    const li = document.createElement('li');
-                    li.style.cssText = 'color: #94a3b8; margin-bottom: 4px;';
-                    li.textContent = item;
-                    ul.appendChild(li);
-                });
-                
-                ambigDiv.appendChild(ul);
-                analysisBox.appendChild(ambigDiv);
-            }
-            
-            // Gaps
-            if (req.gaps && req.gaps.length > 0) {
+
+            // Requirement Gaps
+            if (req.requirementGaps && req.requirementGaps.length > 0) {
                 const gapsDiv = document.createElement('div');
                 gapsDiv.style.cssText = 'margin-top: 16px;';
-                
+
                 const label = document.createElement('strong');
-                label.textContent = 'Identified Gaps:';
-                label.style.color = '#f87171';
+                label.style.cssText = 'color: #f87171;';
+                label.textContent = `⚠️ Requirement Gaps (${req.requirementGaps.length}):`;
                 gapsDiv.appendChild(label);
-                
-                const gapsList = document.createElement('div');
-                gapsList.style.cssText = 'margin-top: 8px;';
-                
-                req.gaps.forEach(gap => {
-                    const gapItem = document.createElement('div');
-                    gapItem.style.cssText = 'padding: 8px; margin-bottom: 8px; background: rgba(248, 113, 113, 0.1); border-left: 3px solid #f87171; border-radius: 4px;';
-                    
-                    const gapCategory = document.createElement('div');
-                    gapCategory.style.cssText = 'font-weight: 600; color: #f87171; margin-bottom: 4px; text-transform: capitalize;';
-                    gapCategory.textContent = `${gap.category || 'Unknown'} (${gap.severity || 'medium'})`;
-                    gapItem.appendChild(gapCategory);
-                    
-                    const gapDesc = document.createElement('div');
-                    gapDesc.style.cssText = 'color: #94a3b8; font-size: 13px;';
-                    gapDesc.textContent = gap.description || 'No description';
-                    gapItem.appendChild(gapDesc);
-                    
-                    gapsList.appendChild(gapItem);
+
+                const ul = document.createElement('ul');
+                ul.style.cssText = 'margin-top: 8px; margin-left: 20px;';
+
+                req.requirementGaps.forEach(item => {
+                    const li = document.createElement('li');
+                    li.style.cssText = 'color: #94a3b8; margin-bottom: 4px;';
+                    li.textContent = item;
+                    ul.appendChild(li);
                 });
-                
-                gapsDiv.appendChild(gapsList);
+
+                gapsDiv.appendChild(ul);
                 analysisBox.appendChild(gapsDiv);
             }
-            
+
+            // Suggested Edge Cases
+            if (req.suggestedEdgeCases && req.suggestedEdgeCases.length > 0) {
+                const edgesDiv = document.createElement('div');
+                edgesDiv.style.cssText = 'margin-top: 16px;';
+
+                const label = document.createElement('strong');
+                label.style.cssText = 'color: #fbbf24;';
+                label.textContent = `💡 Suggested Edge Cases (${req.suggestedEdgeCases.length}):`;
+                edgesDiv.appendChild(label);
+
+                const ul = document.createElement('ul');
+                ul.style.cssText = 'margin-top: 8px; margin-left: 20px;';
+
+                req.suggestedEdgeCases.forEach(item => {
+                    const li = document.createElement('li');
+                    li.style.cssText = 'color: #94a3b8; margin-bottom: 4px;';
+                    li.textContent = item;
+                    ul.appendChild(li);
+                });
+
+                edgesDiv.appendChild(ul);
+                analysisBox.appendChild(edgesDiv);
+            }
+
+            // Integration Points
+            if (req.integrationPoints && req.integrationPoints.length > 0) {
+                const integrationsDiv = document.createElement('div');
+                integrationsDiv.style.cssText = 'margin-top: 16px;';
+
+                const label = document.createElement('strong');
+                label.style.cssText = 'color: #3b82f6;';
+                label.textContent = `🔗 Integration Points (${req.integrationPoints.length}):`;
+                integrationsDiv.appendChild(label);
+
+                const ul = document.createElement('ul');
+                ul.style.cssText = 'margin-top: 8px; margin-left: 20px;';
+
+                req.integrationPoints.forEach(item => {
+                    const li = document.createElement('li');
+                    li.style.cssText = 'color: #94a3b8; margin-bottom: 4px;';
+                    li.textContent = item;
+                    ul.appendChild(li);
+                });
+
+                integrationsDiv.appendChild(ul);
+                analysisBox.appendChild(integrationsDiv);
+            }
+
+            // Prioritized Test Areas
+            if (req.prioritizedTestAreas && req.prioritizedTestAreas.length > 0) {
+                const priorityDiv = document.createElement('div');
+                priorityDiv.style.cssText = 'margin-top: 16px;';
+
+                const label = document.createElement('strong');
+                label.style.cssText = 'color: #10b981;';
+                label.textContent = `🎯 Prioritized Test Areas:`;
+                priorityDiv.appendChild(label);
+
+                const ul = document.createElement('ul');
+                ul.style.cssText = 'margin-top: 8px; margin-left: 20px;';
+
+                req.prioritizedTestAreas.forEach(item => {
+                    const li = document.createElement('li');
+                    const priorityColor = item.priority === 'High' ? '#f87171' : item.priority === 'Medium' ? '#fbbf24' : '#94a3b8';
+                    li.style.cssText = 'color: #94a3b8; margin-bottom: 8px;';
+
+                    const priorityBadge = document.createElement('span');
+                    priorityBadge.style.cssText = `display: inline-block; padding: 2px 8px; border-radius: 4px; background: ${priorityColor}; color: #1e293b; font-size: 11px; font-weight: bold; margin-right: 8px;`;
+                    priorityBadge.textContent = item.priority.toUpperCase();
+
+                    const areaText = document.createElement('span');
+                    areaText.style.cssText = 'color: #e2e8f0; font-weight: 500;';
+                    areaText.textContent = item.area;
+
+                    const reasonText = document.createElement('div');
+                    reasonText.style.cssText = 'margin-left: 60px; margin-top: 4px; font-size: 13px; color: #94a3b8; font-style: italic;';
+                    reasonText.textContent = item.reason;
+
+                    li.appendChild(priorityBadge);
+                    li.appendChild(areaText);
+                    li.appendChild(reasonText);
+                    ul.appendChild(li);
+                });
+
+                priorityDiv.appendChild(ul);
+                analysisBox.appendChild(priorityDiv);
+            }
+
             wrapper.appendChild(analysisBox);
-        } else {
+        }
+
+        // Show a message when no AI analysis is available
+        if (!data.requirementsAnalysis) {
             // Show message that AI analysis is unavailable
             const infoBox = document.createElement('div');
             infoBox.style.cssText = 'background: rgba(99, 102, 241, 0.1); padding: 16px; border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.3); margin-bottom: 20px;';

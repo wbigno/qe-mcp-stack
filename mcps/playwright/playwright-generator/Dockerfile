@@ -5,6 +5,7 @@ WORKDIR /app
 # Copy root package files
 COPY package.json package-lock.json* ./
 COPY packages ./packages
+COPY mcps/shared ./mcps/shared
 COPY mcps/playwright/playwright-generator ./mcps/playwright/playwright-generator
 
 # Install dependencies

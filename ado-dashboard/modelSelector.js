@@ -8,23 +8,23 @@
 const MODEL_OPTIONS = {
   anthropic: [
     {
-      id: 'claude-haiku-4-20250610',
-      name: 'Claude Haiku',
-      description: 'Fast and efficient - Best for routine tasks',
-      tier: 'fast',
+      id: 'claude-sonnet-4-20250514',
+      name: 'Claude Sonnet 4.5',
+      description: 'Balanced performance and reasoning - Recommended',
+      tier: 'balanced',
       default: true
     },
     {
-      id: 'claude-sonnet-4-20250514',
-      name: 'Claude Sonnet',
-      description: 'Balanced performance and reasoning',
-      tier: 'balanced'
-    },
-    {
-      id: 'claude-opus-4-20250514',
-      name: 'Claude Opus',
+      id: 'claude-opus-4-5-20251101',
+      name: 'Claude Opus 4.5',
       description: 'Most capable for complex reasoning',
       tier: 'advanced'
+    },
+    {
+      id: 'claude-3-5-haiku-20241022',
+      name: 'Claude Haiku 3.5',
+      description: 'Fast and efficient - Best for routine tasks',
+      tier: 'fast'
     }
   ],
   openai: [

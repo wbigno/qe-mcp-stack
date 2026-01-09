@@ -4,13 +4,14 @@ WORKDIR /app
 
 # Install dependencies
 COPY package*.json ./
-RUN npm ci --only=production
+RUN npm install --only=production --ignore-scripts
 
 # Copy application code
 COPY . .
 
-# Create logs directory
-RUN mkdir -p /app/logs
+# Create logs directory and set ownership
+RUN mkdir -p /app/logs && \
+    chown -R node:node /app
 
 # Expose port
 EXPOSE 3000

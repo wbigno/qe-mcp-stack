@@ -31,6 +31,21 @@ export class AnalysisPanel {
               <span class="story-id">#${this.currentStory.id}</span>
               <span class="story-title">${this.currentStory.fields?.['System.Title'] || 'Untitled'}</span>
             </div>
+            <div class="story-details" style="margin-top: 16px; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px;">
+              ${this.currentStory.fields?.['System.Description'] ? `
+                <div class="story-field" style="margin-bottom: 12px;">
+                  <strong style="color: #e2e8f0;">Description:</strong>
+                  <div style="margin-top: 4px; color: #94a3b8; font-size: 14px;">${this.currentStory.fields['System.Description']}</div>
+                </div>
+              ` : ''}
+              ${this.currentStory.fields?.['Microsoft.VSTS.Common.AcceptanceCriteria'] ? `
+                <div class="story-field" style="margin-bottom: 12px;">
+                  <strong style="color: #e2e8f0;">Acceptance Criteria:</strong>
+                  <div style="margin-top: 4px; color: #94a3b8; font-size: 14px;">${this.currentStory.fields['Microsoft.VSTS.Common.AcceptanceCriteria']}</div>
+                </div>
+              ` : ''}
+              ${this.getChildTasksHtml()}
+            </div>
           ` : `
             <div class="empty-state-message">
               <div class="empty-state-icon">📋</div>
@@ -41,7 +56,7 @@ export class AnalysisPanel {
                 <li>Find the parent item (PBI, Feature, or Bug) you want to analyze</li>
                 <li>Click the <strong>📊 View Analysis</strong> button on the parent card</li>
               </ol>
-              <p class="empty-state-note">Tip: You can also click the <strong>🔍 Analyze</strong> button to generate test cases and requirements analysis.</p>
+              <p class="empty-state-note">Tip: Use the <strong>🤖 Story Analyzer</strong> tab to generate test cases and requirements analysis with AI.</p>
             </div>
           `}
         </div>
@@ -163,6 +178,35 @@ Models/Invoice.cs"></textarea>
   showPushPreview() {
     const modal = new PushPreviewModal();
     modal.show(this.currentStory, this.analysisResults);
+  }
+
+  getChildTasksHtml() {
+    if (!this.currentStory || !this.currentStory.relations) {
+      return '';
+    }
+
+    const childTasks = [];
+    for (const relation of this.currentStory.relations) {
+      if (relation.rel === 'System.LinkTypes.Hierarchy-Forward') {
+        const childIdMatch = relation.url.match(/\/(\d+)$/);
+        if (childIdMatch) {
+          childTasks.push({ id: parseInt(childIdMatch[1]) });
+        }
+      }
+    }
+
+    if (childTasks.length === 0) {
+      return '';
+    }
+
+    return `
+      <div class="story-field">
+        <strong style="color: #e2e8f0;">Child Tasks (${childTasks.length}):</strong>
+        <ul style="margin-top: 4px; margin-left: 20px; color: #94a3b8; font-size: 14px;">
+          ${childTasks.map(task => `<li>Task #${task.id}</li>`).join('')}
+        </ul>
+      </div>
+    `;
   }
 
   extractChangedFiles() {

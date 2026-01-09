@@ -1,5 +1,3 @@
-version: '3.8'
-
 networks:
   qe-network:
     driver: bridge
@@ -10,6 +8,8 @@ volumes:
   azure-devops-data:
   code-analyzer-data:
   coverage-analyzer-data:
+  javascript-code-analyzer-data:
+  javascript-coverage-analyzer-data:
   risk-analyzer-data:
   integration-mapper-data:
   playwright-generator-data:
@@ -39,6 +39,8 @@ services:
       - CODE_ANALYZER_MCP_URL=http://code-analyzer:8200
       - COVERAGE_ANALYZER_MCP_URL=http://coverage-analyzer:8201
       - MIGRATION_ANALYZER_MCP_URL=http://migration-analyzer:8203
+      - JAVASCRIPT_CODE_ANALYZER_MCP_URL=http://javascript-code-analyzer:8204
+      - JAVASCRIPT_COVERAGE_ANALYZER_MCP_URL=http://javascript-coverage-analyzer:8205
       - RISK_ANALYZER_MCP_URL=http://risk-analyzer:8300
       - INTEGRATION_MAPPER_MCP_URL=http://integration-mapper:8301
       - TEST_SELECTOR_MCP_URL=http://test-selector:8302
@@ -84,11 +86,44 @@ services:
       - VITE_SWAGGER_HUB_URL=http://localhost:8000
     volumes:
       - dashboard-data:/app/data
+      # Mount source files for live reload during development
+      - ./ado-dashboard/index.html:/usr/share/nginx/html/index.html:ro
+      - ./ado-dashboard/script.js:/usr/share/nginx/html/script.js:ro
+      - ./ado-dashboard/styles.css:/usr/share/nginx/html/styles.css:ro
+      - ./ado-dashboard/modelSelector.js:/usr/share/nginx/html/modelSelector.js:ro
+      - ./ado-dashboard/analysisPanel.js:/usr/share/nginx/html/analysisPanel.js:ro
+      - ./ado-dashboard/appSelector.js:/usr/share/nginx/html/appSelector.js:ro
+      - ./ado-dashboard/pushPreviewModal.js:/usr/share/nginx/html/pushPreviewModal.js:ro
+      - ./ado-dashboard/sprintSelector.js:/usr/share/nginx/html/sprintSelector.js:ro
+      - ./ado-dashboard/cache.js:/usr/share/nginx/html/cache.js:ro
+      - ./ado-dashboard/emptyState.js:/usr/share/nginx/html/emptyState.js:ro
     networks:
       - qe-network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:5173"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5173/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      - orchestrator
+
+  code-dashboard:
+    build:
+      context: ./code-dashboard
+      dockerfile: Dockerfile
+    container_name: qe-code-dashboard
+    ports:
+      - "8081:8081"
+    environment:
+      - ORCHESTRATOR_URL=http://localhost:3000
+      - SWAGGER_HUB_URL=http://localhost:8000
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8081/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -111,6 +146,8 @@ services:
       - CODE_ANALYZER_URL=http://code-analyzer:8200
       - COVERAGE_ANALYZER_URL=http://coverage-analyzer:8201
       - MIGRATION_ANALYZER_URL=http://migration-analyzer:8203
+      - JAVASCRIPT_CODE_ANALYZER_URL=http://javascript-code-analyzer:8204
+      - JAVASCRIPT_COVERAGE_ANALYZER_URL=http://javascript-coverage-analyzer:8205
       - RISK_ANALYZER_URL=http://risk-analyzer:8300
       - INTEGRATION_MAPPER_URL=http://integration-mapper:8301
       - TEST_SELECTOR_URL=http://test-selector:8302
@@ -129,8 +166,8 @@ services:
 
   azure-devops:
     build:
-      context: ./mcps/integration/azure-devops
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mcps/integration/azure-devops/Dockerfile
     container_name: qe-azure-devops
     ports:
       - "8100:8100"
@@ -157,8 +194,8 @@ services:
 
   third-party:
     build:
-      context: ./mcps/integration/third-party
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mcps/integration/third-party/Dockerfile
     container_name: qe-third-party
     ports:
       - "8101:8101"
@@ -183,8 +220,8 @@ services:
 
   test-plan-manager:
     build:
-      context: ./mcps/integration/test-plan-manager
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mcps/integration/test-plan-manager/Dockerfile
     container_name: qe-test-plan-manager
     ports:
       - "8102:8102"
@@ -214,8 +251,8 @@ services:
 
   code-analyzer:
     build:
-      context: ./mcps/code-analysis/code-analyzer
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mcps/code-analysis/code-analyzer/Dockerfile
     container_name: qe-code-analyzer
     ports:
       - "8200:8200"
@@ -243,8 +280,8 @@ services:
 
   coverage-analyzer:
     build:
-      context: ./mcps/code-analysis/coverage-analyzer
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mcps/code-analysis/coverage-analyzer/Dockerfile
     container_name: qe-coverage-analyzer
     ports:
       - "8201:8201"
@@ -271,8 +308,8 @@ services:
 
   migration-analyzer:
     build:
-      context: ./mcps/code-analysis/migration-analyzer
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mcps/code-analysis/migration-analyzer/Dockerfile
     container_name: qe-migration-analyzer
     ports:
       - "8203:8203"
@@ -295,14 +332,70 @@ services:
       retries: 3
       start_period: 20s
 
+  javascript-code-analyzer:
+    build:
+      context: .
+      dockerfile: mcps/code-analysis/javascript-code-analyzer/Dockerfile
+    container_name: qe-javascript-code-analyzer
+    ports:
+      - "8204:8204"
+    environment:
+      - NODE_ENV=production
+      - PORT=8204
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - javascript-code-analyzer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8204/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  javascript-coverage-analyzer:
+    build:
+      context: .
+      dockerfile: mcps/code-analysis/javascript-coverage-analyzer/Dockerfile
+    container_name: qe-javascript-coverage-analyzer
+    ports:
+      - "8205:8205"
+    environment:
+      - NODE_ENV=production
+      - PORT=8205
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - javascript-coverage-analyzer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8205/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
   # =============================================================================
   # Quality Analysis MCPs (8300-8399)
   # =============================================================================
 
   risk-analyzer:
     build:
-      context: ./mcps/quality-analysis/risk-analyzer
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mcps/quality-analysis/risk-analyzer/Dockerfile
     container_name: qe-risk-analyzer
     ports:
       - "8300:8300"
@@ -333,8 +426,8 @@ services:
 
   integration-mapper:
     build:
-      context: ./mcps/quality-analysis/integration-mapper
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mcps/quality-analysis/integration-mapper/Dockerfile
     container_name: qe-integration-mapper
     ports:
       - "8301:8301"
@@ -362,8 +455,8 @@ services:
 
   test-selector:
     build:
-      context: ./mcps/quality-analysis/test-selector
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: mcps/quality-analysis/test-selector/Dockerfile
     container_name: qe-test-selector
     ports:
       - "8302:8302"
