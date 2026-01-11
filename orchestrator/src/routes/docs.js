@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename);
 const router = express.Router();
 
 // Docs directory path
-const DOCS_ROOT = path.join(__dirname, '../../..', 'docs', 'mcps');
+const DOCS_ROOT = path.join(__dirname, '../..', 'docs', 'mcps');
 
 /**
  * Serve markdown documentation for MCPs
