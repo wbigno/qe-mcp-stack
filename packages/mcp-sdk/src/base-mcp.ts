@@ -19,19 +19,16 @@ export abstract class BaseMCP {
   protected config: MCPConfig;
   private startTime: number;
 
+  private routesSetup = false;
+
   constructor(config: MCPConfig) {
     this.config = config;
     this.app = express();
     this.startTime = Date.now();
     this.setupMiddleware();
     this.setupBaseRoutes();
-    // Call subclass setup methods if they exist
-    if (typeof (this as any).setupRoutes === "function") {
-      (this as any).setupRoutes();
-    }
-    if (typeof (this as any).setupSwagger === "function") {
-      (this as any).setupSwagger();
-    }
+    // Note: setupRoutes() and setupSwagger() are called in start()
+    // to ensure subclass constructors complete first
   }
 
   protected setupMiddleware(): void {
@@ -123,6 +120,17 @@ export abstract class BaseMCP {
   }
 
   public async start(): Promise<void> {
+    // Setup routes and swagger now that subclass constructor has completed
+    if (!this.routesSetup) {
+      if (typeof (this as any).setupRoutes === "function") {
+        (this as any).setupRoutes();
+      }
+      if (typeof (this as any).setupSwagger === "function") {
+        (this as any).setupSwagger();
+      }
+      this.routesSetup = true;
+    }
+
     this.app.use(this.handleError.bind(this));
 
     const port = this.config.port;
