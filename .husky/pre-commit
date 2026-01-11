@@ -2,3 +2,16 @@
 . "$(dirname -- "$0")/_/husky.sh"
 
 npx lint-staged
+
+# Auto-sync documentation if MCP READMEs changed
+if git diff --cached --name-only | grep -qE "mcps/.*/README.md|packages/.*/README.md|swagger-hub/README.md"; then
+  echo ""
+  echo "📚 MCP README changed, syncing documentation..."
+  npm run sync-docs
+
+  # Stage the synced docs
+  git add docs/mcps/
+
+  echo "✅ Documentation synced and staged"
+  echo ""
+fi

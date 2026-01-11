@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Test All MCPs - Comprehensive Health and Functionality Check
-# This script tests all 14 MCPs to ensure they're working correctly
+# This script tests all 15 MCPs to ensure they're working correctly
 
 echo "=========================================="
 echo "QE MCP Stack - Comprehensive MCP Testing"
@@ -84,6 +84,11 @@ echo ""
 # Test Plan Manager MCP (8102)
 test_health "test-plan-manager" 8102 "Test Plan Manager MCP"
 test_api "test-plan-manager" 8102 "/test-plans" "GET" "" "List Test Plans"
+echo ""
+
+# Browser Control MCP (8103)
+test_health "browser-control" 8103 "Browser Control MCP"
+test_api "browser-control" 8103 "/browser/check-connection" "POST" "" "Check Extension Connection"
 echo ""
 
 echo "=========================================="

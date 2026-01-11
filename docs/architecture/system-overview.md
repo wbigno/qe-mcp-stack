@@ -9,14 +9,14 @@ The QE MCP Stack is a microservices-based quality engineering platform built on 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │                         User Interface                          │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐         │
-│  │  Dashboard   │  │ Swagger Hub  │  │  IDE Tools   │         │
-│  │  (React)     │  │   (HTML/JS)  │  │              │         │
-│  └──────────────┘  └──────────────┘  └──────────────┘         │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐           │
+│  │  Dashboard   │  │ Swagger Hub  │  │  IDE Tools   │           │
+│  │  (React)     │  │   (HTML/JS)  │  │              │           │
+│  └──────────────┘  └──────────────┘  └──────────────┘           │
 └───────────────────────────┬─────────────────────────────────────┘
                             │
 ┌───────────────────────────┼─────────────────────────────────────┐
-│                    API Gateway                                   │
+│                    API Gateway                                  │
 │                  ┌──────────────────┐                           │
 │                  │   Orchestrator   │                           │
 │                  │    (port 3000)   │                           │
@@ -25,20 +25,20 @@ The QE MCP Stack is a microservices-based quality engineering platform built on 
                             │
         ┌───────────────────┼───────────────────┐
         │                   │                   │
-┌───────▼───────┐  ┌────────▼────────┐  ┌──────▼───────┐
-│ Integration   │  │ Code Analysis   │  │   Quality    │
-│     MCPs      │  │      MCPs       │  │   Analysis   │
-│  (8100-8199)  │  │   (8200-8299)   │  │     MCPs     │
-│               │  │                 │  │ (8300-8399)  │
-│ • Azure       │  │ • Code         │  │ • Risk       │
-│   DevOps      │  │   Analyzer     │  │   Analyzer   │
-│ • Third Party │  │ • Coverage     │  │ • Integration│
-│ • Test Plan   │  │   Analyzer     │  │   Mapper     │
-│   Manager     │  │ • Playwright   │  │ • Test       │
-│               │  │   Generator    │  │   Selector   │
-│               │  │ • Migration    │  │              │
-│               │  │   Analyzer     │  │              │
-└───────────────┘  └─────────────────┘  └──────────────┘
+┌───────▼───────┐  ┌────────▼────────┐  ┌──────▼───────┐  ┌──────▼───────┐
+│ Integration   │  │ Code Analysis   │  │     Test     │  │  Playwright  │
+│     MCPs      │  │      MCPs       │  │     MCPs     │  │     MCPs     │
+│  (8100-8199)  │  │   (8200-8299)   │  │ (8300-8399)  │  │ (8400-8499)  │
+│               │  │                 │  │              │  │              │
+│ • Azure       │  │ • Code Quality  │  │ • Test       │  │ • Playwright │
+│   DevOps      │  │   Analyzer      │  │   Generation │  │   Generator  │
+│ • Third Party │  │ • Infra         │  │ • Unit Test  │  │              │
+│ • Test Plan   │  │   Analyzer      │  │              │  │              │
+│   Manager     │  │ • Test          │  │              │  │              │
+│ • Browser     │  │   Analyzer      │  │              │  │              │
+│   Control     │  │ • Migration     │  │              │  │              │
+│               │  │   Analyzer      │  │              │  │              │
+└───────────────┘  └─────────────────┘  └──────────────┘  └──────────────┘
         │                   │                   │
         └───────────────────┼───────────────────┘
                             │
@@ -89,21 +89,26 @@ Microservices that integrate with external systems:
 - **Azure DevOps MCP (8100)**: Azure DevOps API integration
 - **Third Party MCP (8101)**: Third-party integrations (Stripe, etc.)
 - **Test Plan Manager MCP (8102)**: Test plan management
+- **Browser Control MCP (8103)**: Chrome browser automation via WebSocket bridge
 
 ### Code Analysis MCPs (8200-8299)
 Microservices for analyzing codebases:
 
-- **Code Analyzer MCP (8200)**: Cyclomatic complexity, code metrics
-- **Coverage Analyzer MCP (8201)**: Test coverage and gap detection
-- **Playwright Generator MCP (8202)**: AI-powered test generation
+- **Code Quality Analyzer MCP (8200)**: Cyclomatic complexity, code metrics
+- **Infrastructure Analyzer MCP (8201)**: Infrastructure analysis and assessment
+- **Test Analyzer MCP (8202)**: Test coverage and gap detection
 - **Migration Analyzer MCP (8203)**: Core → Core.Common migration tracking
 
-### Quality Analysis MCPs (8300-8399)
-Microservices for quality assessment:
+### Test MCPs (8300-8399)
+Microservices for test generation and management:
 
-- **Risk Analyzer MCP (8300)**: Risk scoring and assessment
-- **Integration Mapper MCP (8301)**: Integration discovery and mapping
-- **Test Selector MCP (8302)**: Intelligent test selection
+- **Test Generation MCP (8300)**: AI-powered test generation
+- **Unit Test MCP (8301)**: Unit test generation and scaffolding
+
+### Playwright MCPs (8400-8499)
+Microservices for Playwright test automation:
+
+- **Playwright Generator MCP (8400)**: Generate Playwright tests from requirements
 
 ### Shared Packages
 Common libraries used across all services:

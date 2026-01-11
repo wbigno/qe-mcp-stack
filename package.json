@@ -52,6 +52,7 @@
     "migration:check": "node tools/migration-helper/bin/check.js",
     "swagger:validate": "node scripts/utils/validate-swagger.js",
     "health:check": "node scripts/utils/health-check.js",
+    "sync-docs": "bash scripts/sync-docs.sh",
     "clean": "turbo run clean && rm -rf node_modules",
     "clean:install": "npm run clean && npm install",
     "prepare": "husky install || true"

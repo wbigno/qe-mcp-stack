@@ -33,19 +33,23 @@ Deploys Integration MCPs to Azure Web Apps:
 - **azure-devops** (Port 8100) - Azure DevOps integration
 - **third-party** (Port 8101) - Third-party integrations
 - **test-plan-manager** (Port 8102) - Test plan management
+- **browser-control** (Port 8103) - Chrome browser automation via WebSocket bridge
 
 ### code-mcps-pipeline.yml
 Deploys Code Analysis MCPs to Azure Web Apps:
-- **code-analyzer** (Port 8200) - Code analysis with AI
-- **coverage-analyzer** (Port 8201) - Code coverage analysis
-- **playwright-generator** (Port 8202) - Test generation
+- **code-quality-analyzer** (Port 8200) - Code analysis with AI
+- **infrastructure-analyzer** (Port 8201) - Infrastructure analysis
+- **test-analyzer** (Port 8202) - Test coverage analysis
 - **migration-analyzer** (Port 8203) - Migration analysis
 
-### analysis-mcps-pipeline.yml
-Deploys Quality Analysis MCPs to Azure Web Apps:
-- **risk-analyzer** (Port 8300) - Risk assessment with AI
-- **integration-mapper** (Port 8301) - Integration mapping
-- **test-selector** (Port 8302) - Intelligent test selection
+### test-mcps-pipeline.yml
+Deploys Test Generation MCPs to Azure Web Apps:
+- **test-generation** (Port 8300) - AI-powered test generation
+- **unit-test** (Port 8301) - Unit test generation
+
+### playwright-mcps-pipeline.yml
+Deploys Playwright MCPs to Azure Web Apps:
+- **playwright-generator** (Port 8400) - Playwright test generation
 
 ### dashboard-pipeline.yml
 Deploys core infrastructure:
@@ -119,28 +123,32 @@ The pipelines support multiple environments through variable groups:
 
 ## Azure Resources
 
-Each MCP is deployed to its own Azure Web App:
+Each MCP is deployed to its own Azure Web App (15 total MCPs):
 
-### Integration MCPs
+### Integration MCPs (4)
 - `qe-mcp-azure-devops-{env}.azurewebsites.net`
 - `qe-mcp-third-party-{env}.azurewebsites.net`
 - `qe-mcp-test-plan-manager-{env}.azurewebsites.net`
+- `qe-mcp-browser-control-{env}.azurewebsites.net`
 
-### Code Analysis MCPs
-- `qe-mcp-code-analyzer-{env}.azurewebsites.net`
-- `qe-mcp-coverage-analyzer-{env}.azurewebsites.net`
-- `qe-mcp-playwright-generator-{env}.azurewebsites.net`
+### Code Analysis MCPs (4)
+- `qe-mcp-code-quality-analyzer-{env}.azurewebsites.net`
+- `qe-mcp-infrastructure-analyzer-{env}.azurewebsites.net`
+- `qe-mcp-test-analyzer-{env}.azurewebsites.net`
 - `qe-mcp-migration-analyzer-{env}.azurewebsites.net`
 
-### Quality Analysis MCPs
-- `qe-mcp-risk-analyzer-{env}.azurewebsites.net`
-- `qe-mcp-integration-mapper-{env}.azurewebsites.net`
-- `qe-mcp-test-selector-{env}.azurewebsites.net`
+### Test Generation MCPs (2)
+- `qe-mcp-test-generation-{env}.azurewebsites.net`
+- `qe-mcp-unit-test-{env}.azurewebsites.net`
 
-### Core Services
+### Playwright MCPs (1)
+- `qe-mcp-playwright-generator-{env}.azurewebsites.net`
+
+### Core Services (4)
 - `qe-mcp-orchestrator-{env}.azurewebsites.net`
 - `qe-mcp-swagger-hub-{env}.azurewebsites.net`
 - Dashboard: Azure Static Web App
+- Shared packages (SDK + Shared utilities)
 
 ## Health Checks
 
