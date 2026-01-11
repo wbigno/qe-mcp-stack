@@ -122,6 +122,12 @@ services:
     environment:
       - ORCHESTRATOR_URL=http://localhost:3000
       - SWAGGER_HUB_URL=http://localhost:8000
+    volumes:
+      - ./shared-theme:/usr/share/nginx/html/shared-theme:ro
+      - ./code-dashboard/index.html:/usr/share/nginx/html/index.html:ro
+      - ./code-dashboard/script.js:/usr/share/nginx/html/script.js:ro
+      - ./code-dashboard/styles.css:/usr/share/nginx/html/styles.css:ro
+      - ./code-dashboard/modelSelector.js:/usr/share/nginx/html/modelSelector.js:ro
     networks:
       - qe-network
     restart: unless-stopped
