@@ -1,29 +1,8 @@
+/* ADO Dashboard - Matching Infrastructure Dashboard Theme */
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-}
-
-:root {
-    --gradient-blue: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --gradient-purple: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    --gradient-green: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-    --gradient-orange: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
-    
-    --bg-primary: #0f172a;
-    --bg-secondary: #1e293b;
-    --bg-tertiary: #334155;
-    --text-primary: #f1f5f9;
-    --text-secondary: #cbd5e1;
-    --text-muted: #94a3b8;
-    --border-color: #334155;
-    --accent: #6366f1;
-    --accent-hover: #818cf8;
-    
-    --success: #10b981;
-    --warning: #f59e0b;
-    --error: #ef4444;
-    --info: #3b82f6;
 }
 
 body {
@@ -63,7 +42,7 @@ body {
 .logo h1 {
     font-size: 1.25rem;
     font-weight: 700;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent-primary);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -99,7 +78,7 @@ body {
 }
 
 .nav-item.active {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent-primary);
     color: white;
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
 }
@@ -212,19 +191,19 @@ body {
 }
 
 .metric-card.gradient-blue::before {
-    background: var(--gradient-blue);
+    background: #3b82f6;
 }
 
 .metric-card.gradient-purple::before {
-    background: var(--gradient-purple);
+    background: #8b5cf6;
 }
 
 .metric-card.gradient-green::before {
-    background: var(--gradient-green);
+    background: #10b981;
 }
 
 .metric-card.gradient-orange::before {
-    background: var(--gradient-orange);
+    background: #f59e0b;
 }
 
 .metric-card:hover {
@@ -449,7 +428,7 @@ body {
     font-size: 2.5rem;
     font-weight: 700;
     margin-bottom: 0.5rem;
-    background: var(--gradient-blue);
+    background: #3b82f6;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -549,7 +528,7 @@ body {
 
 .code-editor textarea:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--accent-primary);
 }
 
 .generate-btn {
@@ -559,7 +538,7 @@ body {
     gap: 0.5rem;
     width: 100%;
     padding: 1rem;
-    background: var(--gradient-blue);
+    background: #3b82f6;
     border: none;
     border-radius: 0.75rem;
     color: white;
@@ -600,7 +579,7 @@ body {
 
 .secondary-btn:hover {
     background: var(--bg-primary);
-    border-color: var(--accent);
+    border-color: var(--accent-primary);
 }
 
 /* Data Tables */
@@ -732,7 +711,7 @@ body {
     width: 40px;
     height: 40px;
     border: 4px solid var(--bg-tertiary);
-    border-top-color: var(--accent);
+    border-top-color: var(--accent-primary);
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -1090,7 +1069,7 @@ svg defs {
     font-size: 2.5rem;
     font-weight: 700;
     margin-bottom: 0.5rem;
-    background: var(--gradient-blue);
+    background: #3b82f6;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -1240,7 +1219,7 @@ svg defs {
 }
 
 .control-panel-header:hover {
-    border-color: var(--accent);
+    border-color: var(--accent-primary);
 }
 
 .control-panel-title {
@@ -1336,7 +1315,7 @@ svg defs {
 .form-group input:focus,
 .form-group select:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--accent-primary);
 }
 
 .form-group input::placeholder {
@@ -1352,7 +1331,7 @@ svg defs {
 
 /* Buttons */
 .btn {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent-primary);
     color: white;
     border: none;
     padding: 10px 18px;
@@ -1386,11 +1365,11 @@ svg defs {
 }
 
 .btn-success {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    background: #10b981;
 }
 
 .btn-warning {
-    background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+    background: #f59e0b;
 }
 
 .btn-sm {
@@ -1435,7 +1414,7 @@ svg defs {
 
 .status-message.info {
     background: rgba(99, 102, 241, 0.1);
-    border: 1px solid #6366f1;
+    border: 1px solid var(--accent-primary);
     color: #818cf8;
 }
 
@@ -1525,7 +1504,7 @@ svg defs {
 
 .defect-card:hover {
     transform: translateY(-2px);
-    border-color: var(--accent);
+    border-color: var(--accent-primary);
 }
 
 .defect-header {
@@ -1614,7 +1593,7 @@ svg defs {
 
 .test-suite-card:hover {
     transform: translateY(-2px);
-    border-color: var(--accent);
+    border-color: var(--accent-primary);
 }
 
 .progress-bar {
@@ -1729,7 +1708,7 @@ svg defs {
 }
 
 .tab-btn.active {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent-primary);
     color: white;
     box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
 }
@@ -1816,7 +1795,7 @@ svg defs {
 .filter-group input:focus,
 .filter-group select:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--accent-primary);
 }
 
 /* Sprint Selector Container */
@@ -1842,7 +1821,7 @@ svg defs {
 
 .sprint-selector-container select:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--accent-primary);
 }
 
 .sprint-selector-container select:disabled {
@@ -1882,7 +1861,7 @@ svg defs {
 
 /* Button Styles (simplified) */
 .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent-primary);
 }
 
 .btn-primary:hover {
@@ -1941,7 +1920,7 @@ svg defs {
 .complexity-file-card:hover,
 .test-gap-card:hover {
     transform: translateY(-2px);
-    border-color: var(--accent);
+    border-color: var(--accent-primary);
 }
 
 .panel-description {
@@ -1960,7 +1939,7 @@ svg defs {
     align-items: center;
     gap: 8px;
     padding: 8px 16px;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent-primary);
     border: none;
     border-radius: 8px;
     color: white;
@@ -2206,7 +2185,7 @@ svg defs {
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: var(--accent-primary);
     color: white;
 }
 
@@ -2246,7 +2225,7 @@ svg defs {
 .story-id {
     font-size: 18px;
     font-weight: 700;
-    color: var(--accent);
+    color: var(--accent-primary);
     background: var(--bg-tertiary);
     padding: 5px 12px;
     border-radius: 6px;
@@ -2350,7 +2329,7 @@ svg defs {
 
 .analysis-config textarea:focus {
     outline: none;
-    border-color: var(--accent);
+    border-color: var(--accent-primary);
 }
 
 .analysis-config small {
@@ -2401,7 +2380,7 @@ svg defs {
 
 .analysis-content .loading {
     text-align: center;
-    color: var(--accent);
+    color: var(--accent-primary);
     padding: 40px 20px;
     font-size: 14px;
 }
@@ -2619,7 +2598,7 @@ svg defs {
 .recommendations ul li {
     padding: 15px;
     background: var(--bg-tertiary);
-    border-left: 4px solid var(--accent);
+    border-left: 4px solid var(--accent-primary);
     border-radius: 6px;
     margin-bottom: 12px;
     font-size: 14px;
@@ -2959,7 +2938,7 @@ svg defs {
 }
 
 .changes-table .new-value {
-    color: var(--accent);
+    color: var(--accent-primary);
     font-weight: 500;
 }
 
@@ -3138,7 +3117,7 @@ body.dark-mode .changes-table th {
     width: 48px;
     height: 48px;
     border: 4px solid rgba(99, 102, 241, 0.1);
-    border-top-color: var(--accent);
+    border-top-color: var(--accent-primary);
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     margin: 0 auto 20px;
@@ -3184,7 +3163,7 @@ body.dark-mode .changes-table th {
 }
 
 .retry-btn {
-    background: var(--accent);
+    background: var(--accent-primary);
     color: white;
     border: none;
     padding: 10px 24px;
@@ -3231,8 +3210,8 @@ body.dark-mode .changes-table th {
 
 .cache-refresh-btn {
     background: transparent;
-    border: 1px solid var(--accent);
-    color: var(--accent);
+    border: 1px solid var(--accent-primary);
+    color: var(--accent-primary);
     padding: 6px 12px;
     border-radius: 4px;
     font-size: 12px;
@@ -3242,7 +3221,7 @@ body.dark-mode .changes-table th {
 }
 
 .cache-refresh-btn:hover {
-    background: var(--accent);
+    background: var(--accent-primary);
     color: white;
 }
 

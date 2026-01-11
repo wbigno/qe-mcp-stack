@@ -87,6 +87,7 @@ services:
     volumes:
       - dashboard-data:/app/data
       # Mount source files for live reload during development
+      - ./shared-theme:/usr/share/nginx/html/shared-theme:ro
       - ./ado-dashboard/index.html:/usr/share/nginx/html/index.html:ro
       - ./ado-dashboard/script.js:/usr/share/nginx/html/script.js:ro
       - ./ado-dashboard/styles.css:/usr/share/nginx/html/styles.css:ro
@@ -131,6 +132,30 @@ services:
     depends_on:
       - orchestrator
 
+  infrastructure-dashboard:
+    build:
+      context: ./infrastructure-dashboard
+      dockerfile: Dockerfile
+    container_name: qe-infrastructure-dashboard
+    ports:
+      - "8082:8082"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:3000
+      - VITE_WS_URL=ws://localhost:3000
+    volumes:
+      - ./shared-theme:/usr/share/nginx/html/shared-theme:ro
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8082"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - orchestrator
+
   swagger-hub:
     build:
       context: ./swagger-hub
@@ -154,6 +179,10 @@ services:
       - PLAYWRIGHT_GENERATOR_URL=http://playwright-generator:8400
       - PLAYWRIGHT_ANALYZER_URL=http://playwright-analyzer:8401
       - PLAYWRIGHT_HEALER_URL=http://playwright-healer:8402
+    volumes:
+      - ./shared-theme:/app/public/shared-theme:ro
+      - ./swagger-hub/public/css/styles.css:/app/public/css/styles.css:ro
+      - ./swagger-hub/public/index.html:/app/public/index.html:ro
     networks:
       - qe-network
     restart: unless-stopped
