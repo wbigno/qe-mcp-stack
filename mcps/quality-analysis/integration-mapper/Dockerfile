@@ -5,6 +5,7 @@ WORKDIR /app
 # Copy root package files
 COPY package.json package-lock.json* turbo.json tsconfig.base.json ./
 COPY packages ./packages
+COPY mcps/shared ./mcps/shared
 COPY mcps/quality-analysis/integration-mapper ./mcps/quality-analysis/integration-mapper
 
 # Install dependencies

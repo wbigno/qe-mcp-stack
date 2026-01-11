@@ -3,65 +3,69 @@
  * Bridges Chrome extension to Claude Desktop via WebSocket + HTTP/REST
  */
 
-import { BaseMCP, SwaggerConfig } from '@qe-mcp-stack/mcp-sdk';
-import { MCPConfig, getEnvNumber, logInfo, logError } from '@qe-mcp-stack/shared';
-import { Request, Response } from 'express';
-import { BrowserBridgeServer } from './websocket-server';
+import { BaseMCP, SwaggerConfig } from "@qe-mcp-stack/mcp-sdk";
+import {
+  MCPConfig,
+  getEnvNumber,
+  logInfo,
+  logError,
+} from "@qe-mcp-stack/shared";
+import { Request, Response } from "express";
+import { BrowserBridgeServer } from "./websocket-server";
 
 class BrowserControlMCP extends BaseMCP {
   private bridge: BrowserBridgeServer;
 
   constructor() {
     const config: MCPConfig = {
-      name: 'browser-control',
-      version: '1.0.0',
-      description: 'Browser control MCP - bridges Chrome extension to Claude Desktop',
-      port: getEnvNumber('PORT', 8103),
-      environment: process.env.NODE_ENV || 'development',
+      name: "browser-control",
+      version: "1.0.0",
+      description:
+        "Browser control MCP - bridges Chrome extension to Claude Desktop",
+      port: getEnvNumber("PORT", 8103),
+      environment: process.env.NODE_ENV || "development",
     };
 
     super(config);
 
     // Initialize WebSocket bridge
-    const wsPort = getEnvNumber('WS_PORT', 8765);
+    const wsPort = getEnvNumber("WS_PORT", 8765);
     this.bridge = new BrowserBridgeServer(wsPort);
 
     // Listen for connection events
-    this.bridge.on('connected', () => {
-      logInfo('Extension connected to bridge');
+    this.bridge.on("connected", () => {
+      logInfo("Extension connected to bridge");
     });
 
-    this.bridge.on('disconnected', () => {
-      logInfo('Extension disconnected from bridge');
+    this.bridge.on("disconnected", () => {
+      logInfo("Extension disconnected from bridge");
     });
 
-    // Setup routes and swagger
-    this.setupRoutes();
-    this.setupSwagger();
+    // Routes and swagger are now set up automatically by BaseMCP
   }
 
   protected setupRoutes(): void {
     // Status endpoint
-    this.app.get('/bridge/status', this.getBridgeStatus.bind(this));
+    this.app.get("/bridge/status", this.getBridgeStatus.bind(this));
 
     // Browser control endpoints
-    this.app.post('/browser/check-connection', this.checkConnection.bind(this));
-    this.app.post('/browser/get-page-content', this.getPageContent.bind(this));
-    this.app.post('/browser/get-page-html', this.getPageHTML.bind(this));
-    this.app.post('/browser/get-selection', this.getSelection.bind(this));
-    this.app.post('/browser/execute-script', this.executeScript.bind(this));
-    this.app.post('/browser/click-element', this.clickElement.bind(this));
-    this.app.post('/browser/type-text', this.typeText.bind(this));
-    this.app.post('/browser/navigate', this.navigate.bind(this));
-    this.app.post('/browser/take-screenshot', this.takeScreenshot.bind(this));
+    this.app.post("/browser/check-connection", this.checkConnection.bind(this));
+    this.app.post("/browser/get-page-content", this.getPageContent.bind(this));
+    this.app.post("/browser/get-page-html", this.getPageHTML.bind(this));
+    this.app.post("/browser/get-selection", this.getSelection.bind(this));
+    this.app.post("/browser/execute-script", this.executeScript.bind(this));
+    this.app.post("/browser/click-element", this.clickElement.bind(this));
+    this.app.post("/browser/type-text", this.typeText.bind(this));
+    this.app.post("/browser/navigate", this.navigate.bind(this));
+    this.app.post("/browser/take-screenshot", this.takeScreenshot.bind(this));
 
-    logInfo('Browser control routes configured');
+    logInfo("Browser control routes configured");
   }
 
   protected setupSwagger(): void {
     const swaggerConfig = new SwaggerConfig({
-      title: 'Browser Control MCP API',
-      version: '1.0.0',
+      title: "Browser Control MCP API",
+      version: "1.0.0",
       description: `
 Browser control MCP providing Chrome browser automation via WebSocket bridge.
 
@@ -88,11 +92,11 @@ Chrome Extension ↔ WebSocket (8765) ↔ MCP Server (8103) ↔ Claude Desktop
 All commands return JSON responses with \`success\` and \`result\` or \`error\`.
       `,
       servers: [
-        { url: 'http://localhost:8103', description: 'Local development' },
+        { url: "http://localhost:8103", description: "Local development" },
       ],
     });
 
-    swaggerConfig.setupDocs(this.app, '/api-docs');
+    swaggerConfig.setupDocs(this.app, "/api-docs");
   }
 
   /**
@@ -110,7 +114,7 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
         },
       });
     } catch (error) {
-      logError('Failed to get bridge status', { error });
+      logError("Failed to get bridge status", { error });
       res.status(500).json({
         success: false,
         error: (error as Error).message,
@@ -127,10 +131,12 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
       res.json({
         success: true,
         connected,
-        message: connected ? 'Extension is connected' : 'Extension not connected',
+        message: connected
+          ? "Extension is connected"
+          : "Extension not connected",
       });
     } catch (error) {
-      logError('Failed to check connection', { error });
+      logError("Failed to check connection", { error });
       res.status(500).json({
         success: false,
         error: (error as Error).message,
@@ -143,10 +149,10 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
    */
   private async getPageContent(_req: Request, res: Response): Promise<void> {
     try {
-      const result = await this.bridge.sendCommand('getPageContent');
+      const result = await this.bridge.sendCommand("getPageContent");
       res.json({ success: true, result });
     } catch (error) {
-      logError('Failed to get page content', { error });
+      logError("Failed to get page content", { error });
       res.status(500).json({
         success: false,
         error: (error as Error).message,
@@ -159,10 +165,10 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
    */
   private async getPageHTML(_req: Request, res: Response): Promise<void> {
     try {
-      const result = await this.bridge.sendCommand('getPageHTML');
+      const result = await this.bridge.sendCommand("getPageHTML");
       res.json({ success: true, result });
     } catch (error) {
-      logError('Failed to get page HTML', { error });
+      logError("Failed to get page HTML", { error });
       res.status(500).json({
         success: false,
         error: (error as Error).message,
@@ -175,10 +181,10 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
    */
   private async getSelection(_req: Request, res: Response): Promise<void> {
     try {
-      const result = await this.bridge.sendCommand('getSelection');
+      const result = await this.bridge.sendCommand("getSelection");
       res.json({ success: true, result });
     } catch (error) {
-      logError('Failed to get selection', { error });
+      logError("Failed to get selection", { error });
       res.status(500).json({
         success: false,
         error: (error as Error).message,
@@ -195,15 +201,15 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
       if (!script) {
         res.status(400).json({
           success: false,
-          error: 'script parameter is required',
+          error: "script parameter is required",
         });
         return;
       }
 
-      const result = await this.bridge.sendCommand('executeScript', { script });
+      const result = await this.bridge.sendCommand("executeScript", { script });
       res.json({ success: true, result });
     } catch (error) {
-      logError('Failed to execute script', { error });
+      logError("Failed to execute script", { error });
       res.status(500).json({
         success: false,
         error: (error as Error).message,
@@ -220,15 +226,17 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
       if (!selector) {
         res.status(400).json({
           success: false,
-          error: 'selector parameter is required',
+          error: "selector parameter is required",
         });
         return;
       }
 
-      const result = await this.bridge.sendCommand('clickElement', { selector });
+      const result = await this.bridge.sendCommand("clickElement", {
+        selector,
+      });
       res.json({ success: true, result });
     } catch (error) {
-      logError('Failed to click element', { error });
+      logError("Failed to click element", { error });
       res.status(500).json({
         success: false,
         error: (error as Error).message,
@@ -245,15 +253,18 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
       if (!selector || !text) {
         res.status(400).json({
           success: false,
-          error: 'selector and text parameters are required',
+          error: "selector and text parameters are required",
         });
         return;
       }
 
-      const result = await this.bridge.sendCommand('typeText', { selector, text });
+      const result = await this.bridge.sendCommand("typeText", {
+        selector,
+        text,
+      });
       res.json({ success: true, result });
     } catch (error) {
-      logError('Failed to type text', { error });
+      logError("Failed to type text", { error });
       res.status(500).json({
         success: false,
         error: (error as Error).message,
@@ -270,15 +281,15 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
       if (!url) {
         res.status(400).json({
           success: false,
-          error: 'url parameter is required',
+          error: "url parameter is required",
         });
         return;
       }
 
-      const result = await this.bridge.sendCommand('navigate', { url });
+      const result = await this.bridge.sendCommand("navigate", { url });
       res.json({ success: true, result });
     } catch (error) {
-      logError('Failed to navigate', { error });
+      logError("Failed to navigate", { error });
       res.status(500).json({
         success: false,
         error: (error as Error).message,
@@ -292,10 +303,12 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
   private async takeScreenshot(req: Request, res: Response): Promise<void> {
     try {
       const { fullPage } = req.body;
-      const result = await this.bridge.sendCommand('takeScreenshot', { fullPage: fullPage || false });
+      const result = await this.bridge.sendCommand("takeScreenshot", {
+        fullPage: fullPage || false,
+      });
       res.json({ success: true, result });
     } catch (error) {
-      logError('Failed to take screenshot', { error });
+      logError("Failed to take screenshot", { error });
       res.status(500).json({
         success: false,
         error: (error as Error).message,
@@ -326,6 +339,6 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
 // Start the MCP server
 const mcp = new BrowserControlMCP();
 mcp.start().catch((error) => {
-  logError('Failed to start Browser Control MCP', { error });
+  logError("Failed to start Browser Control MCP", { error });
   process.exit(1);
 });

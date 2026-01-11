@@ -3,53 +3,60 @@
  * Provides integration with Azure DevOps for work item management and sprint tracking
  */
 
-import { BaseMCP, SwaggerConfig } from '@qe-mcp-stack/mcp-sdk';
-import { MCPConfig, HealthCheck, requireEnv, getEnvNumber, logInfo } from '@qe-mcp-stack/shared';
-import { ADOService } from './services/ado-service';
-import { createWorkItemsRouter } from './routes/work-items';
-import { createIterationsRouter } from './routes/iterations';
-import { ADOConfig } from './types';
-import { schemas } from './swagger/schemas';
+import { BaseMCP, SwaggerConfig } from "@qe-mcp-stack/mcp-sdk";
+import {
+  MCPConfig,
+  HealthCheck,
+  requireEnv,
+  getEnvNumber,
+  logInfo,
+} from "@qe-mcp-stack/shared";
+import { ADOService } from "./services/ado-service";
+import { createWorkItemsRouter } from "./routes/work-items";
+import { createIterationsRouter } from "./routes/iterations";
+import { ADOConfig } from "./types";
+import { schemas } from "./swagger/schemas";
 
 class AzureDevOpsMCP extends BaseMCP {
-  private adoService!: ADOService;
+  private adoService: ADOService | null = null;
 
   constructor() {
     const config: MCPConfig = {
-      name: 'azure-devops',
-      version: '2.0.0',
-      description: 'Azure DevOps integration for work item management and sprint tracking',
-      port: getEnvNumber('PORT', 8100),
-      environment: process.env.NODE_ENV || 'development',
+      name: "azure-devops",
+      version: "2.0.0",
+      description:
+        "Azure DevOps integration for work item management and sprint tracking",
+      port: getEnvNumber("PORT", 8100),
+      environment: process.env.NODE_ENV || "development",
     };
 
     super(config);
-  }
 
-  protected setupRoutes(): void {
-    // Initialize ADO service
+    // Initialize ADO service after calling super
     const adoConfig: ADOConfig = {
-      pat: requireEnv('AZURE_DEVOPS_PAT'),
-      organization: requireEnv('AZURE_DEVOPS_ORG'),
-      project: requireEnv('AZURE_DEVOPS_PROJECT'),
-      apiVersion: process.env.AZURE_DEVOPS_API_VERSION || '7.0',
+      pat: requireEnv("AZURE_DEVOPS_PAT"),
+      organization: requireEnv("AZURE_DEVOPS_ORG"),
+      project: requireEnv("AZURE_DEVOPS_PROJECT"),
+      apiVersion: process.env.AZURE_DEVOPS_API_VERSION || "7.0",
     };
 
     this.adoService = new ADOService(adoConfig);
+  }
 
-    // Setup routes
-    this.app.use('/work-items', createWorkItemsRouter(this.adoService));
-    this.app.use('/iterations', createIterationsRouter(this.adoService));
+  protected setupRoutes(): void {
+    // Setup routes (adoService is initialized in constructor)
+    this.app.use("/work-items", createWorkItemsRouter(this.adoService!));
+    this.app.use("/iterations", createIterationsRouter(this.adoService!));
 
-    logInfo('Routes configured', {
-      routes: ['/work-items/*', '/iterations/*'],
+    logInfo("Routes configured", {
+      routes: ["/work-items/*", "/iterations/*"],
     });
   }
 
   protected setupSwagger(): void {
     const swaggerConfig = new SwaggerConfig({
-      title: 'Azure DevOps MCP API',
-      version: '2.0.0',
+      title: "Azure DevOps MCP API",
+      version: "2.0.0",
       description: `
 Azure DevOps integration MCP providing comprehensive work item management and sprint tracking capabilities.
 
@@ -101,21 +108,21 @@ Configure the following environment variables:
       servers: [
         {
           url: `http://localhost:${this.config.port}`,
-          description: 'Development server',
+          description: "Development server",
         },
         {
-          url: 'http://azure-devops:8100',
-          description: 'Docker container',
+          url: "http://azure-devops:8100",
+          description: "Docker container",
         },
       ],
       tags: [
         {
-          name: 'Work Items',
-          description: 'Work item management operations',
+          name: "Work Items",
+          description: "Work item management operations",
         },
         {
-          name: 'Iterations',
-          description: 'Sprint, team, and project information',
+          name: "Iterations",
+          description: "Sprint, team, and project information",
         },
       ],
       schemas,
@@ -123,8 +130,8 @@ Configure the following environment variables:
 
     swaggerConfig.setupDocs(this.app);
 
-    logInfo('Swagger documentation configured', {
-      path: '/api-docs',
+    logInfo("Swagger documentation configured", {
+      path: "/api-docs",
     });
   }
 
@@ -132,17 +139,27 @@ Configure the following environment variables:
     const dependencies: HealthCheck[] = [];
 
     // Check Azure DevOps API connectivity
+    if (!this.adoService) {
+      dependencies.push({
+        name: "azure-devops-api",
+        status: "down",
+        message: "Service not initialized yet",
+        responseTime: 0,
+      });
+      return dependencies;
+    }
+
     try {
       await this.adoService.getProjects();
       dependencies.push({
-        name: 'azure-devops-api',
-        status: 'up',
+        name: "azure-devops-api",
+        status: "up",
         responseTime: 0,
       });
     } catch (error) {
       dependencies.push({
-        name: 'azure-devops-api',
-        status: 'down',
+        name: "azure-devops-api",
+        status: "down",
         message: (error as Error).message,
         responseTime: 0,
       });

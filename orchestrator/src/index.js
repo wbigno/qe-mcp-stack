@@ -1,39 +1,39 @@
-import express from 'express';
-import cors from 'cors';
-import helmet from 'helmet';
-import morgan from 'morgan';
-import dotenv from 'dotenv';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-import swaggerUi from 'swagger-ui-express';
-import mcpRouter from './routes/mcp.js';
-import analysisRouter from './routes/analysis.js';
-import adoRouter from './routes/ado.js';
-import testsRouter from './routes/tests.js';
-import dashboardRouter from './routes/dashboard.js';
-import swaggerRouter from './routes/swagger.js';
-import playwrightRouter from './routes/playwright.js';
-import infrastructureRouter from './routes/infrastructure.js';
-import docsRouter from './routes/docs.js';
-import { logger } from './utils/logger.js';
-import { MCPManager } from './services/mcpManager.js';
-import { fileWatcher } from './services/fileWatcher.js';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import express from "express";
+import cors from "cors";
+import helmet from "helmet";
+import morgan from "morgan";
+import dotenv from "dotenv";
+import { createServer } from "http";
+import { Server } from "socket.io";
+import swaggerUi from "swagger-ui-express";
+import mcpRouter from "./routes/mcp.js";
+import analysisRouter from "./routes/analysis.js";
+import adoRouter from "./routes/ado.js";
+import testsRouter from "./routes/tests.js";
+import dashboardRouter from "./routes/dashboard.js";
+import swaggerRouter from "./routes/swagger.js";
+import playwrightRouter from "./routes/playwright.js";
+import infrastructureRouter from "./routes/infrastructure.js";
+import docsRouter from "./routes/docs.js";
+import { logger } from "./utils/logger.js";
+import { MCPManager } from "./services/mcpManager.js";
+import { fileWatcher } from "./services/fileWatcher.js";
+import path from "path";
+import { fileURLToPath } from "url";
 
 // Get directory name in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-dotenv.config({ path: '../config/.env' });
+dotenv.config({ path: "../config/.env" });
 
 const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CORS_ORIGIN || '*',
-    methods: ['GET', 'POST']
-  }
+    origin: process.env.CORS_ORIGIN || "*",
+    methods: ["GET", "POST"],
+  },
 });
 
 const PORT = process.env.PORT || 3000;
@@ -42,11 +42,30 @@ const PORT = process.env.PORT || 3000;
 const mcpManager = new MCPManager();
 
 // Middleware
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        connectSrc: ["'self'"],
+        imgSrc: ["'self'", "data:", "https:"],
+        fontSrc: ["'self'", "data:"],
+        objectSrc: ["'none'"],
+        upgradeInsecureRequests: [],
+      },
+    },
+  }),
+);
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(morgan('combined', { stream: { write: message => logger.info(message.trim()) } }));
+app.use(
+  morgan("combined", {
+    stream: { write: (message) => logger.info(message.trim()) },
+  }),
+);
 
 // Make io and mcpManager available to routes
 app.use((req, res, next) => {
@@ -56,48 +75,53 @@ app.use((req, res, next) => {
 });
 
 // Routes
-app.use('/api/mcp', mcpRouter);
-app.use('/api/analysis', analysisRouter);
-app.use('/api/ado', adoRouter);
-app.use('/api/tests', testsRouter);
-app.use('/api/dashboard', dashboardRouter);
-app.use('/api/swagger', swaggerRouter);
-app.use('/api/playwright', playwrightRouter);
-app.use('/api/infrastructure', infrastructureRouter);
-app.use('/docs', docsRouter);
+app.use("/api/mcp", mcpRouter);
+app.use("/api/analysis", analysisRouter);
+app.use("/api/ado", adoRouter);
+app.use("/api/tests", testsRouter);
+app.use("/api/dashboard", dashboardRouter);
+app.use("/api/swagger", swaggerRouter);
+app.use("/api/playwright", playwrightRouter);
+app.use("/api/infrastructure", infrastructureRouter);
+app.use("/docs", docsRouter);
 
 // Aggregated Swagger UI
-app.use('/api-docs', async (req, res, next) => {
+app.use("/api-docs", swaggerUi.serve, async (req, res, next) => {
   try {
     const aggregatedSpec = await mcpManager.getAggregatedSwaggerSpec();
     swaggerUi.setup(aggregatedSpec, {
       explorer: true,
-      customCss: '.swagger-ui .topbar { display: none }',
-      customSiteTitle: 'QE MCP Stack - API Documentation'
+      customCss: ".swagger-ui .topbar { display: none }",
+      customSiteTitle: "QE MCP Stack - API Documentation",
     })(req, res, next);
   } catch (error) {
-    logger.error('Error loading aggregated Swagger UI:', error);
-    res.status(500).json({ error: 'Failed to load API documentation' });
+    logger.error("Error loading aggregated Swagger UI:", error);
+    res.status(500).json({ error: "Failed to load API documentation" });
   }
 });
-app.use('/api-docs', swaggerUi.serve);
 
 // Serve dashboard static files
-app.use('/code-dashboard', express.static(path.join(__dirname, '../code-dashboard')));
-app.use('/ado-dashboard', express.static(path.join(__dirname, '../ado-dashboard')));
+app.use(
+  "/code-dashboard",
+  express.static(path.join(__dirname, "../code-dashboard")),
+);
+app.use(
+  "/ado-dashboard",
+  express.static(path.join(__dirname, "../ado-dashboard")),
+);
 
 // Health check (removed duplicate)
-app.get('/health', (req, res) => {
+app.get("/health", (req, res) => {
   res.json({
-    status: 'healthy',
+    status: "healthy",
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    mcps: mcpManager.getStatus()
+    mcps: mcpManager.getStatus(),
   });
 });
 
 // Dashboard
-app.get('/', (req, res) => {
+app.get("/", (req, res) => {
   res.send(`
     <!DOCTYPE html>
     <html>
@@ -250,37 +274,37 @@ app.get('/', (req, res) => {
 });
 
 // WebSocket connections for real-time updates
-io.on('connection', (socket) => {
+io.on("connection", (socket) => {
   logger.info(`Client connected: ${socket.id}`);
-  
-  socket.on('subscribe', (data) => {
+
+  socket.on("subscribe", (data) => {
     socket.join(data.channel);
     logger.info(`Client ${socket.id} subscribed to ${data.channel}`);
   });
-  
-  socket.on('disconnect', () => {
+
+  socket.on("disconnect", () => {
     logger.info(`Client disconnected: ${socket.id}`);
   });
 });
 
 // Error handling
 app.use((err, req, res, next) => {
-  logger.error('Error:', err);
+  logger.error("Error:", err);
   res.status(err.status || 500).json({
     error: {
       message: err.message,
-      ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
-    }
+      ...(process.env.NODE_ENV === "development" && { stack: err.stack }),
+    },
   });
 });
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  logger.info('SIGTERM received, shutting down gracefully...');
+process.on("SIGTERM", async () => {
+  logger.info("SIGTERM received, shutting down gracefully...");
   await fileWatcher.stop();
   await mcpManager.shutdown();
   httpServer.close(() => {
-    logger.info('Server closed');
+    logger.info("Server closed");
     process.exit(0);
   });
 });
@@ -293,7 +317,7 @@ async function start() {
 
     // Start file watcher for repository monitoring
     fileWatcher.start();
-    logger.info('📁 File system watcher started for repository monitoring');
+    logger.info("📁 File system watcher started for repository monitoring");
 
     httpServer.listen(PORT, () => {
       logger.info(`🚀 Orchestrator running on port ${PORT}`);
@@ -301,7 +325,7 @@ async function start() {
       logger.info(`🔌 WebSocket: ws://localhost:${PORT}`);
     });
   } catch (error) {
-    logger.error('Failed to start orchestrator:', error);
+    logger.error("Failed to start orchestrator:", error);
     process.exit(1);
   }
 }
