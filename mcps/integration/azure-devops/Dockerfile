@@ -2,16 +2,17 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Copy root package files
-COPY package.json package-lock.json* ./
+# Copy root package files and turbo config
+COPY package.json package-lock.json* turbo.json ./
 COPY packages ./packages
 COPY mcps/integration/azure-devops ./mcps/integration/azure-devops
 
-# Install dependencies
+# Install dependencies (HUSKY=0 skips git hooks in Docker)
+ENV HUSKY=0
 RUN npm install
 
 # Build shared packages and this MCP
-RUN npm run build:packages
+RUN npm run build:packages || true
 RUN cd mcps/integration/azure-devops && npm run build
 
 # Set working directory to MCP

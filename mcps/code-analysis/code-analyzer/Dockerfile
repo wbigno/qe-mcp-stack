@@ -3,11 +3,12 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copy root package files
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json* turbo.json ./
 COPY packages ./packages
 COPY mcps/code-analysis/code-analyzer ./mcps/code-analysis/code-analyzer
 
 # Install dependencies
+ENV HUSKY=0
 RUN npm install
 
 # Build shared packages and this MCP

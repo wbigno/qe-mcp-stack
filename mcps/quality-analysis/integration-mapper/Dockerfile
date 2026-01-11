@@ -3,11 +3,12 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copy root package files
-COPY package.json package-lock.json* ./
+COPY package.json package-lock.json* turbo.json ./
 COPY packages ./packages
 COPY mcps/quality-analysis/integration-mapper ./mcps/quality-analysis/integration-mapper
 
 # Install dependencies
+ENV HUSKY=0
 RUN npm install
 
 # Build shared packages and this MCP
