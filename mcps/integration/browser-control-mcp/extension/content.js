@@ -95,7 +95,7 @@ async function executeScript(script) {
 
     return { result, error: null };
   } catch (error) {
-    return { result, error: error.message };
+    return { result: null, error: error.message };
   }
 }
 
