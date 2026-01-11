@@ -54,7 +54,7 @@
     "health:check": "node scripts/utils/health-check.js",
     "clean": "turbo run clean && rm -rf node_modules",
     "clean:install": "npm run clean && npm install",
-    "postinstall": "husky install"
+    "prepare": "husky install || true"
   },
   "devDependencies": {
     "@playwright/test": "^1.41.0",
