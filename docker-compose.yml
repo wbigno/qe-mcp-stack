@@ -36,6 +36,7 @@ services:
       - AZURE_DEVOPS_MCP_URL=http://azure-devops:8100
       - THIRD_PARTY_MCP_URL=http://third-party:8101
       - TEST_PLAN_MANAGER_MCP_URL=http://test-plan-manager:8102
+      - BROWSER_CONTROL_MCP_URL=http://browser-control-mcp:8103
       - CODE_ANALYZER_MCP_URL=http://code-analyzer:8200
       - COVERAGE_ANALYZER_MCP_URL=http://coverage-analyzer:8201
       - MIGRATION_ANALYZER_MCP_URL=http://migration-analyzer:8203
@@ -273,6 +274,33 @@ services:
       timeout: 10s
       retries: 3
       start_period: 20s
+
+  browser-control-mcp:
+    build:
+      context: .
+      dockerfile: mcps/integration/browser-control-mcp/Dockerfile
+    container_name: qe-browser-control-mcp
+    ports:
+      - "8103:8103"
+      - "8765:8765"
+    environment:
+      - NODE_ENV=production
+      - PORT=8103
+      - WS_PORT=8765
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config:ro
+      - ./data/browser-control-mcp:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http = require('http'); http.get('http://127.0.0.1:8103/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   # =============================================================================
   # Code Analysis MCPs (8200-8299)

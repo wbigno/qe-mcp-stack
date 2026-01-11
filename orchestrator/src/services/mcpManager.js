@@ -10,6 +10,7 @@ export class MCPManager {
       azureDevOps: { url: 'http://azure-devops:8100', status: 'unknown', category: 'integration' },
       thirdParty: { url: 'http://third-party:8101', status: 'unknown', category: 'integration' },
       testPlanManager: { url: 'http://test-plan-manager:8102', status: 'unknown', category: 'integration' },
+      browserControl: { url: 'http://browser-control-mcp:8103', status: 'unknown', category: 'integration' },
     };
 
     // Code Analysis MCPs (8200-8299)
