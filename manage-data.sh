@@ -37,82 +37,142 @@ show_usage() {
     echo "Examples:"
     echo "  ./manage-data.sh status"
     echo "  ./manage-data.sh backup"
-    echo "  ./manage-data.sh clear code-analyzer"
+    echo "  ./manage-data.sh clear third-party"
     echo "  ./manage-data.sh restore backups/backup-20250101.tar.gz"
+    echo "  ./manage-data.sh verify"
+    echo ""
+    echo "Note: Only 'third-party' and 'test-plan-manager' use local data directories."
+    echo "      Most services use Docker named volumes (orchestrator-data, etc.)"
     echo ""
 }
 
 check_data_dir() {
     if [ ! -d "$DATA_DIR" ]; then
         echo -e "${RED}❌ Data directory not found!${NC}"
-        echo "Run ./setup-data-dirs.sh first"
+        echo "Run ./setup.sh first to create data directories"
         exit 1
     fi
 }
 
 show_status() {
     print_header
-    echo -e "${GREEN}📊 Data Directory Status${NC}"
+    echo -e "${GREEN}📊 Data Storage Status${NC}"
     echo ""
-    
-    # Total disk usage
-    echo "Total data directory size:"
-    du -sh "$DATA_DIR"
-    echo ""
-    
-    # Individual service disk usage
-    echo "Per-service disk usage:"
-    du -sh "$DATA_DIR"/* | sort -h
-    echo ""
-    
-    # File counts
-    echo "File counts per service:"
-    for dir in "$DATA_DIR"/*; do
-        if [ -d "$dir" ]; then
-            service=$(basename "$dir")
-            count=$(find "$dir" -type f ! -name ".gitkeep" | wc -l)
-            echo "  $service: $count files"
+
+    # Local data directories
+    echo -e "${BLUE}Local Data Directories (./data/)${NC}"
+    if [ -d "$DATA_DIR" ]; then
+        echo "Total local data size:"
+        du -sh "$DATA_DIR" 2>/dev/null || echo "  0B"
+        echo ""
+
+        echo "Per-service disk usage:"
+        du -sh "$DATA_DIR"/* 2>/dev/null | sort -h || echo "  (empty)"
+        echo ""
+
+        echo "File counts:"
+        for dir in "$DATA_DIR"/*; do
+            if [ -d "$dir" ]; then
+                service=$(basename "$dir")
+                count=$(find "$dir" -type f ! -name ".gitkeep" 2>/dev/null | wc -l)
+                echo "  $service: $count files"
+            fi
+        done
+        echo ""
+    else
+        echo "  No local data directories found"
+        echo ""
+    fi
+
+    # Docker named volumes
+    echo -e "${BLUE}Docker Named Volumes${NC}"
+    volumes=(
+        "qe-mcp-stack_orchestrator-data"
+        "qe-mcp-stack_azure-devops-data"
+        "qe-mcp-stack_dashboard-data"
+    )
+
+    for volume in "${volumes[@]}"; do
+        if docker volume inspect "$volume" &>/dev/null 2>&1; then
+            size=$(docker system df -v 2>/dev/null | grep "$volume" | awk '{print $3}' || echo "unknown")
+            echo "  $volume: $size"
+        else
+            echo "  $volume: not created"
         fi
     done
     echo ""
-    
-    # Recent activity
-    echo "Recently modified (last 24 hours):"
-    find "$DATA_DIR" -type f -mtime -1 ! -name ".gitkeep" | head -10 || echo "  No recent activity"
+
+    # Recent activity in local data
+    if [ -d "$DATA_DIR" ]; then
+        echo "Recently modified (last 24 hours):"
+        find "$DATA_DIR" -type f -mtime -1 ! -name ".gitkeep" 2>/dev/null | head -10 || echo "  No recent activity"
+        echo ""
+    fi
+
+    echo "💡 Run './manage-data.sh verify' to check data structure"
     echo ""
 }
 
 create_backup() {
     print_header
     check_data_dir
-    
+
     # Create backups directory
     mkdir -p "$BACKUP_DIR"
-    
+
     # Generate backup filename with timestamp
     timestamp=$(date +%Y%m%d_%H%M%S)
-    backup_file="$BACKUP_DIR/qe-mcp-data-backup-$timestamp.tar.gz"
-    
-    echo -e "${YELLOW}Creating backup...${NC}"
+    local_backup="$BACKUP_DIR/local-data-backup-$timestamp.tar.gz"
+
+    echo -e "${YELLOW}Creating backup of local data...${NC}"
     echo "Source: $DATA_DIR"
-    echo "Target: $backup_file"
+    echo "Target: $local_backup"
     echo ""
-    
-    # Create compressed backup
-    tar -czf "$backup_file" -C . data/
-    
-    # Show backup info
-    backup_size=$(du -sh "$backup_file" | cut -f1)
-    
-    echo -e "${GREEN}✅ Backup created successfully!${NC}"
+
+    # Create compressed backup of local data
+    tar -czf "$local_backup" -C . data/
+
+    local_size=$(du -sh "$local_backup" | cut -f1)
+    echo -e "${GREEN}✅ Local data backup created${NC}"
+    echo "File: $local_backup ($local_size)"
     echo ""
-    echo "Backup file: $backup_file"
-    echo "Backup size: $backup_size"
+
+    # Backup Docker named volumes
+    echo -e "${YELLOW}Creating backups of Docker named volumes...${NC}"
+
+    volumes=(
+        "qe-mcp-stack_orchestrator-data"
+        "qe-mcp-stack_azure-devops-data"
+        "qe-mcp-stack_dashboard-data"
+    )
+
+    for volume in "${volumes[@]}"; do
+        if docker volume inspect "$volume" &>/dev/null; then
+            volume_backup="$BACKUP_DIR/${volume}-backup-$timestamp.tar.gz"
+            echo "  Backing up $volume..."
+            docker run --rm -v "$volume":/data -v "$(pwd)/$BACKUP_DIR":/backup alpine \
+                tar czf "/backup/$(basename "$volume_backup")" -C /data . 2>/dev/null
+
+            if [ -f "$volume_backup" ]; then
+                vol_size=$(du -sh "$volume_backup" | cut -f1)
+                echo -e "  ${GREEN}✓${NC} $volume ($vol_size)"
+            fi
+        else
+            echo -e "  ${YELLOW}⊘${NC} $volume (not found)"
+        fi
+    done
+
     echo ""
-    
+    echo -e "${GREEN}✅ Backup completed!${NC}"
+    echo ""
+
     # List all backups
-    echo "All backups:"
+    echo "All backups in $BACKUP_DIR:"
     ls -lh "$BACKUP_DIR"/*.tar.gz 2>/dev/null | awk '{print "  " $9 " (" $5 ")"}'
+    echo ""
+
+    echo "💡 Tip: To restore Docker volumes, use standard docker volume restore commands"
+    echo "   See data/README.md for restore instructions"
     echo ""
 }
 
@@ -231,7 +291,7 @@ clear_data() {
         echo ""
         read -p "Restart $service container? (yes/no): " restart
         if [ "$restart" = "yes" ]; then
-            docker compose restart "qe-$service" 2>/dev/null || docker compose restart "$service" 2>/dev/null || echo "Could not restart service"
+            docker compose restart "$service" 2>/dev/null || echo "Could not restart service (container name may differ)"
         fi
     fi
     echo ""
@@ -269,30 +329,20 @@ list_data() {
 verify_structure() {
     print_header
     check_data_dir
-    
+
     echo -e "${GREEN}🔍 Verifying Data Directory Structure${NC}"
     echo ""
-    
-    services=(
-        "orchestrator"
-        "code-analyzer"
-        "coverage-analyzer"
-        "azure-devops"
-        "playwright-analyzer"
-        "playwright-generator"
-        "playwright-healer"
-        "architecture-analyzer"
-        "integration-mapper"
-        "data-model-analyzer"
-        "risk-analyzer"
-        "workflow-analyzer"
-        "quality-metrics-analyzer"
-        "security-analyzer"
+
+    # Local data directories (./data/)
+    echo "Local Data Directories:"
+    local_services=(
+        "third-party"
+        "test-plan-manager"
     )
-    
+
     all_good=true
-    
-    for service in "${services[@]}"; do
+
+    for service in "${local_services[@]}"; do
         if [ -d "$DATA_DIR/$service" ]; then
             echo -e "  ${GREEN}✓${NC} $service"
         else
@@ -300,14 +350,37 @@ verify_structure() {
             all_good=false
         fi
     done
-    
+
+    echo ""
+
+    # Docker named volumes
+    echo "Docker Named Volumes:"
+    named_volumes=(
+        "qe-mcp-stack_orchestrator-data"
+        "qe-mcp-stack_azure-devops-data"
+        "qe-mcp-stack_dashboard-data"
+    )
+
+    for volume in "${named_volumes[@]}"; do
+        if docker volume inspect "$volume" &>/dev/null; then
+            size=$(docker system df -v 2>/dev/null | grep "$volume" | awk '{print $3}' || echo "unknown")
+            echo -e "  ${GREEN}✓${NC} $volume ($size)"
+        else
+            echo -e "  ${YELLOW}✗${NC} $volume (not created yet)"
+        fi
+    done
+
     echo ""
     if [ "$all_good" = true ]; then
-        echo -e "${GREEN}✅ All directories present${NC}"
+        echo -e "${GREEN}✅ All local directories present${NC}"
     else
-        echo -e "${YELLOW}⚠️  Some directories are missing${NC}"
-        echo "Run ./setup-data-dirs.sh to fix"
+        echo -e "${YELLOW}⚠️  Some local directories are missing${NC}"
+        echo "Run ./setup.sh to fix"
     fi
+
+    echo ""
+    echo "💡 Tip: Most services use Docker named volumes for better isolation"
+    echo "   Use 'docker volume ls' to see all volumes"
     echo ""
 }
 

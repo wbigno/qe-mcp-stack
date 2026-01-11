@@ -1,24 +1,47 @@
 import { spawn } from 'child_process';
 import axios from 'axios';
 import { logger } from '../utils/logger.js';
+import { orchestratorApiSpec } from '../swagger/orchestrator-api-spec.js';
 
 export class MCPManager {
   constructor() {
-    // API Services (Docker MCPs with /health endpoints)
+    // Integration MCPs (8100-8199)
+    this.integrationMcps = {
+      azureDevOps: { url: 'http://azure-devops:8100', status: 'unknown', category: 'integration' },
+      thirdParty: { url: 'http://third-party:8101', status: 'unknown', category: 'integration' },
+      testPlanManager: { url: 'http://test-plan-manager:8102', status: 'unknown', category: 'integration' },
+      browserControl: { url: 'http://browser-control-mcp:8103', status: 'unknown', category: 'integration' },
+    };
+
+    // Code Analysis MCPs (8200-8299)
+    this.codeAnalysisMcps = {
+      dotnetCodeAnalyzer: { url: 'http://code-analyzer:8200', status: 'unknown', category: 'code-analysis' },
+      dotnetCoverageAnalyzer: { url: 'http://coverage-analyzer:8201', status: 'unknown', category: 'code-analysis' },
+      javascriptCodeAnalyzer: { url: 'http://javascript-code-analyzer:8204', status: 'unknown', category: 'code-analysis' },
+      javascriptCoverageAnalyzer: { url: 'http://javascript-coverage-analyzer:8205', status: 'unknown', category: 'code-analysis' },
+      migrationAnalyzer: { url: 'http://migration-analyzer:8203', status: 'unknown', category: 'code-analysis' },
+    };
+
+    // Quality Analysis MCPs (8300-8399)
+    this.qualityAnalysisMcps = {
+      riskAnalyzer: { url: 'http://risk-analyzer:8300', status: 'unknown', category: 'quality-analysis' },
+      integrationMapper: { url: 'http://integration-mapper:8301', status: 'unknown', category: 'quality-analysis' },
+      testSelector: { url: 'http://test-selector:8302', status: 'unknown', category: 'quality-analysis' },
+    };
+
+    // Playwright MCPs (8400-8499)
+    this.playwrightMcps = {
+      playwrightGenerator: { url: 'http://playwright-generator:8400', status: 'unknown', category: 'playwright' },
+      playwrightAnalyzer: { url: 'http://playwright-analyzer:8401', status: 'unknown', category: 'playwright' },
+      playwrightHealer: { url: 'http://playwright-healer:8402', status: 'unknown', category: 'playwright' },
+    };
+
+    // All MCPs combined for easy iteration
     this.dockerMcps = {
-      dotnetCodeAnalyzer: { url: 'http://dotnet-code-analyzer:3001', status: 'unknown', type: 'api' },
-      dotnetCoverageAnalyzer: { url: 'http://dotnet-coverage-analyzer:3002', status: 'unknown', type: 'api' },
-      azureDevOps: { url: 'http://azure-devops:3003', status: 'unknown', type: 'api' },
-      playwrightAnalyzer: { url: 'http://playwright-analyzer:3004', status: 'unknown', type: 'api' },
-      playwrightGenerator: { url: 'http://playwright-generator:3005', status: 'unknown', type: 'api' },
-      playwrightHealer: { url: 'http://playwright-healer:3006', status: 'unknown', type: 'api' },
-      architectureAnalyzer: { url: 'http://architecture-analyzer:3007', status: 'unknown', type: 'api' },
-      integrationMapper: { url: 'http://integration-mapper:3008', status: 'unknown', type: 'api' },
-      riskAnalyzer: { url: 'http://risk-analyzer:3009', status: 'unknown', type: 'api' },
-      workflowAnalyzer: { url: 'http://workflow-analyzer:3010', status: 'unknown', type: 'api' },
-      qualityMetricsAnalyzer: { url: 'http://quality-metrics-analyzer:3011', status: 'unknown', type: 'api' },
-      securityAnalyzer: { url: 'http://security-analyzer:3012', status: 'unknown', type: 'api' },
-      dataModelAnalyzer: { url: 'http://data-model-analyzer:3013', status: 'unknown', type: 'api' },
+      ...this.integrationMcps,
+      ...this.codeAnalysisMcps,
+      ...this.qualityAnalysisMcps,
+      ...this.playwrightMcps
     };
     
     // Dashboard Services (Static file servers - no health check)
@@ -162,11 +185,12 @@ export class MCPManager {
 
   spawnStdioMcp(mcpName, command, args = []) {
     const mcpPath = `/app/mcps/${mcpName}/index.js`;
-    
+
     logger.info(`Spawning stdio MCP: ${mcpName}`);
 
     const child = spawn('node', [mcpPath, ...args], {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: process.env
     });
 
     this.stdioMcps[mcpName] = child;
@@ -221,12 +245,33 @@ export class MCPManager {
 
   getStatus() {
     return {
-      // API Services
-      apiServices: Object.fromEntries(
-        Object.entries(this.dockerMcps).map(([name, mcp]) => [name, {
+      // Group by category
+      integration: Object.fromEntries(
+        Object.entries(this.integrationMcps).map(([name, mcp]) => [name, {
           status: mcp.status,
           url: mcp.url,
-          type: mcp.type
+          category: mcp.category
+        }])
+      ),
+      codeAnalysis: Object.fromEntries(
+        Object.entries(this.codeAnalysisMcps).map(([name, mcp]) => [name, {
+          status: mcp.status,
+          url: mcp.url,
+          category: mcp.category
+        }])
+      ),
+      qualityAnalysis: Object.fromEntries(
+        Object.entries(this.qualityAnalysisMcps).map(([name, mcp]) => [name, {
+          status: mcp.status,
+          url: mcp.url,
+          category: mcp.category
+        }])
+      ),
+      playwright: Object.fromEntries(
+        Object.entries(this.playwrightMcps).map(([name, mcp]) => [name, {
+          status: mcp.status,
+          url: mcp.url,
+          category: mcp.category
         }])
       ),
       // Dashboards
@@ -241,13 +286,64 @@ export class MCPManager {
       stdioMcps: Object.keys(this.stdioMcps),
       // Summary counts
       summary: {
-        apiServicesHealthy: Object.values(this.dockerMcps).filter(m => m.status === 'healthy').length,
-        apiServicesTotal: Object.keys(this.dockerMcps).length,
+        mcpsHealthy: Object.values(this.dockerMcps).filter(m => m.status === 'healthy').length,
+        mcpsTotal: Object.keys(this.dockerMcps).length,
         dashboardsAvailable: Object.values(this.dashboards).filter(d => d.status === 'available').length,
         dashboardsTotal: Object.keys(this.dashboards).length,
         stdioActive: Object.keys(this.stdioMcps).length
       }
     };
+  }
+
+  async getSwaggerDocs(mcpName) {
+    const mcp = this.dockerMcps[mcpName];
+
+    if (!mcp) {
+      throw new Error(`Unknown MCP: ${mcpName}`);
+    }
+
+    if (mcp.status !== 'healthy') {
+      throw new Error(`MCP ${mcpName} is not healthy (status: ${mcp.status})`);
+    }
+
+    try {
+      const response = await axios.get(`${mcp.url}/api-docs.json`, { timeout: 5000 });
+      return response.data;
+    } catch (error) {
+      logger.error(`Error fetching Swagger docs from ${mcpName}:`, error.message);
+      throw error;
+    }
+  }
+
+  async getAllSwaggerDocs() {
+    const docs = {};
+
+    for (const [name, mcp] of Object.entries(this.dockerMcps)) {
+      if (mcp.status === 'healthy') {
+        try {
+          docs[name] = await this.getSwaggerDocs(name);
+          docs[name].basePath = mcp.url;
+          docs[name].category = mcp.category;
+        } catch (error) {
+          logger.warn(`Failed to fetch Swagger docs for ${name}: ${error.message}`);
+          docs[name] = { error: error.message };
+        }
+      } else {
+        docs[name] = { error: `MCP not healthy (status: ${mcp.status})` };
+      }
+    }
+
+    return docs;
+  }
+
+  async getAggregatedSwaggerSpec() {
+    logger.info('Returning orchestrator API specification...');
+
+    // Return the comprehensive orchestrator API spec
+    // MCPs are internal services - the orchestrator is the public API gateway
+    // All API endpoints are exposed through the orchestrator
+    logger.info(`API specification includes ${Object.keys(orchestratorApiSpec.paths).length} endpoints`);
+    return orchestratorApiSpec;
   }
 
   async shutdown() {

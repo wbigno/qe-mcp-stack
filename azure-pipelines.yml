@@ -1,0 +1,207 @@
+##########################################################
+# QE MCP Stack - Main Azure Pipeline
+# Entry point for all CI/CD pipelines
+##########################################################
+
+trigger:
+  branches:
+    include:
+      - main
+      - develop
+      - feature/*
+      - bugfix/*
+  paths:
+    exclude:
+      - '*.md'
+      - 'docs/**'
+
+pr:
+  branches:
+    include:
+      - main
+      - develop
+  paths:
+    exclude:
+      - '*.md'
+      - 'docs/**'
+
+variables:
+  - group: qe-mcp-stack-variables
+  - name: nodeVersion
+    value: '18.x'
+  - name: isMain
+    value: $[eq(variables['Build.SourceBranch'], 'refs/heads/main')]
+  - name: isDevelop
+    value: $[eq(variables['Build.SourceBranch'], 'refs/heads/develop')]
+  # Path-based change detection variables
+  - name: integrationMcpsChanged
+    value: $[or(contains(variables['Build.SourceVersionMessage'], 'mcps/integration'), eq(variables['Build.Reason'], 'Manual'))]
+  - name: codeMcpsChanged
+    value: $[or(contains(variables['Build.SourceVersionMessage'], 'mcps/code-analysis'), eq(variables['Build.Reason'], 'Manual'))]
+  - name: analysisMcpsChanged
+    value: $[or(contains(variables['Build.SourceVersionMessage'], 'mcps/quality-analysis'), eq(variables['Build.Reason'], 'Manual'))]
+  - name: dashboardChanged
+    value: $[or(contains(variables['Build.SourceVersionMessage'], 'ado-dashboard'), contains(variables['Build.SourceVersionMessage'], 'orchestrator'), contains(variables['Build.SourceVersionMessage'], 'swagger-hub'), eq(variables['Build.Reason'], 'Manual'))]
+  - name: testsChanged
+    value: $[or(contains(variables['Build.SourceVersionMessage'], 'tests/'), eq(variables['Build.Reason'], 'Manual'))]
+  - name: sharedChanged
+    value: $[or(contains(variables['Build.SourceVersionMessage'], 'packages/'), contains(variables['Build.SourceVersionMessage'], 'package.json'))]
+
+stages:
+  ##########################################################
+  # Stage 1: Build & Test
+  ##########################################################
+  - stage: Build_and_Test
+    displayName: 'Build & Test'
+    jobs:
+      - job: Install_Dependencies
+        displayName: 'Install Dependencies'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: NodeTool@0
+            displayName: 'Install Node.js'
+            inputs:
+              versionSpec: $(nodeVersion)
+
+          - task: Cache@2
+            displayName: 'Cache npm packages'
+            inputs:
+              key: 'npm | "$(Agent.OS)" | package-lock.json'
+              path: '$(Pipeline.Workspace)/.npm'
+              restoreKeys: |
+                npm | "$(Agent.OS)"
+
+          - script: npm ci --cache $(Pipeline.Workspace)/.npm
+            displayName: 'Install dependencies'
+
+          - script: npm run build
+            displayName: 'Build all packages'
+
+          - task: PublishPipelineArtifact@1
+            displayName: 'Publish build artifacts'
+            inputs:
+              targetPath: '$(System.DefaultWorkingDirectory)'
+              artifact: 'build-output'
+
+      - job: Run_Tests
+        displayName: 'Run Tests'
+        dependsOn: Install_Dependencies
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download build artifacts'
+            inputs:
+              artifact: 'build-output'
+              path: '$(System.DefaultWorkingDirectory)'
+
+          - task: NodeTool@0
+            displayName: 'Install Node.js'
+            inputs:
+              versionSpec: $(nodeVersion)
+
+          - script: npm test
+            displayName: 'Run unit tests'
+
+          - task: PublishTestResults@2
+            displayName: 'Publish test results'
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: 'JUnit'
+              testResultsFiles: '**/test-results/**/*.xml'
+              mergeTestResults: true
+              failTaskOnFailedTests: true
+
+  ##########################################################
+  # Stage 2: Deploy MCPs (Parallel - Selective)
+  ##########################################################
+  - stage: Deploy_MCPs
+    displayName: 'Deploy MCPs'
+    dependsOn: Build_and_Test
+    condition: and(succeeded(), or(eq(variables.isMain, true), eq(variables.isDevelop, true)))
+    jobs:
+      - job: Deploy_ADO_MCPs
+        displayName: 'Deploy ADO MCPs'
+        condition: or(eq(variables.integrationMcpsChanged, true), eq(variables.sharedChanged, true))
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - template: azure-pipelines/ado-mcps-pipeline.yml
+
+      - job: Deploy_Code_MCPs
+        displayName: 'Deploy Code MCPs'
+        condition: or(eq(variables.codeMcpsChanged, true), eq(variables.sharedChanged, true))
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - template: azure-pipelines/code-mcps-pipeline.yml
+
+      - job: Deploy_Analysis_MCPs
+        displayName: 'Deploy Analysis MCPs'
+        condition: or(eq(variables.analysisMcpsChanged, true), eq(variables.sharedChanged, true))
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - template: azure-pipelines/analysis-mcps-pipeline.yml
+
+  ##########################################################
+  # Stage 3: Deploy Dashboard & Orchestrator (Selective)
+  ##########################################################
+  - stage: Deploy_Dashboard
+    displayName: 'Deploy Dashboard & Orchestrator'
+    dependsOn: Deploy_MCPs
+    condition: and(succeeded(), or(eq(variables.dashboardChanged, true), eq(variables.sharedChanged, true)))
+    jobs:
+      - job: Deploy
+        displayName: 'Deploy Dashboard'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - template: azure-pipelines/dashboard-pipeline.yml
+
+  ##########################################################
+  # Stage 4: Smoke Tests
+  ##########################################################
+  - stage: Smoke_Tests
+    displayName: 'Smoke Tests'
+    dependsOn: Deploy_Dashboard
+    condition: succeeded()
+    jobs:
+      - job: Run_Smoke_Tests
+        displayName: 'Run Smoke Tests'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - template: azure-pipelines/smoke-tests-pipeline.yml
+
+  ##########################################################
+  # Stage 5: Swagger Validation
+  ##########################################################
+  - stage: Swagger_Validation
+    displayName: 'Swagger Validation'
+    dependsOn: Deploy_Dashboard
+    condition: succeeded()
+    jobs:
+      - job: Validate_Swagger
+        displayName: 'Validate Swagger Docs'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+          - template: azure-pipelines/swagger-validation-pipeline.yml
+
+  ##########################################################
+  # Stage 6: Full Test Suite (Selective or Manual)
+  ##########################################################
+  - stage: Full_Test_Suite
+    displayName: 'Full Test Suite'
+    dependsOn: Smoke_Tests
+    condition: and(succeeded(), or(eq(variables.testsChanged, true), eq(variables['Build.Reason'], 'Manual')))
+    jobs:
+      - job: Run_Full_Tests
+        displayName: 'Run Full Test Suite'
+        pool:
+          vmImage: 'ubuntu-latest'
+        timeoutInMinutes: 120
+        steps:
+          - template: azure-pipelines/test-automation-pipeline.yml

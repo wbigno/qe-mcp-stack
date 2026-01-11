@@ -1,0 +1,21 @@
+{
+  "name": "@qe-mcp-stack/test-selector",
+  "version": "1.0.0",
+  "description": "Test selector MCP for intelligent test selection based on code changes",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "keywords": ["mcp", "quality-analysis", "test-selection", "ai"],
+  "author": "QE Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

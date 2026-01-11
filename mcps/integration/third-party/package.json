@@ -1,0 +1,21 @@
+{
+  "name": "@qe-mcp-stack/third-party",
+  "version": "1.0.0",
+  "description": "Third-party integrations MCP for Stripe and other external services",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js"
+  },
+  "keywords": ["mcp", "integration", "third-party", "stripe"],
+  "author": "QE Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  }
+}

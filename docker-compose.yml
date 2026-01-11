@@ -1,10 +1,26 @@
-version: '3.8'
-
 networks:
   qe-network:
     driver: bridge
 
+volumes:
+  orchestrator-data:
+  dashboard-data:
+  azure-devops-data:
+  code-analyzer-data:
+  coverage-analyzer-data:
+  javascript-code-analyzer-data:
+  javascript-coverage-analyzer-data:
+  risk-analyzer-data:
+  integration-mapper-data:
+  playwright-generator-data:
+  playwright-analyzer-data:
+  playwright-healer-data:
+
 services:
+  # =============================================================================
+  # Core Services
+  # =============================================================================
+
   orchestrator:
     build:
       context: ./orchestrator
@@ -15,284 +31,619 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - AZURE_DEVOPS_MCP_URL=http://azure-devops:8100
+      - THIRD_PARTY_MCP_URL=http://third-party:8101
+      - TEST_PLAN_MANAGER_MCP_URL=http://test-plan-manager:8102
+      - BROWSER_CONTROL_MCP_URL=http://browser-control-mcp:8103
+      - CODE_ANALYZER_MCP_URL=http://code-analyzer:8200
+      - COVERAGE_ANALYZER_MCP_URL=http://coverage-analyzer:8201
+      - MIGRATION_ANALYZER_MCP_URL=http://migration-analyzer:8203
+      - JAVASCRIPT_CODE_ANALYZER_MCP_URL=http://javascript-code-analyzer:8204
+      - JAVASCRIPT_COVERAGE_ANALYZER_MCP_URL=http://javascript-coverage-analyzer:8205
+      - RISK_ANALYZER_MCP_URL=http://risk-analyzer:8300
+      - INTEGRATION_MAPPER_MCP_URL=http://integration-mapper:8301
+      - TEST_SELECTOR_MCP_URL=http://test-selector:8302
+      - PLAYWRIGHT_GENERATOR_MCP_URL=http://playwright-generator:8400
+      - PLAYWRIGHT_ANALYZER_MCP_URL=http://playwright-analyzer:8401
+      - PLAYWRIGHT_HEALER_MCP_URL=http://playwright-healer:8402
     env_file:
       - .env
     volumes:
       - ./config:/app/config:ro
-      - ./data/orchestrator:/app/data
-      - ./mcps:/app/mcps:ro
-      - ./code-dashboard:/app/code-dashboard:ro
-      - ./ado-dashboard:/app/ado-dashboard:ro
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/dev/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/dev/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/dev/git/app4:/mnt/apps/app4:ro
+      - ./docs:/app/docs:ro
+      - orchestrator-data:/app/data
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
     networks:
       - qe-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
     depends_on:
-      - dotnet-code-analyzer
-      - dotnet-coverage-analyzer
-      - azure-devops
+      azure-devops:
+        condition: service_healthy
+      code-analyzer:
+        condition: service_healthy
+      coverage-analyzer:
+        condition: service_healthy
 
-  dotnet-code-analyzer:
+  dashboard:
     build:
-      context: ./mcps
-      dockerfile: dotnet-code-analyzer/Dockerfile
-    container_name: qe-dotnet-code-analyzer
+      context: ./ado-dashboard
+      dockerfile: Dockerfile
+    container_name: qe-dashboard
     ports:
-      - "3001:3001"
+      - "5173:5173"
+    environment:
+      - VITE_ORCHESTRATOR_URL=http://localhost:3000
+      - VITE_SWAGGER_HUB_URL=http://localhost:8000
     volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/dotnet-code-analyzer:/app/data
+      - dashboard-data:/app/data
+      # Mount source files for live reload during development
+      - ./shared-theme:/usr/share/nginx/html/shared-theme:ro
+      - ./ado-dashboard/index.html:/usr/share/nginx/html/index.html:ro
+      - ./ado-dashboard/script.js:/usr/share/nginx/html/script.js:ro
+      - ./ado-dashboard/styles.css:/usr/share/nginx/html/styles.css:ro
+      - ./ado-dashboard/modelSelector.js:/usr/share/nginx/html/modelSelector.js:ro
+      - ./ado-dashboard/analysisPanel.js:/usr/share/nginx/html/analysisPanel.js:ro
+      - ./ado-dashboard/appSelector.js:/usr/share/nginx/html/appSelector.js:ro
+      - ./ado-dashboard/pushPreviewModal.js:/usr/share/nginx/html/pushPreviewModal.js:ro
+      - ./ado-dashboard/sprintSelector.js:/usr/share/nginx/html/sprintSelector.js:ro
+      - ./ado-dashboard/cache.js:/usr/share/nginx/html/cache.js:ro
+      - ./ado-dashboard/emptyState.js:/usr/share/nginx/html/emptyState.js:ro
     networks:
       - qe-network
     restart: unless-stopped
-
-  dotnet-coverage-analyzer:
-    build:
-      context: ./mcps
-      dockerfile: dotnet-coverage-analyzer/Dockerfile
-    container_name: qe-dotnet-coverage-analyzer
-    ports:
-      - "3002:3002"
-    volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/dotnet-coverage-analyzer:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  azure-devops:
-    build:
-      context: ./mcps
-      dockerfile: azure-devops/Dockerfile
-    container_name: qe-azure-devops
-    ports:
-      - "3003:3003"
-    env_file:
-      - .env
-    volumes:
-      - ./config:/app/config:ro
-      - ./data/azure-devops:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  playwright-analyzer:
-    build:
-      context: ./mcps
-      dockerfile: playwright-analyzer/Dockerfile
-    container_name: qe-playwright-analyzer
-    ports:
-      - "3004:3004"
-    volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/playwright-analyzer:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  playwright-generator:
-    build:
-      context: ./mcps
-      dockerfile: playwright-generator/Dockerfile
-    container_name: qe-playwright-generator
-    ports:
-      - "3005:3005"
-    env_file:
-      - .env
-    volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/playwright-generator:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  playwright-healer:
-    build:
-      context: ./mcps
-      dockerfile: playwright-healer/Dockerfile
-    container_name: qe-playwright-healer
-    ports:
-      - "3006:3006"
-    env_file:
-      - .env
-    volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/playwright-healer:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  architecture-analyzer:
-    build:
-      context: ./mcps
-      dockerfile: architecture-analyzer/Dockerfile
-    container_name: qe-architecture-analyzer
-    ports:
-      - "3007:3007"
-    volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/architecture-analyzer:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  integration-mapper:
-    build:
-      context: ./mcps
-      dockerfile: integration-mapper/Dockerfile
-    container_name: qe-integration-mapper
-    ports:
-      - "3008:3008"
-    volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/integration-mapper:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  risk-analyzer:
-    build:
-      context: ./mcps
-      dockerfile: risk-analyzer/Dockerfile
-    container_name: qe-risk-analyzer
-    ports:
-      - "3009:3009"
-    volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/risk-analyzer:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  workflow-analyzer:
-    build:
-      context: ./mcps
-      dockerfile: workflow-analyzer/Dockerfile
-    container_name: qe-workflow-analyzer
-    ports:
-      - "3010:3010"
-    volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/workflow-analyzer:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  quality-metrics-analyzer:
-    build:
-      context: ./mcps
-      dockerfile: quality-metrics-analyzer/Dockerfile
-    container_name: qe-quality-metrics-analyzer
-    ports:
-      - "3011:3011"
-    volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/quality-metrics-analyzer:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  security-analyzer:
-    build:
-      context: ./mcps
-      dockerfile: security-analyzer/Dockerfile
-    container_name: qe-security-analyzer
-    ports:
-      - "3012:3012"
-    volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/security-analyzer:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  data-model-analyzer:
-    build:
-      context: ./mcps
-      dockerfile: data-model-analyzer/Dockerfile
-    container_name: qe-data-model-analyzer
-    ports:
-      - "3013:3013"
-    volumes:
-      - /Users/williambigno/dev/git/patient-portal:/mnt/apps/patient-portal:ro
-      - /Users/williambigno/Desktop/git/app2:/mnt/apps/app2:ro
-      - /Users/williambigno/Desktop/git/app3:/mnt/apps/app3:ro
-      - /Users/williambigno/Desktop/git/app4:/mnt/apps/app4:ro
-      - ./config:/app/config:ro
-      - ./data/data-model-analyzer:/app/data
-    networks:
-      - qe-network
-    restart: unless-stopped
-
-  ado-dashboard:
-    image: nginx:alpine
-    container_name: qe-ado-dashboard
-    volumes:
-      - ./ado-dashboard:/usr/share/nginx/html:ro
-    ports:
-      - "8080:80"
-    networks:
-      - qe-network
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:5173/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     depends_on:
       - orchestrator
 
   code-dashboard:
-    image: nginx:alpine
+    build:
+      context: ./code-dashboard
+      dockerfile: Dockerfile
     container_name: qe-code-dashboard
-    volumes:
-      - ./code-dashboard:/usr/share/nginx/html:ro
     ports:
-      - "8081:80"
+      - "8081:8081"
+    environment:
+      - ORCHESTRATOR_URL=http://localhost:3000
+      - SWAGGER_HUB_URL=http://localhost:8000
+    volumes:
+      - ./shared-theme:/usr/share/nginx/html/shared-theme:ro
+      - ./code-dashboard/index.html:/usr/share/nginx/html/index.html:ro
+      - ./code-dashboard/script.js:/usr/share/nginx/html/script.js:ro
+      - ./code-dashboard/styles.css:/usr/share/nginx/html/styles.css:ro
+      - ./code-dashboard/modelSelector.js:/usr/share/nginx/html/modelSelector.js:ro
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8081/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+    depends_on:
+      - orchestrator
+
+  infrastructure-dashboard:
+    build:
+      context: ./infrastructure-dashboard
+      dockerfile: Dockerfile
+    container_name: qe-infrastructure-dashboard
+    ports:
+      - "8082:8082"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:3000
+      - VITE_WS_URL=ws://localhost:3000
+    volumes:
+      - ./shared-theme:/usr/share/nginx/html/shared-theme:ro
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8082"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      - orchestrator
+
+  swagger-hub:
+    build:
+      context: ./swagger-hub
+      dockerfile: Dockerfile
+    container_name: qe-swagger-hub
+    ports:
+      - "8000:8000"
+    environment:
+      - ORCHESTRATOR_URL=http://orchestrator:3000
+      - AZURE_DEVOPS_URL=http://azure-devops:8100
+      - THIRD_PARTY_URL=http://third-party:8101
+      - TEST_PLAN_MANAGER_URL=http://test-plan-manager:8102
+      - CODE_ANALYZER_URL=http://code-analyzer:8200
+      - COVERAGE_ANALYZER_URL=http://coverage-analyzer:8201
+      - MIGRATION_ANALYZER_URL=http://migration-analyzer:8203
+      - JAVASCRIPT_CODE_ANALYZER_URL=http://javascript-code-analyzer:8204
+      - JAVASCRIPT_COVERAGE_ANALYZER_URL=http://javascript-coverage-analyzer:8205
+      - RISK_ANALYZER_URL=http://risk-analyzer:8300
+      - INTEGRATION_MAPPER_URL=http://integration-mapper:8301
+      - TEST_SELECTOR_URL=http://test-selector:8302
+      - PLAYWRIGHT_GENERATOR_URL=http://playwright-generator:8400
+      - PLAYWRIGHT_ANALYZER_URL=http://playwright-analyzer:8401
+      - PLAYWRIGHT_HEALER_URL=http://playwright-healer:8402
+    volumes:
+      - ./shared-theme:/app/public/shared-theme:ro
+      - ./swagger-hub/public/css/styles.css:/app/public/css/styles.css:ro
+      - ./swagger-hub/public/index.html:/app/public/index.html:ro
     networks:
       - qe-network
     restart: unless-stopped
     depends_on:
       - orchestrator
+
+  # =============================================================================
+  # Integration MCPs (8100-8199)
+  # =============================================================================
+
+  azure-devops:
+    build:
+      context: .
+      dockerfile: mcps/integration/azure-devops/Dockerfile
+    container_name: qe-azure-devops
+    ports:
+      - "8100:8100"
+    environment:
+      - NODE_ENV=production
+      - PORT=8100
+      - AZURE_DEVOPS_ORG=${AZURE_DEVOPS_ORG}
+      - AZURE_DEVOPS_PAT=${AZURE_DEVOPS_PAT}
+      - AZURE_DEVOPS_PROJECT=${AZURE_DEVOPS_PROJECT}
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config:ro
+      - azure-devops-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8100/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  third-party:
+    build:
+      context: .
+      dockerfile: mcps/integration/third-party/Dockerfile
+    container_name: qe-third-party
+    ports:
+      - "8101:8101"
+    environment:
+      - NODE_ENV=production
+      - PORT=8101
+      - STRIPE_API_KEY=${STRIPE_API_KEY}
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config:ro
+      - ./data/third-party:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8101/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  test-plan-manager:
+    build:
+      context: .
+      dockerfile: mcps/integration/test-plan-manager/Dockerfile
+    container_name: qe-test-plan-manager
+    ports:
+      - "8102:8102"
+    environment:
+      - NODE_ENV=production
+      - PORT=8102
+      - AZURE_DEVOPS_ORG=${AZURE_DEVOPS_ORG}
+      - AZURE_DEVOPS_PAT=${AZURE_DEVOPS_PAT}
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config:ro
+      - ./data/test-plan-manager:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8102/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  browser-control-mcp:
+    build:
+      context: .
+      dockerfile: mcps/integration/browser-control-mcp/Dockerfile
+    container_name: qe-browser-control-mcp
+    ports:
+      - "8103:8103"
+      - "8765:8765"
+    environment:
+      - NODE_ENV=production
+      - PORT=8103
+      - WS_PORT=8765
+    env_file:
+      - .env
+    volumes:
+      - ./config:/app/config:ro
+      - ./data/browser-control-mcp:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "const http = require('http'); http.get('http://127.0.0.1:8103/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); }).on('error', () => process.exit(1));"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # =============================================================================
+  # Code Analysis MCPs (8200-8299)
+  # =============================================================================
+
+  code-analyzer:
+    build:
+      context: .
+      dockerfile: mcps/code-analysis/code-analyzer/Dockerfile
+    container_name: qe-code-analyzer
+    ports:
+      - "8200:8200"
+    environment:
+      - NODE_ENV=production
+      - PORT=8200
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - code-analyzer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8200/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  coverage-analyzer:
+    build:
+      context: .
+      dockerfile: mcps/code-analysis/coverage-analyzer/Dockerfile
+    container_name: qe-coverage-analyzer
+    ports:
+      - "8201:8201"
+    environment:
+      - NODE_ENV=production
+      - PORT=8201
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - coverage-analyzer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8201/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  migration-analyzer:
+    build:
+      context: .
+      dockerfile: mcps/code-analysis/migration-analyzer/Dockerfile
+    container_name: qe-migration-analyzer
+    ports:
+      - "8203:8203"
+    environment:
+      - NODE_ENV=production
+      - PORT=8203
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - ./config:/app/config:ro
+      - ./data/migration-analyzer:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8203/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  javascript-code-analyzer:
+    build:
+      context: .
+      dockerfile: mcps/code-analysis/javascript-code-analyzer/Dockerfile
+    container_name: qe-javascript-code-analyzer
+    ports:
+      - "8204:8204"
+    environment:
+      - NODE_ENV=production
+      - PORT=8204
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - javascript-code-analyzer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8204/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  javascript-coverage-analyzer:
+    build:
+      context: .
+      dockerfile: mcps/code-analysis/javascript-coverage-analyzer/Dockerfile
+    container_name: qe-javascript-coverage-analyzer
+    ports:
+      - "8205:8205"
+    environment:
+      - NODE_ENV=production
+      - PORT=8205
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - javascript-coverage-analyzer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8205/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # =============================================================================
+  # Quality Analysis MCPs (8300-8399)
+  # =============================================================================
+
+  risk-analyzer:
+    build:
+      context: .
+      dockerfile: mcps/quality-analysis/risk-analyzer/Dockerfile
+    container_name: qe-risk-analyzer
+    ports:
+      - "8300:8300"
+    environment:
+      - NODE_ENV=production
+      - PORT=8300
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    env_file:
+      - .env
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - risk-analyzer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8300/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  integration-mapper:
+    build:
+      context: .
+      dockerfile: mcps/quality-analysis/integration-mapper/Dockerfile
+    container_name: qe-integration-mapper
+    ports:
+      - "8301:8301"
+    environment:
+      - NODE_ENV=production
+      - PORT=8301
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - integration-mapper-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8301/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  test-selector:
+    build:
+      context: .
+      dockerfile: mcps/quality-analysis/test-selector/Dockerfile
+    container_name: qe-test-selector
+    ports:
+      - "8302:8302"
+    environment:
+      - NODE_ENV=production
+      - PORT=8302
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+    env_file:
+      - .env
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - ./data/test-selector:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8302/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # =============================================================================
+  # Playwright MCPs (8400-8499)
+  # =============================================================================
+
+  playwright-generator:
+    build:
+      context: .
+      dockerfile: mcps/playwright/playwright-generator/Dockerfile
+    container_name: qe-playwright-generator
+    ports:
+      - "8400:8400"
+    environment:
+      - NODE_ENV=production
+      - PORT=8400
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_MODEL=claude-sonnet-4-20250514
+    env_file:
+      - .env
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - playwright-generator-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8400/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  playwright-analyzer:
+    build:
+      context: .
+      dockerfile: mcps/playwright/playwright-analyzer/Dockerfile
+    container_name: qe-playwright-analyzer
+    ports:
+      - "8401:8401"
+    environment:
+      - NODE_ENV=production
+      - PORT=8401
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_MODEL=claude-sonnet-4-20250514
+    env_file:
+      - .env
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - playwright-analyzer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8401/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  playwright-healer:
+    build:
+      context: .
+      dockerfile: mcps/playwright/playwright-healer/Dockerfile
+    container_name: qe-playwright-healer
+    ports:
+      - "8402:8402"
+    environment:
+      - NODE_ENV=production
+      - PORT=8402
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_MODEL=claude-sonnet-4-20250514
+    env_file:
+      - .env
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - playwright-healer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8402/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s

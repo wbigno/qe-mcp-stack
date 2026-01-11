@@ -1,0 +1,78 @@
+name: Documentation Sync Check
+
+on:
+  pull_request:
+    paths:
+      - 'mcps/**/README.md'
+      - 'packages/**/README.md'
+      - 'swagger-hub/README.md'
+      - 'docs/mcps/**'
+      - 'scripts/sync-docs.sh'
+
+jobs:
+  check-docs-sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run documentation sync
+        run: npm run sync-docs
+
+      - name: Check for documentation drift
+        run: |
+          if ! git diff --quiet docs/mcps/; then
+            echo ""
+            echo "❌ Documentation is out of sync!"
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "The following files in docs/mcps/ differ from MCP READMEs:"
+            echo ""
+            git diff --name-only docs/mcps/ | sed 's/^/  • /'
+            echo ""
+            echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            echo ""
+            echo "To fix this issue:"
+            echo "  1. Run: npm run sync-docs"
+            echo "  2. Stage the changes: git add docs/mcps/"
+            echo "  3. Commit: git commit --amend --no-edit"
+            echo "  4. Push: git push --force-with-lease"
+            echo ""
+            echo "Or simply commit a README change and the pre-commit hook"
+            echo "will automatically sync the docs for you."
+            echo ""
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ Documentation is in sync!"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo ""
+          echo "All MCP READMEs are properly synced to docs/mcps/."
+          echo ""
+
+      - name: Show sync summary
+        if: success()
+        run: |
+          echo "📊 Documentation Sync Summary:"
+          echo ""
+          echo "Total synced files: $(ls -1 docs/mcps/*.md 2>/dev/null | wc -l)"
+          echo ""
+          echo "MCP Categories:"
+          echo "  • Integration MCPs (8100-8199)"
+          echo "  • Code Analysis MCPs (8200-8299)"
+          echo "  • Test MCPs (8300-8399)"
+          echo "  • Playwright MCPs (8400-8499)"
+          echo "  • Framework Packages"
+          echo "  • Infrastructure"
+          echo ""

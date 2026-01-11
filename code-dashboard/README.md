@@ -1,774 +1,689 @@
-# Code Analysis Dashboard V2.5 Enhanced - FINAL CLEAN VERSION
+# Code Analysis Dashboard - Complete Documentation
 
-## 🗑️ FILES TO DELETE
-
-### In `/qe-mcp-stack/code-dashboard/`:
-
-Delete these files - they're old/unnecessary:
-```bash
-cd /qe-mcp-stack/code-dashboard
-
-# DELETE these (old files, not needed):
-rm -f app.js                         # Old unused file
-rm -f dashboard-api-server.js        # Old standalone API (using orchestrator now)
-rm -f BUILD_COMPLETE.md              # Old documentation
-rm -f GETTING_STARTED.md             # Old documentation
-rm -f LAYOUT_GUIDE.md                # Old documentation
-rm -f ORCHESTRATOR_SETUP.md          # Old documentation
-rm -f README.md                      # Old README (replace with this one)
-```
+**Version**: 3.0 Enhanced with Filters, Priority Scoring, and Class Grouping
+**Last Updated**: January 8, 2026
 
 ---
 
-## ✅ FILES TO KEEP (Only 4 Files!)
+## 📋 Table of Contents
 
-```
-/qe-mcp-stack/code-dashboard/
-├── index.html    ← KEEP (no changes)
-├── styles.css    ← KEEP (no changes)
-├── server.js     ← KEEP (no changes)
-└── script.js     ← REPLACE with new version from this package
-```
-
----
-
-## 📦 What's in This Package
-
-```
-FINAL_PACKAGES/code-dashboard/
-├── index.html          ← Copy to your folder (or keep existing)
-├── styles.css          ← Copy to your folder (or keep existing)
-├── server.js           ← Copy to your folder (or keep existing)
-├── script.js           ← ⚠️ MUST REPLACE - Updated for orchestrator
-└── README.md           ← This file (documentation only)
-```
+- [Overview](#overview)
+- [Recent Updates (v3.0)](#recent-updates-v30)
+- [Architecture](#architecture)
+- [Features](#features)
+- [Setup Instructions](#setup-instructions)
+- [User Guide](#user-guide)
+- [API Integration](#api-integration)
+- [Troubleshooting](#troubleshooting)
 
 ---
 
-## 🔧 WHAT CHANGED
+## 🎯 Overview
 
-### The TWO Critical Changes
+The Code Analysis Dashboard is a real-time web-based interface for analyzing .NET codebases. It provides comprehensive insights into code quality, test coverage, complexity, and test gaps.
 
-**OLD `script.js` (line 2)**:
-```javascript
-const API_BASE_URL = 'http://localhost:8080';  // Was calling separate API server
-```
-
-**NEW `script.js` (line 2)**:
-```javascript
-const API_BASE_URL = 'http://localhost:4000';  // Now calls orchestrator
-```
-
-**OLD `script.js` (line 151)**:
-```javascript
-const response = await fetch(`${API_BASE_URL}/api/analysis/detailed?app=${app}`);
-```
-
-**NEW `script.js` (line 151)**:
-```javascript
-const response = await fetch(`${API_BASE_URL}/api/dashboard/code-analysis?app=${app}`);
-```
-
-### What This Means
-
-**Before**:
-```
-Dashboard → Separate API Server (port 8080) → Orchestrator → MCPs
-         ❌ Extra server to run
-         ❌ Extra configuration
-         ❌ More complexity
-```
-
-**After**:
-```
-Dashboard → Orchestrator (port 4000) → MCPs
-         ✅ Direct connection
-         ✅ Simpler setup
-         ✅ One less server to manage
-```
+**Key Capabilities**:
+- Real-time code analysis for multiple .NET applications
+- Test coverage tracking with gap identification
+- Priority-based test recommendation system
+- Multi-class file support with visual grouping
+- Advanced filtering (complexity, coverage thresholds)
+- Automated test generation integration
 
 ---
 
-## 🎯 HOW IT WORKS
+## 🆕 Recent Updates
+
+### v3.1 - False Positive Test Detection (January 8, 2026)
+
+#### 1. **False Positive Test Detection & Highlighting**
+- **Automated Detection**: Identifies test methods that exist but never execute (0% coverage)
+- **Summary Card**: New "🚨 FALSE POSITIVE TESTS" card in Test Gaps tab with red gradient styling
+- **Visual Distinction**: False positive rows highlighted with:
+  - 🚨 Warning icon instead of standard test icon
+  - Red gradient background with border
+  - "⚠️ FALSE POSITIVE" badge
+  - Hover effects for emphasis
+- **Why It Matters**: False positives give false confidence, waste CI/CD resources, and clutter test suites
+
+#### 2. **Gap Type Filter**
+New filter dropdown to focus on specific test gap categories:
+- **🚨 False Positive Tests**: Tests that never execute
+- **❌ Missing Unit Tests**: Production code with no tests
+- **⚠️ Partial Coverage**: Methods needing more test cases
+- **🔸 Missing Negative Tests**: Methods without error scenario tests
+- **All Test Gaps** (default): Show everything
+
+#### 3. **Enhanced Test Method Discovery**
+- **Scans ALL `.cs` files**: Previously only searched files with "Test" in filename
+- **Detects tests anywhere**: Finds test methods in:
+  - Non-standard file names (e.g., `UserValidation.cs` with `[Fact]` methods)
+  - Helper files without "Test" in name
+  - Partial class files
+  - Any file with `[Test]`, `[Fact]`, `[Theory]`, or `[TestMethod]` attributes
+- **Partial Class Support**: Now detects `public partial class` declarations
+
+#### 4. **Categorized Gap Analysis**
+Backend now categorizes all test gaps into:
+- `falsePositiveTests`: Test methods with 0% coverage in test files
+- `productionWithoutTests`: Production methods with no tests
+- `needsMoreTests`: Methods with partial coverage
+- `missingNegativeTests`: Methods without error tests
+
+### v3.0 - Major Feature Release (January 8, 2026)
+
+#### 1. **Enhanced Filter System**
+- **Apply Button**: Filters no longer auto-trigger on selection
+- **Complexity Filter**: Filter methods by cyclomatic complexity (Low <5, Medium 5-10, High >10)
+- **Coverage Threshold Filter**: Filter by coverage level (≥80%, 50-80%, <50%)
+- **Clear Button**: Reset all filters to default state
+
+#### 2. **Priority Scoring Algorithm**
+Multi-factor weighted scoring system for test prioritization:
+- **Test Coverage Status (40%)**: No tests = 40pts, Has tests but no negative = 20pts
+- **Method Complexity (25%)**: High (>10) = 25pts, Medium (5-10) = 15pts, Low (<5) = 5pts
+- **Visibility Level (20%)**: Public = 20pts, Internal/Protected = 10pts, Private = 5pts
+- **File Type/Role (10%)**: Controller = 10pts, Service/Repository = 8pts, Utility = 5pts
+- **Call Frequency (5%)**: Reserved for future enhancement
+
+**Priority Levels**:
+- **CRITICAL** (70-100 points): Urgent attention required
+- **HIGH** (50-69 points): High priority
+- **MEDIUM** (30-49 points): Medium priority
+- **LOW** (0-29 points): Low priority
+
+#### 3. **Multi-Class File Support**
+- Automatic detection of files with multiple classes
+- Visual grouping with class headers (`📦 Class: ClassName`)
+- Method count badges per class
+- Alphabetical sorting of classes within files
+- Smart display (class headers only shown for multi-class files)
+
+#### 4. **Enhanced API Responses**
+Backend now returns comprehensive method metadata:
+- `className`: Parent class name for grouping
+- `lineNumber`: Source code line number
+- `visibility`: public/private/protected/internal
+- `complexity`: Cyclomatic complexity score
+- `fileType`: Controller/Service/Repository/Model/Utility
+- `isPublic`: Boolean flag for quick filtering
+
+#### 5. **Smart Button Logic**
+Test generation buttons now follow priority rules:
+- If file has ANY untested methods → Show "Generate Unit Tests" ONLY
+- Else if file ONLY has methods missing negative tests → Show "Generate Negative Tests" ONLY
+- Else if file needs integration tests → Show "Generate Integration Tests"
+- Else → Show "✅ Fully Covered"
+
+#### 6. **Priority Explanation Panel**
+New educational section in Test Gaps tab explaining:
+- How priority scores are calculated
+- Visual priority level cards with color coding
+- Detailed scoring breakdown table
+- Example calculations
+- Best practices recommendations
+
+---
+
+## 🏗️ Architecture
+
+### System Components
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ Code Analysis Dashboard (Browser - Port 8081)          │
+│ Code Dashboard (Browser - Port 3000)                   │
 │                                                         │
-│ User opens: http://localhost:8081                      │
+│ User opens: http://localhost:3000                      │
 │ ├─ Loads: index.html                                   │
 │ ├─ Loads: styles.css                                   │
-│ └─ Loads: script.js (NEW VERSION)                      │
+│ └─ Loads: script.js                                    │
 │           │                                             │
-│           │ User selects app: "App1" from dropdown     │
-│           │                                             │
-│           │ JavaScript makes API call:                  │
-│           GET http://localhost:4000/api/dashboard/code-analysis?app=App1
-│           │                                             │
-└───────────┼─────────────────────────────────────────────┘
-            │
-            ▼
-┌─────────────────────────────────────────────────────────┐
-│ QE Orchestrator (Port 4000)                            │
-│                                                         │
-│ Receives: GET /api/dashboard/code-analysis?app=App1   │
-│ Route: src/routes/dashboard.js                         │
-│           │                                             │
-│           │ Calls MCPManager:                           │
-│           ├─ callDockerMcp('dotnetCodeAnalyzer',       │
-│           │                '/analyze',                  │
-│           │                { app: 'App1' })             │
-│           │                                             │
-│           ├─ callDockerMcp('dotnetCoverageAnalyzer',   │
-│           │                '/analyze',                  │
-│           │                { app: 'App1' })             │
+│           │ JavaScript makes API calls to:             │
+│           • GET /api/dashboard/applications            │
+│           • POST /api/analysis/test-gaps               │
+│           • POST /api/tests/generate-for-file          │
 │           │                                             │
 └───────────┼─────────────────────────────────────────────┘
             │
             ▼
 ┌─────────────────────────────────────────────────────────┐
-│ Code Analyzer MCP (Docker - Port 3001)                 │
+│ QE Orchestrator (Port 3000)                            │
 │                                                         │
-│ Receives: POST /analyze                                │
+│ Routes:                                                 │
+│ ├─ /api/dashboard/* - Dashboard data endpoints         │
+│ ├─ /api/analysis/* - Analysis endpoints                │
+│ └─ /api/tests/* - Test generation endpoints            │
 │           │                                             │
-│           │ Scans .NET code at:                         │
-│           /path/to/App1/src/**/*.cs                    │
-│           │                                             │
-│           │ Returns: Files, classes, methods,           │
-│           │          complexity, dependencies           │
+│           │ Coordinates calls to MCPs:                  │
+│           ├─ dotnetCodeAnalyzer (Port 3001)            │
+│           ├─ dotnetCoverageAnalyzer (Port 3002)        │
+│           ├─ riskAnalyzer                              │
+│           ├─ integrationMapper                         │
+│           └─ dotnet-unit-test-generator                │
 │           │                                             │
 └───────────┼─────────────────────────────────────────────┘
             │
-┌───────────▼─────────────────────────────────────────────┐
-│ Coverage Analyzer MCP (Docker - Port 3002)             │
-│                                                         │
-│ Receives: POST /analyze                                │
-│           │                                             │
-│           │ Analyzes test coverage for App1            │
-│           │                                             │
-│           │ Returns: Line coverage, branch coverage,    │
-│           │          uncovered lines                    │
-│           │                                             │
-└───────────┼─────────────────────────────────────────────┘
-            │
-            │ Data flows back through orchestrator
-            │ Combined into single response
             ▼
 ┌─────────────────────────────────────────────────────────┐
-│ Dashboard Updates UI                                    │
+│ MCP Services (Docker Containers)                       │
 │                                                         │
-│ ✅ Overview tab shows file/class/method counts          │
-│ ✅ Files tab shows expandable file list                 │
-│ ✅ Classes tab shows methods with complexity            │
-│ ✅ Coverage tab shows % with uncovered lines            │
-│ ✅ Complexity tab shows high-risk methods               │
-│ ✅ Dependencies tab shows package info                  │
+│ Code Analyzer (Port 3001):                             │
+│   • Scans C# files                                     │
+│   • Extracts classes, methods, properties              │
+│   • Calculates cyclomatic complexity                   │
+│   • Returns: className, visibility, lineNumber, etc.   │
+│                                                         │
+│ Coverage Analyzer (Port 3002):                         │
+│   • Parses Cobertura XML coverage reports              │
+│   • Detects test methods in test files                 │
+│   • Matches tests to source methods                    │
+│   • Returns: hasTests, hasNegativeTests, coverage%     │
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 ```
 
+### Docker Compose Setup
+
+All services run via Docker Compose:
+```yaml
+services:
+  orchestrator:          # Port 3000
+  code-dashboard:        # Port 3000 (served by orchestrator)
+  dotnet-code-analyzer:  # Port 3001
+  dotnet-coverage-analyzer: # Port 3002
+  # ... additional MCPs
+```
+
 ---
 
-## 🚀 SETUP INSTRUCTIONS
+## ✨ Features
 
-### Step 1: Clean Up Old Files
+### 1. Overview Tab
+- Total files, classes, methods analyzed
+- Overall code coverage percentage
+- High complexity file count
+- Test gaps summary
+
+### 2. Coverage Tab
+- Line, branch, and method coverage metrics
+- Coverage visualization
+- Detailed coverage breakdown by file
+
+### 3. Complexity Tab
+- Method-level complexity analysis
+- Risk indicators
+- Filtering by complexity thresholds
+
+### 4. Test Gaps Tab (★ PRIMARY FEATURE)
+
+**Display Structure**:
+```
+📄 HealthService.cs (3 gaps)
+  [🧪 Generate Unit Tests] [▼ Show Methods]
+
+  When expanded:
+
+  📦 Class: HealthService     [2 methods]
+  ┌─────────────────────────────────────────────────┐
+  │ Method        | Coverage | Tests | Priority    │
+  │ DatabaseAsync | N/A      | ❌    | 🔥 CRITICAL │
+  │ HealthService | N/A      | ❌    | 🔴 HIGH     │
+  └─────────────────────────────────────────────────┘
+
+  📦 Class: HealthResults     [1 method]
+  ┌─────────────────────────────────────────────────┐
+  │ Method   | Coverage | Tests | Priority          │
+  │ ...      | ...      | ...   | ...               │
+  └─────────────────────────────────────────────────┘
+```
+
+**Features**:
+- File-level grouping with gap counts
+- Class-level sub-grouping (for multi-class files)
+- Priority scoring with color-coded badges
+- Smart test generation buttons
+- Expandable method details
+- Real-time filtering
+
+**Statistics Shown**:
+- Total Methods: All methods analyzed
+- Files with Gaps: Files needing tests
+- Untested Methods: Methods with no tests at all
+- Partial Coverage: Methods with some tests but low coverage
+- Missing Negative Tests: Methods with tests but no error scenario coverage
+- **🚨 False Positive Tests**: Test methods that exist but never execute (0% coverage) - NEW in v3.1
+
+**Gap Type Filter**:
+Use the "Gap Type" dropdown to focus on specific issues:
+- **All Test Gaps** (default): Show everything
+- **🚨 False Positive Tests**: Tests that pass but don't execute (highest priority - fix immediately!)
+- **❌ Missing Unit Tests**: Production code with no test coverage
+- **⚠️ Partial Coverage**: Methods needing additional test cases
+- **🔸 Missing Negative Tests**: Methods missing error scenario tests
+
+**False Positive Visual Indicators**:
+- 🚨 Red warning icon instead of standard test icon
+- Red gradient background with left border
+- "⚠️ FALSE POSITIVE" badge next to method name
+- Separate summary card with warning styling
+
+**Priority System**:
+- 🔥 **CRITICAL**: 70-100 points (public, complex, no tests)
+- 🔴 **HIGH**: 50-69 points (public or complex, needs tests)
+- 🟡 **MEDIUM**: 30-49 points (moderate priority)
+- ⚪ **LOW**: 0-29 points (low priority)
+
+---
+
+## 🚀 Setup Instructions
+
+### Prerequisites
+
+- Docker and Docker Compose installed
+- Git repository cloned
+- Applications configured in `config/apps.json`
+
+### Step 1: Start All Services
+
 ```bash
-cd /qe-mcp-stack/code-dashboard
+cd /Users/williambigno/dev/git/qe-mcp-stack
 
-# Delete old files
-rm -f app.js dashboard-api-server.js *.md
+# Start all services
+docker compose up -d
+
+# Verify services are running
+docker compose ps
 ```
 
-### Step 2: Replace script.js
+Expected output:
+```
+NAME                           STATUS
+qe-orchestrator                Up (healthy)
+qe-code-dashboard              Up
+qe-dotnet-code-analyzer        Up
+qe-dotnet-coverage-analyzer    Up
+```
+
+### Step 2: Verify Orchestrator
+
 ```bash
-# Replace with new version from this package
-cp /path/to/FINAL_PACKAGES/code-dashboard/script.js ./script.js
+curl http://localhost:3000/api/mcp/status
 ```
 
-### Step 3: Verify Files
-```bash
-ls -la /qe-mcp-stack/code-dashboard
+Should return MCP health status.
 
-# Should show ONLY these 4 files:
-# index.html
-# styles.css  
-# server.js
-# script.js
-```
+### Step 3: Open Dashboard
 
-### Step 4: Start Services
+Navigate to: `http://localhost:3000`
 
-**Terminal 1 - Start Orchestrator** (MUST be first!):
-```bash
-cd /qe-mcp-stack/orchestrator
-npm start
+### Step 4: Select Application
 
-# Should see:
-# QE Orchestrator running on port 4000
-# ✓ All MCPs initialized
-```
-
-**Terminal 2 - Start Dashboard**:
-```bash
-cd /qe-mcp-stack/code-dashboard
-node server.js
-
-# Should see:
-# 🚀 Code Analysis Dashboard running!
-# 📊 Open your browser to: http://localhost:8081
-```
-
-### Step 5: Open Dashboard
-```
-http://localhost:8081
-```
-
-### Step 6: Select Application
-- Use dropdown at top of sidebar
-- Select: App1, App2, App3, or App4
-- Dashboard reloads with data for selected app
+1. Click the "Application" dropdown in the filter bar
+2. Select an application (e.g., "Payments")
+3. Optionally select Complexity and Coverage filters
+4. Click **"Apply"** button
+5. Navigate to "Test Gaps" tab to see results
 
 ---
 
-## ✨ FEATURES
+## 📖 User Guide
 
-### What the Dashboard Does
+### Using the Filter System
 
-✅ **App Selection**:
-- Dropdown in sidebar to choose application
-- Automatically fetches data for selected app
-- All tabs filter by selected app
+#### Application Filter
+**Purpose**: Select which application to analyze
 
-✅ **Overview Tab**:
-- Total files, classes, methods, lines
-- Top 10 most complex files
-- "View Details" buttons for deep dive
+**Steps**:
+1. Click "Application" dropdown
+2. Select application (Payments, Core, Core.Common, etc.)
+3. Click "Apply" to load data
 
-✅ **Files Deep Dive Tab**:
-- Expandable accordion for each file
-- Click file header to expand
-- Shows: Classes in file, file info, methods
-- Search by filename
-- Filter by complexity or file type
+#### Complexity Filter
+**Purpose**: Filter test gaps by method complexity
 
-✅ **Classes & Methods Tab**:
-- Expandable accordion for each class
-- Click class header to expand
-- Shows: Properties (with types), methods (with complexity)
-- Methods color-coded: Green (≤10), Yellow (11-20), Red (21+)
-- Search by class name
-- Filter to show only complex methods
+**Options**:
+- **All** (default): Show all methods
+- **Low**: Methods with complexity < 5
+- **Medium**: Methods with complexity 5-10
+- **High**: Methods with complexity > 10
 
-✅ **Coverage Tab**:
-- Overall coverage percentage with circular indicator
-- File-level coverage breakdown
-- "View Lines" button shows exact uncovered line numbers
-- Not just count - see actual lines: [45, 67, 89, 123]
+**Use Case**: Select "High" to focus on the most complex, error-prone methods first.
 
-✅ **Complexity Tab**:
-- Every method with individual complexity score
-- Sorted by most complex first
-- Risk indicators: Low/Medium/High
-- Filter by threshold (>15, >20, >25)
-- Shows: Method name, class, file, complexity, lines
+#### Coverage Threshold Filter
+**Purpose**: Filter test gaps by existing coverage level
 
-✅ **Dependencies Tab**:
-- All package dependencies
-- Usage information
-- Version tracking
-- Status badges (Active, Unused, Outdated)
+**Options**:
+- **All** (default): Show all methods
+- **≥ 80%**: Well-tested methods
+- **50-80%**: Partially tested methods
+- **< 50%**: Poorly tested or untested methods
+
+**Use Case**: Select "< 50%" to focus on methods with worst coverage.
+
+#### Gap Type Filter (NEW in v3.1)
+**Purpose**: Filter test gaps by specific issue category
+
+**Options**:
+- **All Test Gaps** (default): Show all issues
+- **🚨 False Positive Tests**: Test methods that exist but never run (0% coverage)
+- **❌ Missing Unit Tests**: Production methods with no tests
+- **⚠️ Partial Coverage**: Methods needing more test cases
+- **🔸 Missing Negative Tests**: Methods without error scenario tests
+
+**Use Cases**:
+- **False Positives** (⚠️ HIGHEST PRIORITY): These tests give false confidence and should be fixed immediately. They exist in test files, have test attributes, but never execute.
+- **Missing Unit Tests**: Focus on production code that has zero test coverage
+- **Partial Coverage**: Improve existing test coverage
+- **Missing Negative Tests**: Add error scenario tests to methods that only have happy path tests
+
+**Example - Finding False Positives**:
+1. Application: "Core"
+2. Gap Type: "🚨 False Positive Tests"
+3. Click "Apply"
+
+**Result**: Shows only test methods that exist but never run, such as:
+- `TestMethod1` in `UnitTest1.cs` - empty placeholder test
+- Tests with incorrect attributes
+- Tests that are never called by test runners
+
+**Visual Indicators**:
+- False positive rows have 🚨 icon
+- Red gradient background
+- "⚠️ FALSE POSITIVE" badge
+- Summary card shows total count
+
+#### Combined Filtering Example
+
+To find your highest priority items:
+1. Application: "Payments"
+2. Complexity: "High"
+3. Coverage: "< 50%"
+4. Click "Apply"
+
+**Result**: Shows only high-complexity methods with poor coverage - your absolute highest priority gaps.
+
+### Understanding Priority Scores
+
+Each method is scored 0-100 based on 5 factors:
+
+| Factor | Weight | Scoring |
+|--------|--------|---------|
+| Test Coverage Status | 40% | No tests = 40pts<br>Has tests but no negative = 20pts<br>Fully covered = 0pts |
+| Method Complexity | 25% | High (>10) = 25pts<br>Medium (5-10) = 15pts<br>Low (<5) = 5pts |
+| Visibility Level | 20% | Public = 20pts<br>Internal/Protected = 10pts<br>Private = 5pts |
+| File Type/Role | 10% | Controller = 10pts<br>Service/Repository = 8pts<br>Utility = 5pts<br>Model = 2pts |
+| Call Frequency | 5% | Future enhancement |
+
+**Example Calculation**:
+```
+Public CreatePayment() method in PaymentService.cs:
+• No tests: +40 points
+• Complexity 12 (high): +25 points
+• Public visibility: +20 points
+• Service file type: +8 points
+= 93 points → CRITICAL priority 🔥
+```
+
+### Multi-Class File Handling
+
+**Files with 1 class**: Methods listed directly (no class headers)
+
+**Files with 2+ classes**: Methods grouped under class headers
+
+Example - `HealthService.cs` with 3 classes:
+```
+📦 Class: HealthService
+  └─ DatabaseAsync() method
+📦 Class: HealthResults
+  └─ (properties only, no methods)
+📦 Class: HealthInfo
+  └─ (properties only, no methods)
+```
+
+Only classes with methods needing tests will appear.
+
+### Test Generation
+
+**Smart Button Logic**:
+
+1. **File has untested methods** → Shows "🧪 Generate Unit Tests"
+   - Generates tests for ALL untested methods in the file
+
+2. **File only needs negative tests** → Shows "❌ Generate Negative Tests"
+   - Generates only negative/error scenario tests
+
+3. **File needs integration tests** → Shows "🔗 Generate Integration Tests"
+   - Generates integration tests for external dependencies
+
+4. **File fully covered** → Shows "✅ Fully Covered"
+   - No action needed
+
+**Generation Process**:
+1. Click appropriate button
+2. Modal opens showing file analysis
+3. Select AI model (Sonnet/Opus/Haiku)
+4. Review generation plan
+5. Click "Generate Tests"
+6. Tests are created using xUnit framework
+7. Review generated test code
 
 ---
 
-## 📝 WHAT EACH FILE DOES
+## 🔌 API Integration
 
-### `index.html` (487 lines - NO CHANGES NEEDED)
-**Purpose**: Defines dashboard structure
+### Key Endpoints
 
-**Contains**:
-- Sidebar navigation with 6 tabs
-- App selector dropdown at top
-- Overview tab with metric cards
-- Files Deep Dive with accordion containers
-- Classes & Methods with expandable items
-- Coverage with circular progress
-- Complexity with sortable table
-- Dependencies with package list
-
-**Key Elements**:
-```html
-<select id="appSelect">  <!-- App selector -->
-<div id="overview-tab">  <!-- Overview content -->
-<div id="file-accordion"> <!-- Expandable files -->
-<div id="class-accordion"> <!-- Expandable classes -->
+#### 1. Get Applications
+```
+GET /api/dashboard/applications
 ```
 
-**No changes needed** - HTML structure is perfect
-
----
-
-### `styles.css` (605 lines - NO CHANGES NEEDED)
-**Purpose**: Modern gradient-based styling + accordion/modal styles
-
-**Design System** (same as AOD Dashboard):
-```css
-/* Dark theme */
---bg-primary: #0f172a;
---bg-secondary: #1e293b;
---bg-tertiary: #334155;
-
-/* Gradients */
---gradient-blue: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
---gradient-purple: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-```
-
-**Additional Styles** (for enhanced features):
-```css
-.accordion-item { ... }       /* Expandable file/class items */
-.accordion-header { ... }     /* Click to expand */
-.accordion-body { ... }       /* Expanded content */
-.modal { ... }                /* Detail popups */
-.filters-bar { ... }          /* Search and filter controls */
-.method-list { ... }          /* Method display with stats */
-.property-list { ... }        /* Property display */
-```
-
-**No changes needed** - Styles support all features
-
----
-
-### `server.js` (50 lines - NO CHANGES NEEDED)
-**Purpose**: Simple Node.js HTTP server
-
-**What It Does**:
-- Serves static files (HTML, CSS, JS)
-- Runs on port 8081 (different from AOD on 8082)
-- Enables CORS for API calls
-- Provides MIME types
-
-**Code**:
-```javascript
-const PORT = 8081;  // Code dashboard port
-
-const server = http.createServer((req, res) => {
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    // ... serves files
-});
-```
-
-**No changes needed** - Server works perfectly
-
----
-
-### `script.js` (1,172 lines - ⚠️ MUST REPLACE)
-**Purpose**: Connects dashboard UI to orchestrator backend with full drill-down
-
-**Critical Changes**:
-
-**Line 2** - API URL:
-```javascript
-// OLD:
-const API_BASE_URL = 'http://localhost:8080';
-
-// NEW:
-const API_BASE_URL = 'http://localhost:4000';
-```
-
-**Line 151** - Endpoint:
-```javascript
-// OLD:
-const response = await fetch(`${API_BASE_URL}/api/analysis/detailed?app=${app}`);
-
-// NEW:
-const response = await fetch(`${API_BASE_URL}/api/dashboard/code-analysis?app=${app}`);
-```
-
-**Key Functions**:
-
-**App Selection**:
-```javascript
-function initializeAppSelector() {
-    appSelect.addEventListener('change', (e) => {
-        currentApp = e.target.value;  // User selects App1, App2, etc.
-        filterDataByApp();
-        refreshAllViews();
-    });
-}
-```
-
-**Data Loading**:
-```javascript
-async function loadDashboardData() {
-    const app = currentApp === 'all' ? 'App1' : currentApp;
-    const response = await fetch(
-        `${API_BASE_URL}/api/dashboard/code-analysis?app=${app}`
-    );
-    // Updates all tabs with real data
-}
-```
-
-**File Accordion** (expandable):
-```javascript
-function createFileAccordion(file) {
-    // Creates expandable file item
-    // Click header → expands to show classes
-    // Shows: File info, classes, methods
-}
-```
-
-**Class Accordion** (expandable):
-```javascript
-function createClassAccordion(cls) {
-    // Creates expandable class item
-    // Click header → expands to show:
-    //   - Properties with types
-    //   - Methods with complexity (color-coded)
-    //   - Class metadata
-}
-```
-
-**Coverage Details**:
-```javascript
-function showUncoveredLines(fileId) {
-    // Opens modal with exact line numbers
-    // Shows: [45, 67, 89, 123, 156]
-    // Not just "5 uncovered" - actual lines to fix
-}
-```
-
-**Filtering**:
-```javascript
-function filterFiles(searchTerm) {
-    // Real-time search by filename
-}
-
-function filterFilesByComplexity(level) {
-    // Filter: all, low (<10), medium (10-20), high (>20)
-}
-
-function filterClassesByMethodComplexity(show) {
-    // Filter: all, or only complex methods (>15)
-}
-```
-
-**Modal System**:
-```javascript
-function showFileDetails(fileId) {
-    // Opens modal with complete file information
-    // Shows all classes, methods, properties
-}
-
-function showClassDetails(classId) {
-    // Opens modal with complete class information
-}
-```
-
----
-
-## 🔌 API INTEGRATION
-
-### Orchestrator Endpoint
-
-**URL**: `GET http://localhost:4000/api/dashboard/code-analysis?app=App1`
-
-**Query Parameters**:
-- `app` - Required. Which application to analyze (App1, App2, App3, App4)
-
-**Response Format**:
+**Response**:
 ```json
 {
+  "success": true,
   "applications": [
-    { "id": "App1", "name": "App1" }
-  ],
-  "files": [
     {
-      "id": "f1",
-      "name": "UserService.cs",
-      "path": "/src/Services/UserService.cs",
-      "applicationId": "App1",
-      "lines": 342,
-      "size": 15240,
-      "classCount": 1,
-      "methodCount": 15,
-      "avgComplexity": 4.2,
-      "maxComplexity": 12,
-      "lineCoverage": 92.5,
-      "branchCoverage": 88.3,
-      "uncoveredLines": [45, 67, 89, 123, 156],
-      "lastModified": "2024-01-15"
+      "name": "Payments",
+      "displayName": "Payments System",
+      "framework": "net8.0"
     }
-  ],
-  "classes": [
-    {
-      "id": "c1",
-      "fileId": "f1",
-      "applicationId": "App1",
-      "name": "UserService",
-      "type": "Class",
-      "namespace": "Healthcare.Services",
-      "accessModifier": "Public",
-      "lines": 342,
-      "avgComplexity": 4.2,
-      "properties": [
-        { "name": "UserRepository", "type": "IUserRepository" },
-        { "name": "Logger", "type": "ILogger" }
-      ],
-      "methods": [
-        { 
-          "name": "GetUserById", 
-          "complexity": 3, 
-          "lines": 25, 
-          "parameters": 1 
-        },
-        {
-          "name": "ValidateUser",
-          "complexity": 12,
-          "lines": 65,
-          "parameters": 1
-        }
-      ]
-    }
-  ],
-  "coverage": {
-    "overall": 78.5,
-    "line": 82.3,
-    "branch": 75.8,
-    "method": 77.4
-  },
-  "dependencies": {
-    "total": 28,
-    "circular": 0,
-    "unused": 3
-  },
-  "dependencyDetails": [...]
+  ]
 }
 ```
 
-### How Orchestrator Gets This Data
+#### 2. Get Test Gaps
+```
+POST /api/analysis/test-gaps
+Content-Type: application/json
 
-**In your orchestrator** (`src/routes/dashboard.js`):
-```javascript
-router.get('/code-analysis', async (req, res) => {
-    const appName = req.query.app || 'App1';
-    
-    // Call Code Analyzer MCP
-    const codeData = await req.mcpManager.callDockerMcp(
-        'dotnetCodeAnalyzer',
-        '/analyze',
-        { 
-            app: appName,
-            includeTests: true,
-            includeIntegrations: true
-        }
-    );
-    
-    // Call Coverage Analyzer MCP
-    const coverageData = await req.mcpManager.callDockerMcp(
-        'dotnetCoverageAnalyzer',
-        '/analyze',
-        { app: appName, codeStructure: codeData }
-    );
-    
-    // Transform to dashboard format
-    const dashboardData = transformCodeAnalysisForDashboard(
-        codeData, 
-        coverageData, 
-        appName
-    );
-    
-    res.json(dashboardData);
-});
+{
+  "app": "Payments"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "app": "Payments",
+  "gaps": {
+    "untestedMethods": [
+      {
+        "name": "CreatePayment",
+        "className": "PaymentService",
+        "file": "/mnt/apps/Payments/Services/PaymentService.cs",
+        "lineNumber": 45,
+        "visibility": "public",
+        "complexity": 12,
+        "fileType": "Service",
+        "coverage": null,
+        "hasTests": false,
+        "hasNegativeTests": false
+      }
+    ],
+    "partialCoverage": [...],
+    "missingNegativeTests": [...]
+  },
+  "summary": {
+    "totalMethods": 293,
+    "untestedCount": 142,
+    "coveragePercentage": 52.3
+  }
+}
+```
+
+#### 3. Generate Tests
+```
+POST /api/tests/generate-for-file
+Content-Type: application/json
+
+{
+  "app": "Payments",
+  "file": "/mnt/apps/Payments/Services/PaymentService.cs",
+  "className": "PaymentService",
+  "includeNegativeTests": true,
+  "onlyNegativeTests": false,
+  "model": "sonnet"
+}
 ```
 
 ---
 
-## 🧪 TESTING
-
-### Test 1: Orchestrator is Running
-```bash
-curl http://localhost:4000/api/mcp/status
-
-# Should return MCP health status
-```
-
-### Test 2: Dashboard Endpoint Works
-```bash
-curl "http://localhost:4000/api/dashboard/code-analysis?app=App1"
-
-# Should return code analysis data (JSON)
-```
-
-### Test 3: Dashboard Loads
-```bash
-# Open browser
-open http://localhost:8081
-
-# Check:
-✓ Dashboard loads with gradient design
-✓ App dropdown appears in sidebar
-✓ Can select App1, App2, App3, App4
-✓ Data loads when app selected
-✓ All 6 tabs are clickable
-```
-
-### Test 4: Drill-Down Features
-```
-1. Go to "Files Deep Dive" tab
-2. Click on a file header
-   ✓ File expands to show classes
-   ✓ Can see file info, classes, methods
-   
-3. Go to "Classes & Methods" tab
-4. Click on a class header
-   ✓ Class expands to show properties and methods
-   ✓ Methods color-coded by complexity
-   ✓ Can see all properties with types
-   
-5. Go to "Coverage" tab
-6. Click "View Lines" button
-   ✓ Modal opens showing exact line numbers
-   ✓ Shows: [45, 67, 89, 123] not just "4 lines"
-```
-
-### Test 5: Filtering
-```
-1. Files Deep Dive → Search for "User"
-   ✓ Only files with "User" in name show
-   
-2. Files Deep Dive → Filter by "High Complexity"
-   ✓ Only files with complexity >20 show
-   
-3. Classes & Methods → Filter "Show Complex Only"
-   ✓ Only classes with methods >15 complexity show
-   
-4. Complexity Tab → Threshold >20
-   ✓ Only methods with complexity >20 show
-```
-
----
-
-## 🐛 TROUBLESHOOTING
+## 🐛 Troubleshooting
 
 ### Dashboard Shows "Failed to load data"
 
-**Symptom**: Error in console, sample data loads
+**Symptoms**: Error in browser console, no data loads
 
-**Cause**: Can't reach orchestrator
+**Causes & Fixes**:
 
-**Fix**:
-1. Check orchestrator running:
+1. **Orchestrator not running**
    ```bash
-   curl http://localhost:4000/api/mcp/status
-   ```
-2. Verify dashboard route registered
-3. Check orchestrator logs
-4. Ensure CORS enabled: `app.use(cors())`
-
----
-
-### App Dropdown Doesn't Change Data
-
-**Symptom**: Selecting different app shows same data
-
-**Cause**: Dashboard not reloading or orchestrator not filtering
-
-**Fix**:
-1. Check browser console for errors
-2. Verify API call includes `?app=App2`
-3. Check orchestrator receives correct app parameter
-4. Test directly:
-   ```bash
-   curl "http://localhost:4000/api/dashboard/code-analysis?app=App2"
+   docker compose ps | grep orchestrator
+   # If not running:
+   docker compose up -d orchestrator
    ```
 
----
-
-### No Files/Classes Show Up
-
-**Symptom**: Tabs empty, no data
-
-**Cause**: Code Analyzer MCP not returning data
-
-**Fix**:
-1. Check Code Analyzer MCP healthy:
+2. **MCP services not healthy**
    ```bash
-   curl http://localhost:4000/api/mcp/health/dotnetCodeAnalyzer
+   curl http://localhost:3000/api/mcp/status
+   # Check each MCP status
    ```
-2. Verify app paths configured in orchestrator
-3. Check MCP logs:
+
+3. **Application not configured**
+   - Check `config/apps.json` has application entry
+   - Verify `path` and `localPath` are correct
+
+### Filters Don't Work
+
+**Symptoms**: Selecting filters doesn't change displayed results
+
+**Causes & Fixes**:
+
+1. **Forgot to click Apply**
+   - Filters require clicking "Apply" button to take effect
+
+2. **No methods match filter criteria**
+   - Try "All" filters to see if data loads
+   - Check browser console for JavaScript errors
+
+3. **JavaScript not loaded**
+   - Hard refresh: Ctrl+Shift+R (Windows) or Cmd+Shift+R (Mac)
+   - Check Network tab in DevTools for `script.js`
+
+### No Class Headers Showing
+
+**Symptoms**: Methods listed without class grouping
+
+**Expected Behavior**:
+- Single-class files: No class headers (intentional)
+- Multi-class files: Should show class headers
+
+**Causes & Fixes**:
+
+1. **File only has 1 class**
+   - This is normal behavior
+   - Try files known to have multiple classes (e.g., `HealthService.cs`)
+
+2. **className not in API response**
    ```bash
-   docker logs dotnet-code-analyzer
+   # Test API directly:
+   curl -X POST http://localhost:3000/api/analysis/test-gaps \
+     -H "Content-Type: application/json" \
+     -d '{"app":"Payments"}' | jq '.gaps.untestedMethods[0]'
+
+   # Should include "className" field
    ```
-4. Test MCP directly via orchestrator
+
+3. **Code analyzer needs rebuild**
+   ```bash
+   docker compose stop dotnet-code-analyzer
+   docker compose build --no-cache dotnet-code-analyzer
+   docker compose up -d dotnet-code-analyzer
+   ```
+
+### Priority Scores Seem Wrong
+
+**Symptoms**: Methods have unexpected priority levels
+
+**Verify Calculation**:
+
+Check method properties:
+- `complexity`: Should be cyclomatic complexity score
+- `isPublic`: Should be boolean
+- `fileType`: Should be Controller/Service/Repository/Utility/Model
+- `hasTests`: Should reflect actual test existence
+
+If properties are correct but priority seems wrong, verify scoring formula in `script.js` function `calculatePriorityScore()`.
+
+### Test Generation Fails
+
+**Symptoms**: Clicking generate button shows error
+
+**Causes & Fixes**:
+
+1. **MCP not responding**
+   ```bash
+   docker logs qe-dotnet-unit-test-generator --tail 50
+   ```
+
+2. **File path incorrect**
+   - Verify path matches what's in `/mnt/apps/` inside containers
+   - Check `apps.json` configuration
+
+3. **Source file has syntax errors**
+   - Code analyzer may fail on invalid C# syntax
+   - Check orchestrator logs for parsing errors
 
 ---
 
-### Accordions Don't Expand
+## 📊 File Structure
 
-**Symptom**: Clicking file/class headers doesn't expand
-
-**Cause**: JavaScript not loading properly
-
-**Fix**:
-1. Check browser console for JS errors
-2. Verify script.js loaded (Network tab in DevTools)
-3. Check file path is correct
-4. Hard refresh: Ctrl+Shift+R (or Cmd+Shift+R)
-
----
-
-### Uncovered Lines Button Does Nothing
-
-**Symptom**: "View Lines" button doesn't open modal
-
-**Cause**: Modal code missing or file doesn't have uncovered lines
-
-**Fix**:
-1. Check if file has `uncoveredLines` array in data
-2. Open console, check for errors
-3. Verify modal HTML exists in index.html
-4. Test with different file
-
----
-
-## 📊 SUMMARY
-
-### Before This Update:
-- ❌ Multiple files (10+)
-- ❌ Separate API server needed
-- ❌ Complex setup
-- ❌ Surface-level data only
-- ❌ No drill-down capability
-
-### After This Update:
-- ✅ **4 files total** (clean!)
-- ✅ **Direct orchestrator connection**
-- ✅ **Simple setup**
-- ✅ **Deep drill-down** (files → classes → methods → properties)
-- ✅ **Real data from .NET code**
-- ✅ **App selection dropdown**
-- ✅ **Method-level complexity**
-- ✅ **Exact uncovered line numbers**
-- ✅ **Interactive filtering**
-
-### Data Flow:
 ```
-Browser → Orchestrator → Code Analyzer MCP → Your .NET Code
-                      ↓
-              Real Code Analysis Data!
+/qe-mcp-stack/code-dashboard/
+├── index.html      # Dashboard HTML structure
+├── styles.css      # Styling (gradients, accordions, modals)
+├── script.js       # Frontend logic (1800+ lines)
+├── server.js       # Simple HTTP server (not used in Docker)
+├── modelSelector.js # AI model selection component
+└── README.md       # This file
 ```
+
+**Note**: In Docker deployment, the dashboard is served by the orchestrator container, not `server.js`.
 
 ---
 
-## 🎉 YOU'RE DONE!
+## 🎉 Summary
 
-Your Code Analysis Dashboard is now:
-- ✅ Clean (only 4 files)
-- ✅ Connected to orchestrator  
-- ✅ Showing real data from your .NET applications
-- ✅ Beautiful gradient design
-- ✅ Full drill-down capability
-- ✅ App selection support
-- ✅ Method-level granularity
+The Code Analysis Dashboard provides:
 
-**No more dummy data! Everything is real! 🚀**
+✅ **Real-time code analysis** of .NET applications
+✅ **Test gap identification** with priority scoring
+✅ **Multi-class file support** with visual grouping
+✅ **Advanced filtering** by complexity and coverage
+✅ **Automated test generation** with AI assistance
+✅ **Comprehensive metadata** (className, complexity, visibility)
+✅ **Smart recommendations** based on weighted scoring
+
+**Dashboard is production-ready and fully integrated with the QE MCP Stack!** 🚀

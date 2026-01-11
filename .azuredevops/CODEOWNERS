@@ -1,0 +1,83 @@
+# QE MCP Stack - Code Owners
+#
+# This file defines who is responsible for code in this repository.
+# Each line is a file pattern followed by one or more owners.
+#
+# Order is important; the last matching pattern takes precedence.
+# For more information, see:
+# https://docs.microsoft.com/en-us/azure/devops/repos/git/codeowners
+
+##########################################################
+# Default owners for everything in the repo
+##########################################################
+* @qe-team
+
+##########################################################
+# MCPs - Integration
+##########################################################
+/mcps/integration/azure-devops/ @qe-team @integration-team
+/mcps/integration/third-party/ @qe-team @integration-team
+/mcps/integration/test-plan-manager/ @qe-team @integration-team
+
+##########################################################
+# MCPs - Code Analysis
+##########################################################
+/mcps/code-analysis/ @qe-team @code-analysis-team
+/mcps/code-analysis/code-analyzer/ @qe-team @code-analysis-team @ai-team
+/mcps/code-analysis/playwright-generator/ @qe-team @code-analysis-team @ai-team
+/mcps/code-analysis/migration-analyzer/ @qe-team @code-analysis-team @ai-team
+
+##########################################################
+# MCPs - Quality Analysis
+##########################################################
+/mcps/quality-analysis/ @qe-team @quality-team
+/mcps/quality-analysis/risk-analyzer/ @qe-team @quality-team @ai-team
+/mcps/quality-analysis/integration-mapper/ @qe-team @quality-team @ai-team
+/mcps/quality-analysis/test-selector/ @qe-team @quality-team @ai-team
+
+##########################################################
+# Orchestrator & Dashboard
+##########################################################
+/orchestrator/ @qe-team @platform-team
+/ado-dashboard/ @qe-team @frontend-team
+/swagger-hub/ @qe-team @platform-team
+
+##########################################################
+# Shared Packages
+##########################################################
+/packages/shared/ @qe-team @platform-team
+/packages/mcp-sdk/ @qe-team @platform-team
+/packages/test-framework/ @qe-team @test-automation-team
+
+##########################################################
+# Test Automation
+##########################################################
+/tests/ @qe-team @test-automation-team
+/tests/payments/ @qe-team @test-automation-team @payments-team
+/tests/precare/ @qe-team @test-automation-team @precare-team
+/tests/core-common/ @qe-team @test-automation-team @core-team
+/tests/cross-app/ @qe-team @test-automation-team
+/tests/migration/ @qe-team @test-automation-team @migration-team
+
+##########################################################
+# CI/CD Pipelines
+##########################################################
+/azure-pipelines/ @qe-team @devops-team
+/azure-pipelines.yml @qe-team @devops-team
+/.azuredevops/ @qe-team @devops-team
+
+##########################################################
+# Configuration Files
+##########################################################
+package.json @qe-team @platform-team
+package-lock.json @qe-team @platform-team
+tsconfig*.json @qe-team @platform-team
+playwright.config.ts @qe-team @test-automation-team
+.env.example @qe-team @devops-team
+
+##########################################################
+# Documentation
+##########################################################
+/docs/ @qe-team @documentation-team
+README.md @qe-team @documentation-team
+*.md @qe-team @documentation-team

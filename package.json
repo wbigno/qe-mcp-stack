@@ -1,0 +1,103 @@
+{
+  "name": "qe-mcp-stack",
+  "version": "2.0.0",
+  "description": "Enterprise QE Automation Platform with MCP Services",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "mcps/integration/*",
+    "mcps/code-analysis/*",
+    "mcps/quality-analysis/*",
+    "orchestrator",
+    "dashboard",
+    "swagger-hub",
+    "tools/*"
+  ],
+  "scripts": {
+    "setup": "npm install && npm run build:packages",
+    "build": "turbo run build",
+    "build:packages": "turbo run build --filter='./packages/*'",
+    "dev": "turbo run dev --parallel",
+    "dev:mcps": "turbo run dev --filter='./mcps/**'",
+    "dev:dashboard": "npm run dev --workspace=dashboard",
+    "dev:orchestrator": "npm run dev --workspace=orchestrator",
+    "start": "concurrently \"npm run start:orchestrator\" \"npm run start:dashboard\" \"npm run start:mcps\"",
+    "start:orchestrator": "npm run start --workspace=orchestrator",
+    "start:dashboard": "npm run start --workspace=dashboard",
+    "start:mcps": "npm run start:ado & npm run start:code & npm run start:analysis",
+    "start:ado": "turbo run start --filter='./mcps/integration/*'",
+    "start:code": "turbo run start --filter='./mcps/code-analysis/*'",
+    "start:analysis": "turbo run start --filter='./mcps/quality-analysis/*'",
+    "test": "turbo run test",
+    "test:unit": "turbo run test:unit",
+    "test:integration": "turbo run test:integration",
+    "test:e2e": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:payments": "playwright test tests/payments",
+    "test:precare": "playwright test tests/precare",
+    "test:migration": "playwright test tests/migration",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "typecheck": "turbo run typecheck",
+    "docker:build": "docker-compose build",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:restart": "docker-compose restart",
+    "docker:clean": "docker-compose down -v && docker system prune -f",
+    "mcp:new": "node tools/mcp-generator/bin/generate.js",
+    "test:gen": "node tools/test-generator/bin/generate.js",
+    "migration:check": "node tools/migration-helper/bin/check.js",
+    "swagger:validate": "node scripts/utils/validate-swagger.js",
+    "health:check": "node scripts/utils/health-check.js",
+    "sync-docs": "bash scripts/sync-docs.sh",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "clean:install": "npm run clean && npm install",
+    "prepare": "husky install || true"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.41.0",
+    "@types/node": "^20.11.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "concurrently": "^8.2.2",
+    "dotenv": "^16.3.1",
+    "eslint": "^8.56.0",
+    "eslint-config-prettier": "^9.1.0",
+    "husky": "^8.0.3",
+    "lint-staged": "^15.2.0",
+    "prettier": "^3.2.4",
+    "turbo": "^1.12.1",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=9.0.0"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/qe-mcp-stack.git"
+  },
+  "keywords": [
+    "qa",
+    "automation",
+    "testing",
+    "mcp",
+    "playwright",
+    "swagger",
+    "monorepo"
+  ],
+  "author": "QE Team",
+  "license": "MIT"
+}

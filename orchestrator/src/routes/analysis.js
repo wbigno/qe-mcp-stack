@@ -52,7 +52,7 @@ router.post('/coverage', async (req, res) => {
 // Analyze code structure for all applications
 router.post('/code-scan', async (req, res) => {
   try {
-    const { apps = ['App1', 'App2', 'App3', 'App4'] } = req.body;
+    const { apps = ['App1'] } = req.body;
 
     logger.info(`Starting code scan for applications: ${apps.join(', ')}`);
 
@@ -112,19 +112,39 @@ router.post('/test-gaps', async (req, res) => {
       { app }
     );
 
-    // Get coverage data
+    // Extract only the methods array to reduce payload size
+    const methods = codeStructure?.analysis?.methods || codeStructure?.methods || [];
+    logger.info(`[Analysis] Sending ${methods.length} methods to coverage analyzer`);
+
+    // DEBUG: Check if className is present
+    if (methods.length > 0) {
+      const sampleMethod = methods[0];
+      logger.info(`[Analysis] Sample method keys: ${Object.keys(sampleMethod).join(', ')}`);
+      logger.info(`[Analysis] Sample className: ${sampleMethod.className || 'MISSING'}`);
+    }
+
+    // Get coverage data - pass only methods array, not entire codeStructure
     const coverage = await req.mcpManager.callDockerMcp(
       'dotnetCoverageAnalyzer',
       '/analyze',
-      { app, codeStructure }
+      { app, codeStructure: { methods } }
     );
 
     // Identify gaps (methods without tests, missing negative tests, etc.)
     const coverageData = coverage.coverage || coverage;
+    const allMethods = coverageData.methods || [];
+
+    // ✅ FIX: Methods with tests but missing negative tests should NOT be in untestedMethods
     const gaps = {
-      untestedMethods: (coverageData.methods || []).filter(m => m.coverage === 0),
-      partialCoverage: (coverageData.methods || []).filter(m => m.coverage > 0 && m.coverage < 80),
-      missingNegativeTests: coverageData.negativeTestGaps || [],
+      untestedMethods: allMethods.filter(m =>
+        !m.hasTests && (m.coverage === 0 || m.coverage === null)
+      ),
+      partialCoverage: allMethods.filter(m =>
+        m.coverage !== null && m.coverage > 0 && m.coverage < 80
+      ),
+      missingNegativeTests: allMethods.filter(m =>
+        m.hasTests && !m.hasNegativeTests
+      ),
       criticalPaths: coverageData.criticalUntested || []
     };
 
@@ -144,6 +164,115 @@ router.post('/test-gaps', async (req, res) => {
     res.status(500).json({ 
       error: 'Test gaps analysis failed',
       message: error.message 
+    });
+  }
+});
+
+// ============================================
+// RISK ANALYSIS
+// ============================================
+
+// Analyze risk for a story
+router.post('/risk/analyze-story', async (req, res) => {
+  try {
+    const { app, story } = req.body;
+
+    if (!app) {
+      return res.status(400).json({ error: 'app parameter required' });
+    }
+
+    if (!story) {
+      return res.status(400).json({ error: 'story parameter required' });
+    }
+
+    logger.info(`Analyzing risk for story ${story.id} in app ${app}`);
+
+    const result = await req.mcpManager.callDockerMcp(
+      'riskAnalyzer',
+      '/analyze-risk',
+      { app, story }
+    );
+
+    res.json(result);
+  } catch (error) {
+    logger.error('Risk analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Risk analysis failed',
+      message: error.message
+    });
+  }
+});
+
+// ============================================
+// INTEGRATION MAPPING
+// ============================================
+
+// Map integrations for an application
+router.post('/integrations/map', async (req, res) => {
+  try {
+    const { app, integrationType, includeDiagram } = req.body;
+
+    if (!app) {
+      return res.status(400).json({ error: 'app parameter required' });
+    }
+
+    logger.info(`Mapping integrations for app ${app}, type: ${integrationType || 'all'}`);
+
+    const result = await req.mcpManager.callDockerMcp(
+      'integrationMapper',
+      '/map-integrations',
+      { app, integrationType, includeDiagram }
+    );
+
+    res.json(result);
+  } catch (error) {
+    logger.error('Integration mapping error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Integration mapping failed',
+      message: error.message
+    });
+  }
+});
+
+// ============================================
+// BLAST RADIUS ANALYSIS
+// ============================================
+
+// Analyze blast radius for changed files
+router.post('/blast-radius/analyze', async (req, res) => {
+  try {
+    const { app, changedFiles, analysisDepth } = req.body;
+
+    if (!app) {
+      return res.status(400).json({ error: 'app parameter required' });
+    }
+
+    if (!changedFiles || changedFiles.length === 0) {
+      return res.status(400).json({ error: 'changedFiles array required' });
+    }
+
+    logger.info(`Analyzing blast radius for ${changedFiles.length} files in app ${app}`);
+
+    const result = await req.mcpManager.callStdioMcp(
+      'blast-radius-analyzer',
+      {
+        data: {
+          app,
+          changedFiles,
+          analysisDepth: analysisDepth || 'moderate'
+        }
+      }
+    );
+
+    res.json(result);
+  } catch (error) {
+    logger.error('Blast radius analysis error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Blast radius analysis failed',
+      message: error.message
     });
   }
 });

@@ -1,0 +1,130 @@
+##########################################################
+# Test Automation Pipeline
+# Runs full Playwright test suite
+##########################################################
+
+steps:
+  - task: NodeTool@0
+    displayName: 'Install Node.js'
+    inputs:
+      versionSpec: '18.x'
+
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Download build artifacts'
+    inputs:
+      artifact: 'build-output'
+      path: '$(System.DefaultWorkingDirectory)'
+
+  - script: npm ci
+    displayName: 'Install dependencies'
+
+  - script: npx playwright install --with-deps
+    displayName: 'Install Playwright browsers'
+
+  ##########################################################
+  # Configure Test Environment
+  ##########################################################
+  - script: |
+      echo "Configuring test environment..."
+      export BASE_URL="https://qe-mcp-orchestrator-$(environment).azurewebsites.net"
+      export DASHBOARD_URL="$(dashboardUrl)"
+      export SWAGGER_HUB_URL="https://qe-mcp-swagger-hub-$(environment).azurewebsites.net"
+      echo "BASE_URL=$BASE_URL" >> $GITHUB_ENV
+      echo "DASHBOARD_URL=$DASHBOARD_URL" >> $GITHUB_ENV
+      echo "SWAGGER_HUB_URL=$SWAGGER_HUB_URL" >> $GITHUB_ENV
+    displayName: 'Configure test environment'
+
+  ##########################################################
+  # Run Tests by Category
+  ##########################################################
+  - script: |
+      echo "Running Payments tests..."
+      CI=true npx playwright test tests/payments --project=chromium --project=firefox
+    displayName: 'Test: Payments'
+    continueOnError: true
+
+  - script: |
+      echo "Running PreCare tests..."
+      CI=true npx playwright test tests/precare --project=chromium --project=firefox
+    displayName: 'Test: PreCare'
+    continueOnError: true
+
+  - script: |
+      echo "Running Core.Common tests..."
+      CI=true npx playwright test tests/core-common --project=chromium
+    displayName: 'Test: Core.Common'
+    continueOnError: true
+
+  - script: |
+      echo "Running Third Party Integration tests..."
+      CI=true npx playwright test tests/third-party-integrations --project=chromium
+    displayName: 'Test: Third Party Integrations'
+    continueOnError: true
+
+  - script: |
+      echo "Running Migration tests..."
+      CI=true npx playwright test tests/migration --project=chromium
+    displayName: 'Test: Migration'
+    continueOnError: true
+
+  - script: |
+      echo "Running Cross-App tests..."
+      CI=true npx playwright test tests/cross-app --project=chromium --project=firefox
+    displayName: 'Test: Cross-App'
+    continueOnError: true
+
+  ##########################################################
+  # Publish Test Results
+  ##########################################################
+  - task: PublishTestResults@2
+    displayName: 'Publish test results'
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '**/test-results/junit.xml'
+      mergeTestResults: true
+      failTaskOnFailedTests: false
+      testRunTitle: 'Playwright Tests - $(environment)'
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish HTML report'
+    condition: succeededOrFailed()
+    inputs:
+      targetPath: 'playwright-report'
+      artifact: 'playwright-report-$(environment)'
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish test results'
+    condition: succeededOrFailed()
+    inputs:
+      targetPath: 'test-results'
+      artifact: 'test-results-$(environment)'
+
+  ##########################################################
+  # Test Results Summary
+  ##########################################################
+  - script: |
+      echo "=== Test Results Summary ==="
+
+      if [ -f test-results/results.json ]; then
+        # Parse test results
+        TOTAL=$(jq '.suites | map(.specs | length) | add' test-results/results.json)
+        PASSED=$(jq '[.suites[].specs[].tests[] | select(.status == "expected")] | length' test-results/results.json)
+        FAILED=$(jq '[.suites[].specs[].tests[] | select(.status == "unexpected")] | length' test-results/results.json)
+        FLAKY=$(jq '[.suites[].specs[].tests[] | select(.status == "flaky")] | length' test-results/results.json)
+
+        echo "Total Tests: $TOTAL"
+        echo "Passed: $PASSED"
+        echo "Failed: $FAILED"
+        echo "Flaky: $FLAKY"
+
+        # Calculate pass rate
+        if [ "$TOTAL" -gt 0 ]; then
+          PASS_RATE=$(echo "scale=2; $PASSED * 100 / $TOTAL" | bc)
+          echo "Pass Rate: ${PASS_RATE}%"
+        fi
+      else
+        echo "No test results found"
+      fi
+    displayName: 'Test Results Summary'
+    condition: succeededOrFailed()

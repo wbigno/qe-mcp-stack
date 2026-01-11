@@ -1,0 +1,139 @@
+##########################################################
+# Smoke Tests Pipeline
+# Quick validation tests after deployment
+##########################################################
+
+steps:
+  - task: NodeTool@0
+    displayName: 'Install Node.js'
+    inputs:
+      versionSpec: '18.x'
+
+  - task: DownloadPipelineArtifact@2
+    displayName: 'Download build artifacts'
+    inputs:
+      artifact: 'build-output'
+      path: '$(System.DefaultWorkingDirectory)'
+
+  - script: npm ci
+    displayName: 'Install dependencies'
+
+  - script: npx playwright install --with-deps chromium
+    displayName: 'Install Playwright browsers'
+
+  ##########################################################
+  # Environment Configuration
+  ##########################################################
+  - script: |
+      echo "Configuring test environment..."
+      export BASE_URL="https://qe-mcp-orchestrator-$(environment).azurewebsites.net"
+      export SWAGGER_HUB_URL="https://qe-mcp-swagger-hub-$(environment).azurewebsites.net"
+      echo "BASE_URL=$BASE_URL" >> $GITHUB_ENV
+      echo "SWAGGER_HUB_URL=$SWAGGER_HUB_URL" >> $GITHUB_ENV
+    displayName: 'Set environment variables'
+
+  ##########################################################
+  # Smoke Test 1: Orchestrator Health
+  ##########################################################
+  - script: |
+      echo "Testing Orchestrator health endpoint..."
+      curl -f https://qe-mcp-orchestrator-$(environment).azurewebsites.net/health || exit 1
+      echo "✓ Orchestrator is healthy"
+    displayName: 'Smoke Test: Orchestrator Health'
+
+  ##########################################################
+  # Smoke Test 2: All MCPs Responsive
+  ##########################################################
+  - script: |
+      echo "Testing all MCP health endpoints..."
+
+      ORCHESTRATOR_URL="https://qe-mcp-orchestrator-$(environment).azurewebsites.net"
+
+      # Get list of all MCPs
+      MCPS=$(curl -s $ORCHESTRATOR_URL/health | jq -r '.mcps | keys[]')
+
+      # Check each MCP
+      for mcp in $MCPS; do
+        echo "Checking $mcp..."
+        STATUS=$(curl -s $ORCHESTRATOR_URL/health | jq -r ".mcps.$mcp.status")
+        if [ "$STATUS" != "healthy" ]; then
+          echo "✗ $mcp is not healthy (status: $STATUS)"
+          exit 1
+        fi
+        echo "✓ $mcp is healthy"
+      done
+
+      echo "✓ All MCPs are healthy"
+    displayName: 'Smoke Test: All MCPs Healthy'
+
+  ##########################################################
+  # Smoke Test 3: Swagger Documentation
+  ##########################################################
+  - script: |
+      echo "Testing Swagger documentation endpoints..."
+
+      SWAGGER_URL="https://qe-mcp-swagger-hub-$(environment).azurewebsites.net"
+
+      # Check Swagger Hub is accessible
+      curl -f $SWAGGER_URL || exit 1
+      echo "✓ Swagger Hub is accessible"
+
+      # Check aggregated API docs
+      curl -f $SWAGGER_URL/api/swagger/aggregated.json || exit 1
+      echo "✓ Aggregated Swagger docs are available"
+
+      # Check Swagger UI
+      curl -f $SWAGGER_URL/api-docs || exit 1
+      echo "✓ Swagger UI is accessible"
+    displayName: 'Smoke Test: Swagger Documentation'
+
+  ##########################################################
+  # Smoke Test 4: Core API Endpoints
+  ##########################################################
+  - script: |
+      echo "Testing core API endpoints..."
+
+      ORCHESTRATOR_URL="https://qe-mcp-orchestrator-$(environment).azurewebsites.net"
+
+      # Test Azure DevOps MCP
+      echo "Testing Azure DevOps MCP..."
+      curl -f -X GET "$ORCHESTRATOR_URL/api/azureDevOps/iterations/projects" \
+        -H "Content-Type: application/json" || exit 1
+      echo "✓ Azure DevOps MCP is working"
+
+      # Test Risk Analyzer MCP
+      echo "Testing Risk Analyzer MCP..."
+      curl -f -X POST "$ORCHESTRATOR_URL/api/riskAnalyzer/analyze" \
+        -H "Content-Type: application/json" \
+        -d '{"workItemId": 12345}' || exit 1
+      echo "✓ Risk Analyzer MCP is working"
+    displayName: 'Smoke Test: Core API Endpoints'
+    continueOnError: true
+
+  ##########################################################
+  # Smoke Test 5: Dashboard UI
+  ##########################################################
+  - script: npx playwright test tests/core-common/unit/*.spec.ts --project=chromium
+    displayName: 'Smoke Test: Dashboard UI (Playwright)'
+    continueOnError: true
+    env:
+      BASE_URL: 'https://qe-mcp-orchestrator-$(environment).azurewebsites.net'
+
+  ##########################################################
+  # Publish Smoke Test Results
+  ##########################################################
+  - task: PublishTestResults@2
+    displayName: 'Publish smoke test results'
+    condition: succeededOrFailed()
+    inputs:
+      testResultsFormat: 'JUnit'
+      testResultsFiles: '**/test-results/**/*.xml'
+      mergeTestResults: true
+      testRunTitle: 'Smoke Tests - $(environment)'
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish smoke test screenshots'
+    condition: failed()
+    inputs:
+      targetPath: 'test-results'
+      artifact: 'smoke-test-failures-$(environment)'

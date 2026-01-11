@@ -1,8 +1,39 @@
 import express from 'express';
 import { logger } from '../utils/logger.js';
 import { readFile } from 'fs/promises';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const router = express.Router();
+
+// ============================================
+// APP CONFIGURATION HELPERS
+// ============================================
+
+/**
+ * Load apps.json configuration
+ */
+async function loadAppsConfig() {
+  try {
+    const configPath = path.join(__dirname, '../../config/apps.json');
+    const configData = await readFile(configPath, 'utf-8');
+    return JSON.parse(configData);
+  } catch (error) {
+    logger.error('[Config] Error loading apps.json:', error);
+    return { applications: [] };
+  }
+}
+
+/**
+ * Get test framework for a given app
+ */
+async function getTestFramework(appName) {
+  const config = await loadAppsConfig();
+  const app = config.applications?.find(a => a.name === appName);
+  return app?.testFramework || 'xUnit'; // Default to xUnit if not found
+}
 
 // ============================================
 // FILE PATH RESOLUTION HELPER
@@ -25,10 +56,7 @@ function resolveFilePath(app, file) {
   
   // Otherwise, convert relative app path to absolute Docker path
   const appPathMap = {
-    'App1': 'patient-portal/PatientPortal',
-    'App2': 'app2/App2',
-    'App3': 'app3/App3',
-    'App4': 'app4/App4'
+    'App1': 'core'
   };
   
   const appPath = appPathMap[app];
@@ -167,7 +195,7 @@ router.post('/analyze-file', async (req, res) => {
  */
 router.post('/generate-for-file', async (req, res) => {
   try {
-    const { app, file, className, includeNegativeTests = true, includeMocks = true } = req.body;
+    const { app, file, className, includeNegativeTests = true, includeMocks = true, onlyNegativeTests = false, model } = req.body;
 
     if (!app || !className) {
       return res.status(400).json({ error: 'App and className are required' });
@@ -176,16 +204,20 @@ router.post('/generate-for-file', async (req, res) => {
     logger.info(`[Test Gen] Generating tests for ${className} in ${file || 'unknown file'}`);
     logger.info(`[Test Gen] App: ${app}`);
 
+    // ✅ Get test framework for this app
+    const testFramework = await getTestFramework(app);
+    logger.info(`[Test Gen] Using test framework: ${testFramework} for app: ${app}`);
+
     // ✅ Resolve and read the source file
     const resolvedPath = resolveFilePath(app, file);
     let sourceCode;
-    
+
     try {
       sourceCode = await readFile(resolvedPath, 'utf-8');
       logger.info(`[Test Gen] ✅ Successfully read ${resolvedPath} (${sourceCode.length} bytes)`);
     } catch (error) {
       logger.error(`[Test Gen] ❌ Failed to read file: ${error.message}`);
-      return res.status(404).json({ 
+      return res.status(404).json({
         error: 'Source file not found',
         message: `Could not read ${resolvedPath}. File does not exist or is not accessible.`,
         resolvedPath,
@@ -195,17 +227,20 @@ router.post('/generate-for-file', async (req, res) => {
     }
 
     // Call unit-test-generator STDIO MCP with source code
-    logger.info(`[Test Gen] 🚀 Calling dotnet-unit-test-generator for ${className}`);
-    
+    logger.info(`[Test Gen] 🚀 Calling dotnet-unit-test-generator for ${className} with ${testFramework}`);
+
     const unitTests = await req.mcpManager.callStdioMcp(
       'dotnet-unit-test-generator',
-      { 
+      {
         data: {
           app,
           className,
           sourceCode,
           includeNegativeTests,
-          includeMocks
+          includeMocks,
+          onlyNegativeTests,
+          testFramework,
+          model
         }
       }
     );
@@ -232,7 +267,7 @@ router.post('/generate-for-file', async (req, res) => {
  */
 router.post('/generate-integration-for-file', async (req, res) => {
   try {
-    const { app, file, apiEndpoint, scenario, includeAuth = true, includeDatabase = true } = req.body;
+    const { app, file, apiEndpoint, scenario, includeAuth = true, includeDatabase = true, model } = req.body;
 
     if (!app || !apiEndpoint) {
       return res.status(400).json({ error: 'App and apiEndpoint are required' });
@@ -243,13 +278,14 @@ router.post('/generate-integration-for-file', async (req, res) => {
     // Call integration-test-generator STDIO MCP
     const integrationTests = await req.mcpManager.callStdioMcp(
       'dotnet-integration-test-generator',
-      { 
+      {
         data: {
           app,
           apiEndpoint,
           scenario: scenario || `Integration tests for ${apiEndpoint}`,
           includeAuth,
-          includeDatabase
+          includeDatabase,
+          model
         }
       }
     );
@@ -335,73 +371,19 @@ function detectIntegrationType(call) {
 }
 
 // ============================================
-// LEGACY ENDPOINTS (Keep for backward compatibility)
+// LEGACY ENDPOINTS REMOVED - 2026-01-07
 // ============================================
-
-router.post('/generate-unit-tests', async (req, res) => {
-  try {
-    const { app, className, sourceCode } = req.body;
-
-    if (!app || !className) {
-      return res.status(400).json({ error: 'App and className are required' });
-    }
-
-    logger.info(`[Legacy] Generating unit tests for ${className}`);
-
-    const unitTests = await req.mcpManager.callStdioMcp(
-      'dotnet-unit-test-generator',
-      { 
-        data: {
-          app,
-          className,
-          sourceCode,
-          includeNegativeTests: true,
-          includeMocks: true
-        }
-      }
-    );
-
-    res.json(unitTests);
-  } catch (error) {
-    logger.error('[Legacy] Unit test generation error:', error);
-    res.status(500).json({ 
-      error: 'Unit test generation failed',
-      message: error.message 
-    });
-  }
-});
-
-router.post('/generate-integration-tests', async (req, res) => {
-  try {
-    const { app, apiEndpoint, scenario } = req.body;
-
-    if (!app || !apiEndpoint) {
-      return res.status(400).json({ error: 'App and apiEndpoint are required' });
-    }
-
-    logger.info(`[Legacy] Generating integration tests for ${apiEndpoint}`);
-
-    const integrationTests = await req.mcpManager.callStdioMcp(
-      'dotnet-integration-test-generator',
-      { 
-        data: {
-          app,
-          apiEndpoint,
-          scenario,
-          includeAuth: true,
-          includeDatabase: true
-        }
-      }
-    );
-
-    res.json(integrationTests);
-  } catch (error) {
-    logger.error('[Legacy] Integration test generation error:', error);
-    res.status(500).json({ 
-      error: 'Integration test generation failed',
-      message: error.message 
-    });
-  }
-});
+//
+// Removed deprecated endpoints:
+// - POST /generate-unit-tests → Use POST /generate-for-file instead
+// - POST /generate-integration-tests → Use POST /generate-integration-for-file instead
+//
+// These endpoints were replaced by file-based generation that:
+// 1. Automatically reads source files from Docker volumes
+// 2. Supports file path resolution
+// 3. Provides richer analysis and generation options
+// 4. Better integrates with the code-dashboard frontend
+//
+// See lines 165-270 for active endpoints
 
 export default router;
