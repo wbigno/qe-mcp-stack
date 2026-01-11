@@ -3,7 +3,7 @@ FROM mcr.microsoft.com/playwright:v1.40.0-focal
 WORKDIR /app
 
 # Copy root package files
-COPY package.json package-lock.json* turbo.json ./
+COPY package.json package-lock.json* turbo.json tsconfig.base.json ./
 COPY packages ./packages
 COPY mcps/shared ./mcps/shared
 COPY mcps/playwright/playwright-generator ./mcps/playwright/playwright-generator

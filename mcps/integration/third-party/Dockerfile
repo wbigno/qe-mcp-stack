@@ -3,7 +3,7 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copy root package files
-COPY package.json package-lock.json* turbo.json ./
+COPY package.json package-lock.json* turbo.json tsconfig.base.json ./
 COPY packages ./packages
 COPY mcps/integration/third-party ./mcps/integration/third-party
 

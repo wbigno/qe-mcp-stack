@@ -3,7 +3,7 @@ FROM node:18-alpine
 WORKDIR /app
 
 # Copy root package files
-COPY package.json package-lock.json* turbo.json ./
+COPY package.json package-lock.json* turbo.json tsconfig.base.json ./
 COPY packages ./packages
 COPY mcps/quality-analysis/risk-analyzer ./mcps/quality-analysis/risk-analyzer
 
