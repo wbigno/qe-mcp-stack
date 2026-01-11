@@ -2,6 +2,111 @@
  * Content Script - Runs in web pages and executes commands
  */
 
+// Console log storage
+const consoleLogs = [];
+const MAX_LOGS = 1000; // Limit to prevent memory issues
+
+/**
+ * Intercept console methods to capture logs
+ */
+function setupConsoleInterceptor() {
+  const originalMethods = {
+    log: console.log,
+    warn: console.warn,
+    error: console.error,
+    info: console.info,
+    debug: console.debug,
+  };
+
+  ["log", "warn", "error", "info", "debug"].forEach((method) => {
+    console[method] = function (...args) {
+      // Store the log
+      consoleLogs.push({
+        type: method,
+        message: args.map((arg) => {
+          try {
+            return typeof arg === "object" ? JSON.stringify(arg) : String(arg);
+          } catch (e) {
+            return String(arg);
+          }
+        }),
+        timestamp: new Date().toISOString(),
+        url: window.location.href,
+      });
+
+      // Limit log size
+      if (consoleLogs.length > MAX_LOGS) {
+        consoleLogs.shift(); // Remove oldest log
+      }
+
+      // Call original method
+      originalMethods[method].apply(console, args);
+    };
+  });
+
+  // Capture unhandled errors
+  window.addEventListener("error", (event) => {
+    consoleLogs.push({
+      type: "error",
+      message: [
+        `${event.message} at ${event.filename}:${event.lineno}:${event.colno}`,
+      ],
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
+      stack: event.error?.stack,
+    });
+  });
+
+  // Capture unhandled promise rejections
+  window.addEventListener("unhandledrejection", (event) => {
+    consoleLogs.push({
+      type: "error",
+      message: [`Unhandled Promise Rejection: ${event.reason}`],
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
+    });
+  });
+}
+
+/**
+ * Get console logs
+ */
+function getConsoleLogs(options = {}) {
+  const { limit, types, since } = options;
+
+  let logs = [...consoleLogs];
+
+  // Filter by type
+  if (types && types.length > 0) {
+    logs = logs.filter((log) => types.includes(log.type));
+  }
+
+  // Filter by timestamp
+  if (since) {
+    const sinceDate = new Date(since);
+    logs = logs.filter((log) => new Date(log.timestamp) >= sinceDate);
+  }
+
+  // Limit results
+  if (limit && limit > 0) {
+    logs = logs.slice(-limit); // Get last N logs
+  }
+
+  return {
+    logs,
+    total: logs.length,
+    captured: consoleLogs.length,
+  };
+}
+
+/**
+ * Clear console logs
+ */
+function clearConsoleLogs() {
+  consoleLogs.length = 0;
+  return { success: true, message: "Console logs cleared" };
+}
+
 /**
  * Get page content (text, title, URL, metadata)
  */
@@ -169,6 +274,9 @@ async function navigate(url) {
 if (!window.__claudeBridgeInjected) {
   window.__claudeBridgeInjected = true;
 
+  // Setup console log interceptor
+  setupConsoleInterceptor();
+
   console.log("[Bridge Content] Initialized on:", window.location.href);
 
   // Listen for commands from background script
@@ -209,6 +317,14 @@ if (!window.__claudeBridgeInjected) {
 
           case "navigate":
             result = await navigate(request.params.url);
+            break;
+
+          case "getConsoleLogs":
+            result = getConsoleLogs(request.params || {});
+            break;
+
+          case "clearConsoleLogs":
+            result = clearConsoleLogs();
             break;
 
           case "takeScreenshot":

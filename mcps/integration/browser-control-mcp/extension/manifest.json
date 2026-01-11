@@ -3,15 +3,8 @@
   "name": "Claude Desktop Bridge",
   "version": "1.0.0",
   "description": "Connects your browser to Claude Desktop via WebSocket for enhanced automation capabilities",
-  "permissions": [
-    "tabs",
-    "activeTab",
-    "scripting",
-    "storage"
-  ],
-  "host_permissions": [
-    "<all_urls>"
-  ],
+  "permissions": ["tabs", "activeTab", "scripting", "storage", "webRequest"],
+  "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },

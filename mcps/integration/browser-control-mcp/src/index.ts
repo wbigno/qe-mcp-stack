@@ -59,6 +59,23 @@ class BrowserControlMCP extends BaseMCP {
     this.app.post("/browser/navigate", this.navigate.bind(this));
     this.app.post("/browser/take-screenshot", this.takeScreenshot.bind(this));
 
+    // Console logs endpoints
+    this.app.post("/browser/get-console-logs", this.getConsoleLogs.bind(this));
+    this.app.post(
+      "/browser/clear-console-logs",
+      this.clearConsoleLogs.bind(this),
+    );
+
+    // Network traffic endpoints
+    this.app.post(
+      "/browser/get-network-traffic",
+      this.getNetworkTraffic.bind(this),
+    );
+    this.app.post(
+      "/browser/clear-network-traffic",
+      this.clearNetworkTraffic.bind(this),
+    );
+
     logInfo("Browser control routes configured");
   }
 
@@ -309,6 +326,78 @@ All commands return JSON responses with \`success\` and \`result\` or \`error\`.
       res.json({ success: true, result });
     } catch (error) {
       logError("Failed to take screenshot", { error });
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
+      });
+    }
+  }
+
+  /**
+   * Get console logs
+   */
+  private async getConsoleLogs(req: Request, res: Response): Promise<void> {
+    try {
+      const options = req.body || {};
+      const result = await this.bridge.sendCommand("getConsoleLogs", options);
+      res.json({ success: true, result });
+    } catch (error) {
+      logError("Failed to get console logs", { error });
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
+      });
+    }
+  }
+
+  /**
+   * Clear console logs
+   */
+  private async clearConsoleLogs(_req: Request, res: Response): Promise<void> {
+    try {
+      const result = await this.bridge.sendCommand("clearConsoleLogs");
+      res.json({ success: true, result });
+    } catch (error) {
+      logError("Failed to clear console logs", { error });
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
+      });
+    }
+  }
+
+  /**
+   * Get network traffic
+   */
+  private async getNetworkTraffic(req: Request, res: Response): Promise<void> {
+    try {
+      const options = req.body || {};
+      const result = await this.bridge.sendCommand(
+        "getNetworkTraffic",
+        options,
+      );
+      res.json({ success: true, result });
+    } catch (error) {
+      logError("Failed to get network traffic", { error });
+      res.status(500).json({
+        success: false,
+        error: (error as Error).message,
+      });
+    }
+  }
+
+  /**
+   * Clear network traffic
+   */
+  private async clearNetworkTraffic(
+    _req: Request,
+    res: Response,
+  ): Promise<void> {
+    try {
+      const result = await this.bridge.sendCommand("clearNetworkTraffic");
+      res.json({ success: true, result });
+    } catch (error) {
+      logError("Failed to clear network traffic", { error });
       res.status(500).json({
         success: false,
         error: (error as Error).message,

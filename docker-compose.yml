@@ -54,6 +54,7 @@ services:
       - ./config:/app/config:ro
       - ./docs:/app/docs:ro
       - orchestrator-data:/app/data
+      - ./mcps/test:/app/mcps:ro
       - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
       - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
       - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
