@@ -29,36 +29,49 @@ The main entry point is `azure-pipelines.yml` in the root directory, which orche
 ## Pipeline Files
 
 ### ado-mcps-pipeline.yml
+
 Deploys Integration MCPs to Azure Web Apps:
+
 - **azure-devops** (Port 8100) - Azure DevOps integration
 - **third-party** (Port 8101) - Third-party integrations
 - **test-plan-manager** (Port 8102) - Test plan management
 - **browser-control** (Port 8103) - Chrome browser automation via WebSocket bridge
 
 ### code-mcps-pipeline.yml
+
 Deploys Code Analysis MCPs to Azure Web Apps:
+
 - **code-quality-analyzer** (Port 8200) - Code analysis with AI
-- **infrastructure-analyzer** (Port 8201) - Infrastructure analysis
-- **test-analyzer** (Port 8202) - Test coverage analysis
+- **coverage-analyzer** (Port 8201) - Code coverage analysis
 - **migration-analyzer** (Port 8203) - Migration analysis
+- **javascript-code-analyzer** (Port 8204) - JavaScript code quality
+- **javascript-coverage-analyzer** (Port 8205) - JavaScript test coverage
 
 ### test-mcps-pipeline.yml
+
 Deploys Test Generation MCPs to Azure Web Apps:
+
 - **test-generation** (Port 8300) - AI-powered test generation
 - **unit-test** (Port 8301) - Unit test generation
 
 ### playwright-mcps-pipeline.yml
+
 Deploys Playwright MCPs to Azure Web Apps:
+
 - **playwright-generator** (Port 8400) - Playwright test generation
 
 ### dashboard-pipeline.yml
+
 Deploys core infrastructure:
+
 - **orchestrator** (Port 3000) - Central API gateway
 - **ado-dashboard** (Static Web App) - Frontend dashboard
 - **swagger-hub** (Port 8000) - API documentation hub
 
 ### smoke-tests-pipeline.yml
+
 Quick validation tests after deployment:
+
 - Orchestrator health check
 - All MCP health checks
 - Swagger documentation availability
@@ -66,7 +79,9 @@ Quick validation tests after deployment:
 - Basic UI smoke tests
 
 ### swagger-validation-pipeline.yml
+
 Validates API documentation:
+
 - Fetches all MCP Swagger specs
 - Validates OpenAPI specification format
 - Checks completeness (required fields, endpoints)
@@ -75,7 +90,9 @@ Validates API documentation:
 - Generates validation report
 
 ### test-automation-pipeline.yml
+
 Runs comprehensive Playwright test suite:
+
 - Payments application tests
 - PreCare application tests
 - Core.Common application tests
@@ -86,16 +103,19 @@ Runs comprehensive Playwright test suite:
 ## Triggers
 
 ### Automatic Triggers
+
 - **Push to main/develop**: Full pipeline execution
 - **Pull Request**: Build, test, and validation only (no deployment)
 - **Feature branches**: Build and test only
 
 ### Manual Triggers
+
 - Full test suite can be triggered manually for any environment
 
 ## Environments
 
 The pipelines support multiple environments through variable groups:
+
 - **development** - Development environment
 - **staging** - Staging/QA environment
 - **production** - Production environment
@@ -105,20 +125,24 @@ The pipelines support multiple environments through variable groups:
 ### Variable Group: `qe-mcp-stack-variables`
 
 #### Azure Configuration
+
 - `azureSubscription` - Azure service connection name
 - `staticWebAppToken` - Static Web App deployment token
 - `environment` - Target environment (dev/staging/prod)
 
 #### Azure DevOps
+
 - `AZURE_DEVOPS_ORG` - Azure DevOps organization name
 - `AZURE_DEVOPS_PROJECT` - Azure DevOps project name
 - `AZURE_DEVOPS_PAT` - Personal Access Token
 
 #### AI Services
+
 - `ANTHROPIC_API_KEY` - Anthropic Claude API key
 - `OPENAI_API_KEY` - OpenAI API key
 
 #### URLs
+
 - `dashboardUrl` - Dashboard URL (for testing)
 
 ## Azure Resources
@@ -126,25 +150,31 @@ The pipelines support multiple environments through variable groups:
 Each MCP is deployed to its own Azure Web App (15 total MCPs):
 
 ### Integration MCPs (4)
+
 - `qe-mcp-azure-devops-{env}.azurewebsites.net`
 - `qe-mcp-third-party-{env}.azurewebsites.net`
 - `qe-mcp-test-plan-manager-{env}.azurewebsites.net`
 - `qe-mcp-browser-control-{env}.azurewebsites.net`
 
-### Code Analysis MCPs (4)
+### Code Analysis MCPs (5)
+
 - `qe-mcp-code-quality-analyzer-{env}.azurewebsites.net`
-- `qe-mcp-infrastructure-analyzer-{env}.azurewebsites.net`
-- `qe-mcp-test-analyzer-{env}.azurewebsites.net`
+- `qe-mcp-coverage-analyzer-{env}.azurewebsites.net`
 - `qe-mcp-migration-analyzer-{env}.azurewebsites.net`
+- `qe-mcp-javascript-code-analyzer-{env}.azurewebsites.net`
+- `qe-mcp-javascript-coverage-analyzer-{env}.azurewebsites.net`
 
 ### Test Generation MCPs (2)
+
 - `qe-mcp-test-generation-{env}.azurewebsites.net`
 - `qe-mcp-unit-test-{env}.azurewebsites.net`
 
 ### Playwright MCPs (1)
+
 - `qe-mcp-playwright-generator-{env}.azurewebsites.net`
 
 ### Core Services (4)
+
 - `qe-mcp-orchestrator-{env}.azurewebsites.net`
 - `qe-mcp-swagger-hub-{env}.azurewebsites.net`
 - Dashboard: Azure Static Web App
@@ -153,6 +183,7 @@ Each MCP is deployed to its own Azure Web App (15 total MCPs):
 ## Health Checks
 
 All MCPs expose a `/health` endpoint that returns:
+
 ```json
 {
   "status": "healthy",
@@ -166,6 +197,7 @@ The orchestrator aggregates health from all MCPs at `/health`.
 ## Monitoring
 
 ### Pipeline Artifacts
+
 - **build-output** - Compiled packages and code
 - **test-results-{env}** - Playwright test results
 - **playwright-report-{env}** - HTML test report
@@ -174,7 +206,9 @@ The orchestrator aggregates health from all MCPs at `/health`.
 - **smoke-test-failures-{env}** - Screenshots of failures
 
 ### Test Results
+
 All test results are published to Azure DevOps Test Plans:
+
 - Unit test results (JUnit format)
 - Playwright test results (JUnit format)
 - Smoke test results
@@ -183,15 +217,20 @@ All test results are published to Azure DevOps Test Plans:
 ## Usage
 
 ### Running the Main Pipeline
+
 The main pipeline runs automatically on:
+
 - Push to main/develop
 - Pull requests to main/develop
 
 ### Running Individual Pipelines
+
 Individual pipeline templates cannot be run directly. They are called by the main pipeline.
 
 ### Manual Test Execution
+
 To run the full test suite:
+
 1. Go to Pipelines in Azure DevOps
 2. Select the main pipeline
 3. Click "Run pipeline"
@@ -200,6 +239,7 @@ To run the full test suite:
 6. Click "Run"
 
 ### Viewing Results
+
 - **Test Results**: Tests tab in pipeline run
 - **Artifacts**: Artifacts tab in pipeline run
 - **Logs**: Logs tab for each job/step
@@ -207,23 +247,27 @@ To run the full test suite:
 ## Troubleshooting
 
 ### Pipeline Fails at Build Stage
+
 - Check Node.js version compatibility
 - Verify package.json dependencies
 - Review build logs for TypeScript errors
 
 ### MCP Deployment Fails
+
 - Verify Azure service connection
 - Check app service settings
 - Ensure resource groups exist
 - Verify environment variables
 
 ### Health Checks Fail
+
 - Check MCP logs in Azure Portal
 - Verify environment variables are set
 - Check network connectivity
 - Verify dependencies are available
 
 ### Tests Fail
+
 - Check test environment URLs
 - Verify authentication tokens
 - Review test failure screenshots
@@ -242,6 +286,7 @@ To run the full test suite:
 ## Pipeline Maintenance
 
 ### Adding a New MCP
+
 1. Create deployment step in appropriate MCP pipeline file
 2. Add health check in smoke tests
 3. Update orchestrator MCP manager
@@ -249,16 +294,19 @@ To run the full test suite:
 5. Update this README
 
 ### Updating Node.js Version
+
 1. Update `nodeVersion` variable in main pipeline
 2. Update Azure Web App runtime stack in all deployment steps
 3. Test in development environment first
 
 ### Adding New Tests
+
 1. Add test files to appropriate directory under `/tests`
 2. Tests will be picked up automatically
 3. Update test-automation-pipeline.yml if new categories added
 
 ## Related Documentation
+
 - [Main README](../README.md)
 - [MCP Development Guide](../docs/mcp-development.md)
 - [Test Framework Guide](../packages/test-framework/README.md)
