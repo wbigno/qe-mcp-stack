@@ -327,6 +327,26 @@ if (!window.__claudeBridgeInjected) {
             result = clearConsoleLogs();
             break;
 
+          case "getNetworkTraffic":
+            // Network traffic is in background script, forward the request
+            result = await new Promise((resolve) => {
+              chrome.runtime.sendMessage(
+                { action: "getNetworkTraffic", params: request.params || {} },
+                (response) => resolve(response),
+              );
+            });
+            break;
+
+          case "clearNetworkTraffic":
+            // Network traffic is in background script, forward the request
+            result = await new Promise((resolve) => {
+              chrome.runtime.sendMessage(
+                { action: "clearNetworkTraffic" },
+                (response) => resolve(response),
+              );
+            });
+            break;
+
           case "takeScreenshot":
             // Screenshots are handled by background script with chrome.tabs.captureVisibleTab
             result = {

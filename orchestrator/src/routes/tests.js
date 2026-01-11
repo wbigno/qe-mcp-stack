@@ -305,11 +305,7 @@ Return ONLY the complete C# test file code, no explanations or markdown.`;
     logger.info(
       `[Test Gen] 🚀 Generating tests for ${className} with ${testFramework}`,
     );
-    const testCode = await callClaude(
-      prompt,
-      model || "claude-3-5-sonnet-20241022",
-      4096,
-    );
+    const testCode = await callClaude(prompt, model, 4096);
 
     logger.info(`[Test Gen] ✅ Successfully generated tests for ${className}`);
 
@@ -324,7 +320,7 @@ Return ONLY the complete C# test file code, no explanations or markdown.`;
           includeNegativeTests,
           includeMocks,
           onlyNegativeTests,
-          model: model || "claude-3-5-sonnet-20241022",
+          model: model || "default",
         },
       },
     });
