@@ -18,8 +18,8 @@ const MCP_CATEGORIES = {
     type: 'integration',
     mcps: [
       { name: 'azureDevOps', displayName: 'Azure DevOps', port: 8100, description: 'Work item management and sprint tracking', hasReadme: true, mcpFolder: 'azure-devops' },
-      { name: 'thirdParty', displayName: 'Third Party', port: 8101, description: 'External API integrations (Stripe, etc.)', hasReadme: false },
-      { name: 'testPlanManager', displayName: 'Test Plan Manager', port: 8102, description: 'Test plan creation and management', hasReadme: false },
+      { name: 'thirdParty', displayName: 'Third Party', port: 8101, description: 'External API integrations (Stripe, etc.)', hasReadme: true, mcpFolder: 'third-party' },
+      { name: 'testPlanManager', displayName: 'Test Plan Manager', port: 8102, description: 'Test plan creation and management', hasReadme: true, mcpFolder: 'test-plan-manager' },
       { name: 'browserControl', displayName: 'Browser Control', port: 8103, description: 'Chrome browser automation via WebSocket bridge', hasReadme: true, mcpFolder: 'browser-control-mcp' }
     ]
   },
@@ -29,7 +29,7 @@ const MCP_CATEGORIES = {
     mcps: [
       { name: 'dotnetCodeAnalyzer', displayName: '.NET Code Analyzer', port: 8200, description: 'C# code structure analysis (classes, methods, complexity)', hasReadme: true, mcpFolder: 'code-analyzer' },
       { name: 'dotnetCoverageAnalyzer', displayName: '.NET Coverage Analyzer', port: 8201, description: 'xUnit/NUnit/MSTest coverage and gap detection', hasReadme: true, mcpFolder: 'coverage-analyzer' },
-      { name: 'migrationAnalyzer', displayName: 'Migration Analyzer', port: 8203, description: 'Track Core → Core.Common migration', hasReadme: false },
+      { name: 'migrationAnalyzer', displayName: 'Migration Analyzer', port: 8203, description: 'Track Core → Core.Common migration', hasReadme: true, mcpFolder: 'migration-analyzer' },
       { name: 'javascriptCodeAnalyzer', displayName: 'JavaScript Code Analyzer', port: 8204, description: 'React/Vue/TypeScript code analysis', hasReadme: true, mcpFolder: 'javascript-code-analyzer' },
       { name: 'javascriptCoverageAnalyzer', displayName: 'JavaScript Coverage Analyzer', port: 8205, description: 'Jest/Vitest coverage analysis', hasReadme: true, mcpFolder: 'javascript-coverage-analyzer' }
     ]

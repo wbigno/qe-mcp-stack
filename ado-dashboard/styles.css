@@ -195,15 +195,15 @@ body {
 }
 
 .metric-card.gradient-purple::before {
-    background: #8b5cf6;
+    background: #3b82f6; /* Changed from purple to blue */
 }
 
 .metric-card.gradient-green::before {
-    background: #10b981;
+    background: #3b82f6; /* Changed from green to blue */
 }
 
 .metric-card.gradient-orange::before {
-    background: #f59e0b;
+    background: #3b82f6; /* Changed from orange to blue */
 }
 
 .metric-card:hover {
@@ -960,15 +960,15 @@ svg defs {
 }
 
 .stat-icon.purple {
-    background: rgba(168, 85, 247, 0.1);
+    background: rgba(59, 130, 246, 0.1); /* Changed to blue */
 }
 
 .stat-icon.orange {
-    background: rgba(245, 158, 11, 0.1);
+    background: rgba(59, 130, 246, 0.1); /* Changed to blue */
 }
 
 .stat-icon.green {
-    background: rgba(16, 185, 129, 0.1);
+    background: rgba(59, 130, 246, 0.1); /* Changed to blue */
 }
 
 .stat-content h4 {
@@ -1365,11 +1365,11 @@ svg defs {
 }
 
 .btn-success {
-    background: #10b981;
+    background: #3b82f6; /* Blue accent */
 }
 
 .btn-warning {
-    background: #f59e0b;
+    background: #3b82f6; /* Blue accent */
 }
 
 .btn-sm {
@@ -1401,21 +1401,21 @@ svg defs {
 }
 
 .status-message.success {
-    background: rgba(72, 187, 120, 0.1);
-    border: 1px solid #48bb78;
-    color: #68d391;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid var(--accent-primary);
+    color: var(--accent-primary);
 }
 
 .status-message.error {
-    background: rgba(245, 101, 101, 0.1);
-    border: 1px solid #f56565;
-    color: #fc8181;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid var(--accent-error);
+    color: var(--accent-error);
 }
 
 .status-message.info {
-    background: rgba(99, 102, 241, 0.1);
+    background: rgba(59, 130, 246, 0.1);
     border: 1px solid var(--accent-primary);
-    color: #818cf8;
+    color: var(--accent-primary);
 }
 
 /* Dashboard Header */
@@ -1544,31 +1544,31 @@ svg defs {
 
 .badge-high {
     background: rgba(251, 146, 60, 0.2);
-    color: #fb923c;
+    color: #3b82f6; /* Blue accent */
     border: 1px solid #f97316;
 }
 
 .badge-medium {
     background: rgba(234, 179, 8, 0.2);
-    color: #fbbf24;
+    color: #3b82f6; /* Blue accent */
     border: 1px solid #eab308;
 }
 
 .badge-low {
     background: rgba(74, 222, 128, 0.2);
-    color: #4ade80;
-    border: 1px solid #22c55e;
+    color: #3b82f6; /* Blue accent */
+    border: 1px solid #3b82f6; /* Blue accent */
 }
 
 .badge-dev {
     background: rgba(59, 130, 246, 0.2);
-    color: #60a5fa;
+    color: #3b82f6; /* Blue accent */
     border: 1px solid #3b82f6;
 }
 
 .badge-uat {
     background: rgba(168, 85, 247, 0.2);
-    color: #a78bfa;
+    color: #3b82f6; /* Blue accent */
     border: 1px solid #a855f7;
 }
 
@@ -1606,7 +1606,7 @@ svg defs {
 
 .progress-fill {
     height: 100%;
-    background: linear-gradient(90deg, #4ade80 0%, #22c55e 100%);
+    background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%); /* Blue gradient */
     transition: width 0.3s;
 }
 
@@ -1676,41 +1676,41 @@ svg defs {
     margin: 0;
 }
 
-/* Tab Navigation - Unified Style */
+/* Tab Navigation - Matching Infrastructure Dashboard White Card Style */
 .tab-nav {
     display: flex;
     flex-direction: row;
-    gap: 8px;
-    background: #0f172a;
-    padding: 8px;
-    border-radius: 8px;
+    gap: 12px;
+    background: transparent;
+    padding: 16px 30px;
+    border-radius: 0;
     flex-wrap: nowrap;
-    margin: 0 30px;
+    margin: 0;
 }
 
 .tab-btn {
     flex: 1;
-    padding: 12px 16px;
+    padding: 12px 20px;
     background: transparent;
     border: none;
-    color: #94a3b8;
+    color: var(--text-secondary);
     font-size: 14px;
     font-weight: 600;
     cursor: pointer;
-    border-radius: 6px;
-    transition: all 0.3s;
+    border-radius: 12px;
+    transition: all 0.2s;
     white-space: nowrap;
 }
 
 .tab-btn:hover {
-    background: #334155;
-    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
 }
 
 .tab-btn.active {
-    background: var(--accent-primary);
-    color: white;
-    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    background: #ffffff; /* White background like Infrastructure dashboard */
+    color: #0a0a0a; /* Dark text for contrast */
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 /* Collapsible Filter Bar */
@@ -2146,7 +2146,7 @@ svg defs {
 }
 
 .tier-fast .model-tier-badge {
-    background: #10b981;
+    background: #3b82f6; /* Blue accent */
     color: white;
 }
 
@@ -2156,7 +2156,7 @@ svg defs {
 }
 
 .tier-advanced .model-tier-badge {
-    background: #8b5cf6;
+    background: #3b82f6; /* Blue accent */
     color: white;
 }
 
@@ -2396,8 +2396,8 @@ svg defs {
 
 .analysis-content .warning {
     background: rgba(245, 158, 11, 0.1);
-    border: 1px solid #f59e0b;
-    color: #fbbf24;
+    border: 1px solid #3b82f6; /* Blue accent */
+    color: #3b82f6; /* Blue accent */
     padding: 15px;
     border-radius: 8px;
     font-size: 14px;
@@ -2417,13 +2417,13 @@ svg defs {
 .blast-summary.risk-low,
 .risk-summary.risk-low {
     background: rgba(16, 185, 129, 0.1);
-    border: 2px solid #10b981;
+    border: 2px solid #3b82f6; /* Blue accent */
 }
 
 .blast-summary.risk-medium,
 .risk-summary.risk-medium {
     background: rgba(245, 158, 11, 0.1);
-    border: 2px solid #f59e0b;
+    border: 2px solid #3b82f6; /* Blue accent */
 }
 
 .blast-summary.risk-high,
@@ -2466,12 +2466,12 @@ svg defs {
 }
 
 .risk-badge.low {
-    background: #10b981;
+    background: #3b82f6; /* Blue accent */
     color: white;
 }
 
 .risk-badge.medium {
-    background: #f59e0b;
+    background: #3b82f6; /* Blue accent */
     color: white;
 }
 
@@ -2551,7 +2551,7 @@ svg defs {
 
 .badge.success,
 .integration-list .type-badge.epic {
-    background: #10b981;
+    background: #3b82f6; /* Blue accent */
     color: white;
 }
 
@@ -2561,7 +2561,7 @@ svg defs {
 }
 
 .integration-list .type-badge.financial {
-    background: #f59e0b;
+    background: #3b82f6; /* Blue accent */
     color: white;
 }
 
@@ -2571,7 +2571,7 @@ svg defs {
 }
 
 .integration-list .type-badge.database {
-    background: #8b5cf6;
+    background: #3b82f6; /* Blue accent */
     color: white;
 }
 
@@ -2616,7 +2616,7 @@ svg defs {
 }
 
 .recommendations ul li.priority-medium {
-    border-left-color: #f59e0b;
+    border-left-color: #3b82f6; /* Blue accent */
     background: rgba(245, 158, 11, 0.1);
 }
 
@@ -2803,7 +2803,7 @@ svg defs {
 .preview-warning {
     padding: 15px;
     background: rgba(245, 158, 11, 0.15);
-    border-left: 4px solid #f59e0b;
+    border-left: 4px solid #3b82f6; /* Blue accent */
     border-radius: 6px;
     margin-bottom: 25px;
     font-size: 14px;
@@ -2811,7 +2811,7 @@ svg defs {
 }
 
 .preview-warning strong {
-    color: #f59e0b;
+    color: #3b82f6; /* Blue accent */
 }
 
 .preview-section {
@@ -2862,14 +2862,14 @@ svg defs {
 
 .tag-badge.tag-medium {
     background: rgba(245, 158, 11, 0.2);
-    color: #f59e0b;
-    border: 1px solid #f59e0b;
+    color: #3b82f6; /* Blue accent */
+    border: 1px solid #3b82f6; /* Blue accent */
 }
 
 .tag-badge.tag-low {
     background: rgba(34, 197, 94, 0.2);
-    color: #22c55e;
-    border: 1px solid #22c55e;
+    color: #3b82f6; /* Blue accent */
+    border: 1px solid #3b82f6; /* Blue accent */
 }
 
 .tag-badge.tag-default {
@@ -2952,7 +2952,7 @@ svg defs {
 
 .change-type.add {
     background: rgba(34, 197, 94, 0.2);
-    color: #22c55e;
+    color: #3b82f6; /* Blue accent */
 }
 
 .change-type.update {
@@ -2983,7 +2983,7 @@ svg defs {
 
 .preview-status.success {
     background: rgba(34, 197, 94, 0.15);
-    border-left: 4px solid #22c55e;
+    border-left: 4px solid #3b82f6; /* Blue accent */
     color: var(--text-secondary);
 }
 
