@@ -16,21 +16,8 @@ COPY sprintSelector.js /usr/share/nginx/html/
 # Fix permissions for all static files
 RUN chmod -R 644 /usr/share/nginx/html/*.html /usr/share/nginx/html/*.js /usr/share/nginx/html/*.css
 
-# Create nginx configuration for port 5173
-RUN echo 'server { \
-    listen 5173; \
-    server_name localhost; \
-    root /usr/share/nginx/html; \
-    index index.html; \
-    location / { \
-        try_files $uri $uri/ /index.html; \
-    } \
-    location /health { \
-        access_log off; \
-        return 200 "healthy\\n"; \
-        add_header Content-Type text/plain; \
-    } \
-}' > /etc/nginx/conf.d/default.conf
+# Copy nginx configuration with CSP headers for development
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Expose port 5173
 EXPOSE 5173

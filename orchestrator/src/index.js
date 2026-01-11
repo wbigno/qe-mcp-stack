@@ -42,12 +42,21 @@ const PORT = process.env.PORT || 3000;
 const mcpManager = new MCPManager();
 
 // Middleware
+// Determine if we're in development mode
+const isDevelopment = process.env.NODE_ENV !== "production";
+
 app.use(
   helmet({
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+        // Add 'unsafe-eval' in development for browser MCP automation
+        scriptSrc: [
+          "'self'",
+          "'unsafe-inline'",
+          "https://cdn.jsdelivr.net",
+          ...(isDevelopment ? ["'unsafe-eval'"] : []),
+        ],
         styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
         connectSrc: ["'self'"],
         imgSrc: ["'self'", "data:", "https:"],
@@ -288,7 +297,7 @@ io.on("connection", (socket) => {
 });
 
 // Error handling
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   logger.error("Error:", err);
   res.status(err.status || 500).json({
     error: {
