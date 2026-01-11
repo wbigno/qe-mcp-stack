@@ -1,5 +1,9 @@
 #!/bin/bash
 # QE MCP Stack Startup Script (with Persistent Data Support)
+#
+# NOTE: For first-time setup, use ./setup.sh instead!
+# This script is for quick restarts when you already have everything configured.
+#
 set -e
 
 echo "🚀 Starting QE MCP Stack..."

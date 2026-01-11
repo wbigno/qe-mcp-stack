@@ -49,7 +49,7 @@ show_usage() {
 check_data_dir() {
     if [ ! -d "$DATA_DIR" ]; then
         echo -e "${RED}❌ Data directory not found!${NC}"
-        echo "Run ./setup-data-dirs.sh first"
+        echo "Run ./setup.sh first to create data directories"
         exit 1
     fi
 }
@@ -375,7 +375,7 @@ verify_structure() {
         echo -e "${GREEN}✅ All local directories present${NC}"
     else
         echo -e "${YELLOW}⚠️  Some local directories are missing${NC}"
-        echo "Run ./setup-data-dirs.sh to fix"
+        echo "Run ./setup.sh to fix"
     fi
 
     echo ""
