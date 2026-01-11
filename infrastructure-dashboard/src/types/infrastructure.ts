@@ -22,6 +22,10 @@ export interface Integration {
   errorHandling?: string;
   failover?: string;
   configuration?: Record<string, string>;
+  dataFlow?: {
+    inbound?: string[];
+    outbound?: string[];
+  };
   cacheStrategy?: Record<string, {
     ttl: string;
     keys: string;

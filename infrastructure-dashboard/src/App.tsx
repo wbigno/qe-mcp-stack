@@ -460,6 +460,195 @@ const IntegrationView: React.FC<{
             </div>
           </div>
         )}
+
+        {/* Request Structure */}
+        {integration.requestStructure && (
+          <div className="mb-6">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <FileText className="w-5 h-5" /> Request Structure
+            </h3>
+            <pre className="code-block overflow-x-auto">
+              {JSON.stringify(integration.requestStructure, null, 2)}
+            </pre>
+          </div>
+        )}
+
+        {/* Response Structure */}
+        {integration.responseStructure && (
+          <div className="mb-6">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <FileText className="w-5 h-5" /> Response Structure
+            </h3>
+            <pre className="code-block overflow-x-auto">
+              {JSON.stringify(integration.responseStructure, null, 2)}
+            </pre>
+          </div>
+        )}
+
+        {/* Error Handling */}
+        {integration.errorHandling && (
+          <div className="mb-6">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Bell className="w-5 h-5" /> Error Handling
+            </h3>
+            <div className="bg-tertiary rounded-lg p-4">
+              <p className="text-sm">{integration.errorHandling}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Failover Strategy */}
+        {integration.failover && (
+          <div className="mb-6">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Activity className="w-5 h-5" /> Failover Strategy
+            </h3>
+            <div className="bg-tertiary rounded-lg p-4">
+              <p className="text-sm">{integration.failover}</p>
+            </div>
+          </div>
+        )}
+
+        {/* Data Flow */}
+        {integration.dataFlow && (
+          <div className="mb-6">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Activity className="w-5 h-5" /> Data Flow
+            </h3>
+            <div className="grid grid-cols-2 gap-4">
+              {integration.dataFlow.inbound && (
+                <div className="bg-tertiary rounded-lg p-4">
+                  <div className="text-sm font-semibold mb-2 text-green-400">Inbound</div>
+                  <ul className="text-xs space-y-1">
+                    {integration.dataFlow.inbound.map((item, i) => (
+                      <li key={i}>• {item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {integration.dataFlow.outbound && (
+                <div className="bg-tertiary rounded-lg p-4">
+                  <div className="text-sm font-semibold mb-2 text-blue-400">Outbound</div>
+                  <ul className="text-xs space-y-1">
+                    {integration.dataFlow.outbound.map((item, i) => (
+                      <li key={i}>• {item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Cache Strategy */}
+        {integration.cacheStrategy && (
+          <div className="mb-6">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Zap className="w-5 h-5" /> Cache Strategy
+            </h3>
+            <div className="space-y-3">
+              {Object.entries(integration.cacheStrategy).map(([key, strategy]) => (
+                <div key={key} className="bg-tertiary rounded-lg p-4">
+                  <div className="font-semibold text-sm mb-2 capitalize">{key}</div>
+                  <div className="grid grid-cols-3 gap-3 text-xs">
+                    <div>
+                      <div className="text-tertiary">TTL</div>
+                      <div>{strategy.ttl}</div>
+                    </div>
+                    <div>
+                      <div className="text-tertiary">Keys</div>
+                      <div><code className="text-xs">{strategy.keys}</code></div>
+                    </div>
+                    <div>
+                      <div className="text-tertiary">Usage</div>
+                      <div>{strategy.usage}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Background Jobs */}
+        {integration.jobs && (
+          <div className="mb-6">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Activity className="w-5 h-5" /> Background Jobs
+            </h3>
+            <div className="space-y-3">
+              {integration.jobs.map((job, i) => (
+                <div key={i} className="bg-tertiary rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-semibold text-sm">{job.name}</div>
+                    <span className="badge badge-primary text-xs">{job.schedule}</span>
+                  </div>
+                  <p className="text-xs text-tertiary mb-2">{job.description}</p>
+                  {job.code && (
+                    <code className="text-xs bg-primary px-2 py-1 rounded block">{job.code}</code>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Azure/Cloud Services */}
+        {integration.services && (
+          <div className="mb-6">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Cloud className="w-5 h-5" /> Cloud Services
+            </h3>
+            <div className="space-y-3">
+              {Object.entries(integration.services).map(([key, service]) => (
+                <div key={key} className="bg-tertiary rounded-lg p-4">
+                  <div className="font-semibold text-sm mb-1">{service.name}</div>
+                  <p className="text-xs text-tertiary mb-2">{service.purpose}</p>
+                  {service.config && <div className="text-xs"><strong>Config:</strong> {service.config}</div>}
+                  {service.uri && <div className="text-xs"><strong>URI:</strong> <code>{service.uri}</code></div>}
+                  {service.tracks && (
+                    <div className="text-xs mt-2">
+                      <strong>Tracks:</strong> {service.tracks.join(', ')}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Database Tables */}
+        {integration.tables && (
+          <div className="mb-6">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Database className="w-5 h-5" /> Database Tables
+            </h3>
+            <div className="space-y-2">
+              {Object.entries(integration.tables).map(([table, desc]) => (
+                <div key={table} className="bg-tertiary rounded-lg p-3">
+                  <code className="text-sm font-semibold text-primary">{table}</code>
+                  <div className="text-xs text-tertiary mt-1">{desc}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Databases */}
+        {integration.databases && (
+          <div className="mb-6">
+            <h3 className="font-semibold mb-3 flex items-center gap-2">
+              <Database className="w-5 h-5" /> Databases
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {integration.databases.map((db, i) => (
+                <span key={i} className="badge badge-primary">
+                  {db}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

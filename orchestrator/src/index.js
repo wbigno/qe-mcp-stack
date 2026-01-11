@@ -16,6 +16,7 @@ import playwrightRouter from './routes/playwright.js';
 import infrastructureRouter from './routes/infrastructure.js';
 import { logger } from './utils/logger.js';
 import { MCPManager } from './services/mcpManager.js';
+import { fileWatcher } from './services/fileWatcher.js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -274,6 +275,7 @@ app.use((err, req, res, next) => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   logger.info('SIGTERM received, shutting down gracefully...');
+  await fileWatcher.stop();
   await mcpManager.shutdown();
   httpServer.close(() => {
     logger.info('Server closed');
@@ -286,6 +288,11 @@ async function start() {
   try {
     // Initialize all MCPs
     await mcpManager.initialize();
+
+    // Start file watcher for repository monitoring
+    fileWatcher.start();
+    logger.info('📁 File system watcher started for repository monitoring');
+
     httpServer.listen(PORT, () => {
       logger.info(`🚀 Orchestrator running on port ${PORT}`);
       logger.info(`📊 Dashboard: http://localhost:${PORT}`);
