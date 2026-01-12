@@ -505,7 +505,7 @@ async function generateTest(methodName, file) {
           includeNegativeTests: true,
           includeMocks: true,
           onlyNegativeTests: false,
-          model: "sonnet-3-5", // Default model
+          // model parameter omitted - uses backend default (claude-sonnet-4-20250514)
         }),
       },
     );

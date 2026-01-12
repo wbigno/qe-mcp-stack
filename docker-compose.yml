@@ -69,13 +69,8 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
-    depends_on:
-      azure-devops:
-        condition: service_healthy
-      code-analyzer:
-        condition: service_healthy
-      coverage-analyzer:
-        condition: service_healthy
+    # Note: Orchestrator manages MCPs, so it should NOT depend on them
+    # It will connect to MCPs as they become available
 
   dashboard:
     build:

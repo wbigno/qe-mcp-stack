@@ -1,13 +1,7 @@
 # ============================================
-# .clauderc - Claude CLI Configuration
+# .clauderc - Claude CLI Configuration (THOROUGH MODE)
 # ============================================
-# Place this file in your project root
-# Customize the settings below for your project
-# Documentation: https://github.com/anthropics/claude-code
-
-# ============================================
-# PROJECT INFORMATION
-# ============================================
+# Configured for careful, thorough development with testing
 
 [project]
 name = "QE MCP Testing Automation Stack"
@@ -18,598 +12,557 @@ Microservices-based testing automation platform with:
 - Azure DevOps integration
 - Playwright test automation
 - React dashboards for visualization
-
-Architecture:
-- Orchestrator on port 3000 coordinates all MCPs
-- Docker MCPs run on ports 3001-3020 with /health endpoints
-- STDIO MCPs spawn on-demand via orchestrator
-- All AI features use Anthropic API via claudeClient.js
 """
 
-# Tech stack - helps Claude understand your codebase
-stack = [
-    "Node.js",
-    "Docker", 
-    "Express",
-    "React",
-    ".NET Core",
-    "Playwright",
-    "Anthropic API",
-    "PostgreSQL"
-]
+stack = ["Node.js", "Docker", "Express", "React", ".NET Core", "Playwright", "Anthropic API"]
 
 # ============================================
-# FILE PATTERNS
-# ============================================
-
-[files]
-# Files to ALWAYS include in context when analyzing
-include = [
-    "README.md",
-    "package.json",
-    "docker-compose.yml",
-    "orchestrator/src/**/*.js",
-    "mcps/*/index.js",
-    "mcps/*/README.md",
-    "mcps/*/package.json",
-    "*-dashboard/script.js",
-    "*-dashboard/index.html",
-    "*.http",
-    "docs/**/*.md"
-]
-
-# Files to EXCLUDE from context (saves tokens)
-exclude = [
-    "node_modules/**",
-    "**/node_modules/**",
-    ".git/**",
-    "**/.git/**",
-    "*.log",
-    "**/*.log",
-    "data/**",
-    "coverage/**",
-    "dist/**",
-    "build/**",
-    ".vs/**",
-    "bin/**",
-    "obj/**",
-    "*.min.js",
-    "*.bundle.js",
-    "package-lock.json",
-    "**/package-lock.json"
-]
-
-# ============================================
-# CUSTOM INSTRUCTIONS
+# INSTRUCTIONS - FORCE THOROUGH DEVELOPMENT
 # ============================================
 
 [instructions]
-# Tell Claude how to work with your specific codebase
 content = """
-## Architecture Principles
+## CRITICAL: Development Process Requirements
 
-1. **MCP Structure:**
-   - This is a microservices architecture with 27+ MCPs
-   - Docker MCPs: API services on ports 3001-3020
-   - STDIO MCPs: On-demand spawned processes
-   - Orchestrator coordinates all MCPs on port 3000
+### MANDATORY: Before ANY Code Changes
+1. **ALWAYS read and understand existing code first**
+   - Show me what you found and your understanding
+   - Ask clarifying questions if anything is unclear
+   - Explain your planned approach before coding
 
-2. **Coding Standards:**
-   - Use ES6 modules (import/export, not require)
-   - Use async/await for all async operations
-   - File naming: kebab-case (my-file.js)
-   - Variable naming: camelCase (myVariable)
-   - Class naming: PascalCase (MyClass)
-   - Constants: UPPER_SNAKE_CASE (MY_CONSTANT)
-   - Always add JSDoc comments for functions
-   - Use structured logging with logger.info/error/warn
+2. **ALWAYS check for related files**
+   - Find all files that might be affected
+   - List them explicitly before making changes
+   - Explain why each file needs to change
 
-3. **MCP Development Rules:**
-   - ALL MCPs must have: index.js, package.json, README.md
-   - Docker MCPs additionally need: Dockerfile
-   - Docker MCPs MUST expose /health endpoint
-   - STDIO MCPs MUST accept JSON on stdin, output JSON on stdout
-   - Use shared/claudeClient.js for AI features
-   - Follow token tracking patterns
-   - Register in orchestrator/src/services/mcpManager.js
-   - Add to docker-compose.yml with sequential port
+3. **ALWAYS provide complete, working code**
+   - NO placeholders like "// ... rest of code ..."
+   - NO "// Add error handling here" comments
+   - Every code block must be complete and executable
+   - Include ALL imports, ALL functions, ALL error handling
 
-4. **Testing Requirements:**
-   - Create .http files in project root for API testing
-   - Test all endpoints before committing
-   - Add unit tests in tests/ directory
-   - Aim for 80%+ code coverage
-   - Mock external dependencies
+### MANDATORY: After ANY Code Changes
+4. **ALWAYS test your changes mentally first**
+   - Walk through the code execution path
+   - Identify potential edge cases
+   - List what could go wrong
+   - Explain how errors are handled
 
-5. **Documentation Standards:**
-   - Every MCP needs comprehensive README.md
-   - Include: Overview, Quick Start, API Endpoints, Examples
-   - Add inline comments for complex logic
-   - Keep CHANGELOG.md updated
-   - Document all environment variables
+5. **ALWAYS provide verification steps**
+   - Give me exact commands to test
+   - Show expected output vs actual output
+   - Provide curl commands or HTTP file examples
+   - Include both success and failure test cases
 
-6. **Docker Conventions:**
-   - Multi-stage builds for optimization
-   - Health checks on all services
-   - Use sequential port numbers (3001, 3002, ...)
-   - Always set restart: unless-stopped
-   - Use named volumes for persistence
+6. **ALWAYS check for breaking changes**
+   - Will this break existing functionality?
+   - Are there dependencies that need updating?
+   - Do any tests need to be modified?
+   - List all files that interact with this code
 
-7. **Dashboard Development:**
-   - NO inline JavaScript (CSP compliance)
-   - Use addEventListener, NEVER onclick
-   - Modular functions in script.js
-   - Responsive design with CSS Grid/Flexbox
-   - Progressive enhancement
-
-8. **Error Handling:**
-   - Always wrap in try/catch
-   - Return structured errors: { error: string, message: string, details?: any }
+### MANDATORY: Error Handling Requirements
+7. **EVERY function must have error handling**
+   - Wrap in try/catch blocks
+   - Return structured errors: { error, message, details }
    - Log errors with full context
-   - Use appropriate HTTP status codes
-   - Never expose internal errors to users
+   - Never let errors silently fail
 
-9. **AI/Token Management:**
-   - Use selectModel() for model selection
-   - Track all AI calls with TokenTracker
-   - Prefer Haiku for simple tasks (94% cheaper)
-   - Use Sonnet 3.5 for medium complexity
-   - Reserve Sonnet 4 for complex tasks
-   - Cache expensive operations
+8. **EVERY API endpoint must validate input**
+   - Check for required parameters
+   - Validate data types
+   - Sanitize user input
+   - Return clear error messages
 
-10. **Security Best Practices:**
-    - Never commit API keys or secrets
-    - Use environment variables for config
-    - Validate all user inputs
-    - Sanitize data before database queries
-    - Use parameterized queries (no string concatenation)
-    - Implement rate limiting on APIs
-    - Add CORS headers appropriately
+### MANDATORY: Code Quality Standards
+9. **Code MUST be production-ready**
+   - Add JSDoc comments to ALL functions
+   - Use descriptive variable names (no x, y, z)
+   - No magic numbers (use named constants)
+   - Follow existing code style exactly
 
-11. **Git Workflow:**
-    - Clear, descriptive commit messages
-    - Use conventional commits (feat:, fix:, docs:)
-    - Keep commits focused and atomic
-    - Update CHANGELOG.md with changes
-    - Test before pushing
+10. **Documentation MUST be complete**
+    - Every change requires explanation
+    - Update README if behavior changes
+    - Add inline comments for complex logic
+    - Include usage examples
 
-12. **Performance Guidelines:**
-    - Cache frequently accessed data
-    - Use streaming for large responses
-    - Implement pagination for lists
-    - Optimize database queries
-    - Monitor memory usage
-    - Set appropriate timeouts
+### FORBIDDEN Practices (NEVER DO THESE)
+❌ NEVER use placeholders in code
+❌ NEVER skip error handling
+❌ NEVER omit validation
+❌ NEVER forget to test
+❌ NEVER make assumptions without asking
+❌ NEVER provide partial code
+❌ NEVER say "similar pattern" - show the FULL code
+❌ NEVER skip explaining your changes
+❌ NEVER forget about edge cases
+❌ NEVER ignore existing patterns in the codebase
+
+### Required Response Format
+When making ANY code change, structure your response as:
+
+**1. ANALYSIS**
+   - What I found in the existing code
+   - What needs to change and why
+   - Potential impacts on other files
+   - Edge cases to consider
+
+**2. PLAN**
+   - Step-by-step implementation plan
+   - Files that will be modified
+   - New files that will be created
+   - Dependencies that need updating
+
+**3. IMPLEMENTATION**
+   - Complete, working code (no placeholders)
+   - All necessary imports
+   - Full error handling
+   - All edge cases handled
+
+**4. VERIFICATION**
+   - Exact test commands
+   - Expected vs actual output
+   - Success test cases
+   - Failure test cases
+   - Integration test examples
+
+**5. CHECKLIST**
+   - [ ] Code is complete (no TODOs)
+   - [ ] Error handling added
+   - [ ] Input validation added
+   - [ ] Tests provided
+   - [ ] Documentation updated
+   - [ ] No breaking changes OR migration plan provided
+   - [ ] Edge cases handled
+   - [ ] Follows existing patterns
+
+## Architecture Principles (MUST FOLLOW)
+
+### MCP Structure
+- Docker MCPs: MUST have /health endpoint that returns 200
+- STDIO MCPs: MUST accept JSON stdin, output JSON stdout
+- ALL MCPs: MUST have index.js, package.json, README.md, Dockerfile
+- Register in orchestrator/src/services/mcpManager.js
+- Add to docker-compose.yml with sequential port
+
+### Coding Standards (NON-NEGOTIABLE)
+- ES6 modules: import/export (NOT require/module.exports)
+- async/await for ALL async operations (NO callbacks, NO .then())
+- File naming: kebab-case (my-service.js)
+- Variable naming: camelCase (myVariable)
+- Class naming: PascalCase (MyClass)
+- Constants: UPPER_SNAKE_CASE (MAX_RETRIES)
+- JSDoc comments on EVERY function
+- Structured logging: logger.info/error/warn
+
+### Error Handling (REQUIRED EVERYWHERE)
+```javascript
+// CORRECT - This is the ONLY acceptable pattern
+try {
+  const result = await someOperation();
+  return { success: true, data: result };
+} catch (error) {
+  logger.error('Operation failed', { error: error.message, stack: error.stack });
+  return { 
+    success: false, 
+    error: 'Operation failed', 
+    message: error.message,
+    details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+  };
+}
+```
+
+### Input Validation (REQUIRED FOR ALL APIS)
+```javascript
+// CORRECT - Validate BEFORE processing
+app.post('/api/analyze', async (req, res) => {
+  // Step 1: Validate required fields
+  const { app, type } = req.body;
+  if (!app) {
+    return res.status(400).json({ 
+      error: 'Missing required parameter', 
+      message: 'app is required' 
+    });
+  }
+
+  // Step 2: Validate data types
+  if (typeof app !== 'string') {
+    return res.status(400).json({ 
+      error: 'Invalid parameter type', 
+      message: 'app must be a string' 
+    });
+  }
+
+  // Step 3: Process
+  try {
+    const result = await processRequest(app, type);
+    res.json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Request failed', { error, app, type });
+    res.status(500).json({ 
+      error: 'Processing failed', 
+      message: error.message 
+    });
+  }
+});
+```
+
+### Testing Requirements (MUST PROVIDE)
+When creating/modifying ANY endpoint:
+1. Create .http file with test cases
+2. Show curl commands
+3. Include success case
+4. Include failure cases (missing params, invalid data, server error)
+5. Test with actual service running
+
+### Docker Conventions (MUST FOLLOW)
+- Multi-stage builds for optimization
+- Health checks that actually work: `curl -f http://localhost:PORT/health`
+- Sequential port numbers (check docker-compose.yml for next available)
+- restart: unless-stopped
+- Named volumes for persistence
+- Proper logging configuration
+
+### Dashboard Development (CSP COMPLIANT)
+- NO inline JavaScript (use addEventListener)
+- NO onclick attributes in HTML
+- Modular functions in script.js
+- Progressive enhancement
+- Responsive design
+
+## When I Ask You To...
+
+### "Add a feature"
+1. First, ask me clarifying questions
+2. Show me the existing code structure
+3. Explain your implementation plan
+4. Get my approval before coding
+5. Provide complete, tested implementation
+6. Give me verification steps
+
+### "Fix a bug"
+1. Ask me to reproduce the issue
+2. Analyze the root cause
+3. Explain what's wrong
+4. Propose a solution
+5. Show the fix with tests
+6. Explain why it won't happen again
+
+### "Refactor code"
+1. Show current code structure
+2. Explain what's wrong with it
+3. Propose better structure
+4. Show complete refactored code
+5. Provide migration steps if needed
+6. List all affected files
+
+### "Add tests"
+1. Analyze existing code
+2. Identify test cases (success, edge, failure)
+3. Write complete test file
+4. Show how to run tests
+5. Show expected output
+
+## Quality Checklist (USE THIS EVERY TIME)
+
+Before responding, verify:
+- [ ] Did I read and understand the existing code?
+- [ ] Did I provide COMPLETE code (no placeholders)?
+- [ ] Did I add error handling EVERYWHERE?
+- [ ] Did I validate ALL inputs?
+- [ ] Did I include JSDoc comments?
+- [ ] Did I follow the existing code style?
+- [ ] Did I provide test commands?
+- [ ] Did I explain my changes?
+- [ ] Did I check for breaking changes?
+- [ ] Did I handle edge cases?
+- [ ] Would this code pass code review?
+- [ ] Can the user copy-paste and run this immediately?
+
+## Remember
+- SLOW DOWN - Speed causes bugs
+- THINK FIRST - Then code
+- TEST MENTALLY - Walk through execution
+- BE COMPLETE - No shortcuts
+- BE THOROUGH - Check everything
+- BE HELPFUL - Explain clearly
 """
 
 # ============================================
-# MODEL CONFIGURATION
+# MODEL CONFIGURATION - USE BETTER MODELS
 # ============================================
 
 [models]
-# Use Haiku as default (94% cheaper than Sonnet 4)
-default = "claude-haiku-3-5-20241022"  # ← Changed from Sonnet 4
+# Use Sonnet 3.5 as default for better quality
+# (Haiku is fast but makes more mistakes)
+default = "claude-sonnet-3-5-20241022"
 
 # Model selection by complexity
-simple = "claude-haiku-3-5-20241022"      # $0.25/1M
-medium = "claude-sonnet-3-5-20241022"     # $3/1M (use sparingly)
-complex = "claude-sonnet-4-20250514"      # $15/1M (use rarely)
+simple = "claude-sonnet-3-5-20241022"      # Use Sonnet even for simple tasks
+medium = "claude-sonnet-3-5-20241022"      # Sonnet for medium
+complex = "claude-sonnet-4-20250514"       # Sonnet 4 for complex
 
-# Auto-select model based on task
-auto_select = true
-
-# ============================================
-# CUSTOM COMMANDS / SHORTCUTS
-# ============================================
-
-[commands]
-
-# Create a new MCP from template
-add-mcp = """
-Create a new MCP service named {0} following QE MCP Stack standards:
-
-1. Create directory structure:
-   - mcps/{0}/
-   - mcps/{0}/src/
-   - mcps/{0}/tests/
-
-2. Create files:
-   - index.js with Express server and /health endpoint
-   - package.json with dependencies
-   - Dockerfile (multi-stage build)
-   - README.md from standard template
-   - src/analyzer.js or src/generator.js (as appropriate)
-   - src/claudeClient.js if AI is needed
-   - tests/test.js with basic tests
-
-3. Register in orchestrator:
-   - Add to orchestrator/src/services/mcpManager.js
-   - Determine next available port (check highest + 1)
-
-4. Update docker-compose.yml:
-   - Add service definition
-   - Set correct port mapping
-   - Add health check
-   - Include in qe-network
-
-5. Create HTTP test file:
-   - Create {increment}-{0}.http
-   - Add basic endpoint tests
-
-Show me all files to create and their contents.
-"""
-
-# Add a new tab to code dashboard
-add-dashboard-tab = """
-Add a new tab named {0} to the code-dashboard:
-
-1. Update HTML:
-   - Add tab button in code-dashboard/index.html
-   - Add tab content container with data-tab="{0}"
-
-2. Update JavaScript (code-dashboard/script.js):
-   - Create load{0}Data(app) function
-   - Add tab switching logic
-   - Add event listeners (NO onclick)
-   - Fetch data from new API endpoint
-
-3. Create API endpoint (orchestrator/src/routes/dashboard.js):
-   - Add GET /api/dashboard/{0}?app=App1
-   - Call appropriate MCP
-   - Return structured data
-
-4. Update CSS (code-dashboard/styles.css):
-   - Add tab-specific styles
-   - Ensure responsive design
-
-5. Create tests:
-   - Add to HTTP test files
-   - Test with different apps
-
-Show me the complete implementation.
-"""
-
-# Perform security audit
-review-security = """
-Perform comprehensive security review of the codebase:
-
-1. Check for common vulnerabilities:
-   - SQL injection points
-   - XSS vulnerabilities
-   - CSRF protection
-   - Command injection
-   - Path traversal
-
-2. Review authentication/authorization:
-   - Check token validation
-   - Review session management
-   - Check password handling
-   - Review permission checks
-
-3. Check for exposed secrets:
-   - API keys in code
-   - Hardcoded credentials
-   - Environment variable leaks
-   - Git history issues
-
-4. Review dependencies:
-   - Check for known CVEs
-   - Outdated packages
-   - Unused dependencies
-
-5. Check configuration:
-   - CORS settings
-   - Security headers
-   - Error message verbosity
-   - Logging sensitivity
-
-6. Review input validation:
-   - User input sanitization
-   - File upload restrictions
-   - Query parameter validation
-   - Request body validation
-
-7. Docker security:
-   - Running as root?
-   - Exposed ports
-   - Secrets management
-   - Image vulnerabilities
-
-Provide detailed findings with severity levels and remediation steps.
-"""
-
-# Optimize AI costs
-optimize-costs = """
-Analyze AI token usage and provide cost optimization recommendations:
-
-1. Find all Anthropic API calls:
-   - List all files using claudeClient.js
-   - Identify call patterns
-   - Estimate token usage
-
-2. Identify optimization opportunities:
-   - Calls that could use Haiku instead of Sonnet
-   - Calls that could be cached
-   - Calls that could be batched
-   - Redundant calls
-
-3. Calculate potential savings:
-   - Current monthly cost estimate
-   - Optimized monthly cost
-   - Savings percentage
-   - ROI timeline
-
-4. Provide implementation plan:
-   - Priority order (highest savings first)
-   - Code changes needed
-   - Testing requirements
-   - Rollback plan
-
-5. Token tracking implementation:
-   - Add TokenTracker middleware
-   - Set budget limits
-   - Add monitoring dashboards
-   - Configure alerts
-
-Show detailed analysis with code examples.
-"""
-
-# Generate comprehensive tests
-add-tests = """
-Generate comprehensive test suite for {0}:
-
-1. Unit Tests:
-   - Test all public functions
-   - Test error cases
-   - Test edge cases
-   - Test boundary conditions
-   - Mock external dependencies
-
-2. Integration Tests:
-   - Test API endpoints
-   - Test database interactions
-   - Test MCP communication
-   - Test error propagation
-
-3. Test Coverage:
-   - Aim for 80%+ line coverage
-   - Cover all critical paths
-   - Test success and failure cases
-   - Test with various inputs
-
-4. Test Organization:
-   - Use describe/it blocks
-   - Clear test names
-   - Arrange-Act-Assert pattern
-   - Setup/teardown properly
-
-5. Mocking Strategy:
-   - Mock external APIs
-   - Mock database
-   - Mock file system
-   - Mock time/dates
-
-Generate complete test file with all tests.
-"""
-
-# Analyze code quality
-analyze-quality = """
-Analyze code quality and provide improvement recommendations:
-
-1. Code Smells:
-   - Long methods (>50 lines)
-   - Complex conditionals
-   - Duplicate code
-   - God classes
-   - Feature envy
-
-2. Metrics:
-   - Cyclomatic complexity
-   - Lines of code
-   - Number of dependencies
-   - Coupling metrics
-
-3. Best Practices:
-   - SOLID principles adherence
-   - DRY violations
-   - Naming conventions
-   - Error handling patterns
-
-4. Documentation:
-   - Missing JSDoc comments
-   - Unclear variable names
-   - Insufficient README
-   - Missing examples
-
-5. Performance:
-   - Inefficient algorithms
-   - Memory leaks
-   - Blocking operations
-   - Missing caching
-
-Provide detailed report with priority rankings and code examples.
-"""
+# Disable auto-select to always use default (Sonnet)
+auto_select = false
 
 # ============================================
-# CONTEXT MANAGEMENT
+# OUTPUT PREFERENCES - DETAILED EXPLANATIONS
+# ============================================
+
+[output]
+language = "javascript"
+style = "detailed"  # Changed from "concise" to "detailed"
+comments = "verbose"  # Changed from "helpful" to "verbose"
+
+# Explanation detail level
+explain = "detailed"  # Changed from "medium" to "detailed"
+
+# Always include examples
+include_examples = true
+
+# Show reasoning
+show_reasoning = true
+
+# Format code properly
+format = "prettier"
+
+# ============================================
+# CONTEXT MANAGEMENT - MORE CONTEXT
 # ============================================
 
 [context]
-# Maximum number of files to include at once
-max_files = 20  # ← Reduced from 50
+# Increase files in context
+max_files = 30  # Increased from 20
 
-# Maximum tokens in context window
-max_tokens = 50000  # ← Reduced from 150000
+# Increase token context
+max_tokens = 100000  # Increased from 50000
 
-# Boost recently edited files in context
-recent_files_boost = 1.5
+# Include dependencies to understand relationships
+include_dependencies = true  # Changed from false
 
-# Include files that are imported/required
-include_dependencies = false  # ← Disabled to save tokens
-
-# Smart context (automatically include relevant files)
+# Smart context
 smart_context = true
 
-# ============================================
-# BUDGET & LIMITS
-# ============================================
-
-budget]
-# Daily token budget (approximate)
-daily_tokens = 166667  # ~$2.50/day for Sonnet 4 ($50/20 working days)
-
-# Warning threshold (percentage of daily budget)
-warn_at = 80  # Warn at 80% ($2.00/day)
-
-# Cost per task warning
-cost_per_task = 0.25  # Warn if single task > $0.25
-
-# Monthly budget tracking
-monthly_budget = 50  # $50/month
+# Boost recently edited files
+recent_files_boost = 2.0  # Increased from 1.5
 
 # ============================================
-# SAFETY & PROTECTION
+# SAFETY & PROTECTION - BE EXTRA CAREFUL
 # ============================================
 
 [safety]
-# Files that require explicit confirmation before modifying
+# Protected files (require confirmation)
 protected = [
     "package-lock.json",
     "docker-compose.yml",
     ".env",
     ".env.production",
     "data/**",
-    "orchestrator/src/services/mcpManager.js"
+    "orchestrator/src/services/mcpManager.js",
+    "*.config.js",
+    ".github/**"
 ]
 
-# Warn before large changes
-warn_lines_changed = 100
-warn_files_modified = 5
+# Warn before ANY changes
+warn_lines_changed = 50  # Decreased from 100 (warn sooner)
+warn_files_modified = 3  # Decreased from 5 (warn sooner)
 
-# Require confirmation for destructive operations
+# Always confirm destructive operations
 confirm_delete = true
 confirm_overwrite = true
+confirm_breaking_change = true
 
 # ============================================
-# OUTPUT PREFERENCES
+# VERIFICATION REQUIREMENTS
 # ============================================
 
-[output]
-# Preferred code style
-language = "javascript"
-style = "concise"  # minimal, concise, detailed
-comments = "helpful"  # none, minimal, helpful, verbose
+[verification]
+# Require these checks before considering code complete
+require_tests = true
+require_error_handling = true
+require_input_validation = true
+require_documentation = true
+require_examples = true
 
-# Explanation detail level
-explain = "medium"  # minimal, medium, detailed
-
-# Code formatting
-format = "prettier"  # prettier, eslint, none
-
-# Include examples in explanations
-include_examples = true
+# Enforce code quality
+enforce_jsdoc = true
+enforce_error_handling = true
+enforce_input_validation = true
 
 # ============================================
-# INTEGRATIONS
+# CUSTOM COMMANDS - WITH VERIFICATION
 # ============================================
 
-[integrations.git]
-enabled = true
-auto_commit = false
-commit_style = "conventional"  # conventional, simple, detailed
+[commands]
 
-[integrations.docker]
-enabled = true
-auto_build = false
-auto_restart = true
+# Create new MCP with FULL implementation
+add-mcp = """
+Create a new MCP service named {0} with COMPLETE, production-ready code.
 
-[integrations.testing]
-framework = "jest"
-auto_run = false
-watch_mode = false
+MANDATORY STEPS (DO NOT SKIP ANY):
 
-[integrations.linting]
-enabled = true
-auto_fix = true
-eslint_config = ".eslintrc.js"
+1. ANALYSIS PHASE:
+   - Check existing MCP structure
+   - Find next available port number
+   - Identify similar MCPs to follow as pattern
+   - List all files that need to be created
+
+2. IMPLEMENTATION PHASE:
+   Create these files with COMPLETE code (no placeholders):
+
+   a) mcps/{0}/index.js
+      - Express server setup
+      - Health check endpoint
+      - All API endpoints
+      - Full error handling
+      - Input validation
+      - Logging
+
+   b) mcps/{0}/package.json
+      - All dependencies listed
+      - Correct scripts
+      - Proper metadata
+
+   c) mcps/{0}/Dockerfile
+      - Multi-stage build
+      - Health check
+      - Non-root user
+      - Optimized layers
+
+   d) mcps/{0}/README.md
+      - Complete documentation
+      - API endpoints
+      - Examples
+      - Setup instructions
+
+   e) mcps/{0}/src/analyzer.js (or generator.js)
+      - Complete business logic
+      - Error handling
+      - JSDoc comments
+
+   f) {0}.http
+      - All endpoint tests
+      - Success cases
+      - Failure cases
+
+3. INTEGRATION PHASE:
+   Update these files:
+   - orchestrator/src/services/mcpManager.js (add service)
+   - docker-compose.yml (add service definition)
+
+4. VERIFICATION PHASE:
+   Provide:
+   - Docker build command
+   - Docker run command
+   - Test commands
+   - Expected output
+   - Troubleshooting steps
+
+5. CHECKLIST:
+   - [ ] All files created with complete code
+   - [ ] No placeholders or TODOs
+   - [ ] Error handling in all functions
+   - [ ] Input validation on all endpoints
+   - [ ] Health check endpoint works
+   - [ ] Service registered in orchestrator
+   - [ ] Added to docker-compose.yml
+   - [ ] Test file created
+   - [ ] README is complete
+   - [ ] Can build and run immediately
+
+Show me EVERYTHING. No shortcuts.
+"""
+
+# Review code with detailed analysis
+review-code = """
+Perform THOROUGH code review of {0}:
+
+1. CORRECTNESS:
+   - Does the code do what it's supposed to?
+   - Are there logical errors?
+   - Are edge cases handled?
+   - Is error handling complete?
+
+2. COMPLETENESS:
+   - Are there any placeholders?
+   - Are there any TODOs?
+   - Is validation missing?
+   - Are imports complete?
+
+3. QUALITY:
+   - Code smells?
+   - Duplicate code?
+   - Magic numbers?
+   - Poor naming?
+
+4. SAFETY:
+   - Security vulnerabilities?
+   - Input validation missing?
+   - SQL injection risks?
+   - XSS vulnerabilities?
+
+5. TESTING:
+   - Can this be tested?
+   - Are tests provided?
+   - Edge cases covered?
+
+6. DOCUMENTATION:
+   - JSDoc comments present?
+   - README accurate?
+   - Examples provided?
+
+For EACH issue found:
+- Severity: Critical/High/Medium/Low
+- Location: File and line number
+- Problem: What's wrong
+- Impact: What could happen
+- Solution: How to fix it
+- Example: Show the fix
+
+Provide detailed report with code examples for every issue.
+"""
 
 # ============================================
-# LOGGING & DEBUGGING
+# BUDGET - INVEST IN QUALITY
+# ============================================
+
+[budget]
+# Increased budget for better quality
+daily_tokens = 333334  # $5/day for Sonnet 3.5
+warn_at = 80
+cost_per_task = 0.50  # Higher threshold (quality over speed)
+monthly_budget = 100  # $100/month for better results
+
+# ============================================
+# LOGGING - TRACK EVERYTHING
 # ============================================
 
 [logging]
 enabled = true
-level = "info"  # debug, info, warn, error
+level = "debug"  # Changed from "info" to "debug"
 file = ".claude.log"
-max_size = "10mb"
-max_files = 5
+max_size = "50mb"  # Increased from 10mb
+max_files = 10  # Increased from 5
 
-# Track token usage
 track_tokens = true
 track_costs = true
-
-# Performance logging
 track_response_time = true
+track_errors = true
+track_retries = true
 
 # ============================================
-# WORKING DIRECTORIES
+# RESPONSE REQUIREMENTS
 # ============================================
 
-[directories]
-# Quick navigation shortcuts
-mcps = "mcps/"
-orchestrator = "orchestrator/src/"
-dashboards = "code-dashboard/"
-docs = "docs/"
-tests = "tests/"
-config = "config/"
+[response]
+# Enforce structured responses
+require_analysis = true
+require_plan = true
+require_tests = true
+require_verification = true
+require_checklist = true
 
-# ============================================
-# KEYBOARD SHORTCUTS
-# ============================================
-
-[shortcuts]
-# These work in interactive mode
-explain = "e"      # Explain last response in detail
-code = "c"         # Show code only
-retry = "r"        # Retry last request
-clear = "cls"      # Clear conversation
-help = "h"         # Show help
-
-# ============================================
-# FEATURE FLAGS
-# ============================================
-
-[features]
-# Enable experimental features
-autocomplete = true
-smart_suggestions = true
-context_awareness = true
-code_analysis = true
-security_scanning = false  # Enable when ready
-
-# ============================================
-# EXAMPLE USAGE
-# ============================================
-
-# Basic commands:
-# claude "add error handling to orchestrator/src/routes/tests.js"
-# claude add-mcp "performance-analyzer"
-# claude add-dashboard-tab "security"
-# claude review-security
-# claude optimize-costs
-
-# Interactive mode:
-# claude
-# > What MCPs are missing from the orchestrator?
-# > Add security tab to code dashboard
-# > Optimize token usage in all claudeClient.js files
-
-# File-specific:
-# claude --file mcps/smell-detector/index.js "add health check endpoint"
-
-# Multi-file:
-# claude --files "orchestrator/src/**/*.js" "add JSDoc comments"
-
-# With context:
-# claude --context "I'm working on dashboard integration" "help me add a new tab"
+# Minimum response quality
+min_explanation_length = 200  # At least 200 chars of explanation
+require_code_examples = true
+require_error_examples = true
