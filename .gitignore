@@ -117,6 +117,9 @@ playwright/.cache/
 # Jest
 jest-coverage/
 
+# Test reports
+test-reports/
+
 # Test artifacts
 *.test.js.snap
 __snapshots__/
