@@ -1,4 +1,36 @@
-# ============================================
+## Quality Checklist (USE THIS EVERY TIME)
+
+Before responding, verify:
+- [ ] Did I read and understand the existing code?
+- [ ] Did I identify ALL areas that could be affected?
+- [ ] Did I provide COMPLETE code (no placeholders)?
+- [ ] Did I add error handling EVERYWHERE?
+- [ ] Did I validate ALL inputs?
+- [ ] Did I include JSDoc comments?
+- [ ] Did I follow the existing code style?
+- [ ] Did I write unit tests?
+- [ ] Did I RUN the unit tests and verify they pass?
+- [ ] Did I write API tests (.http or curl)?
+- [ ] Did I RUN the API tests and show the results?
+- [ ] Did I test for regressions (existing functionality)?
+- [ ] Did I RUN the regression tests and show results?
+- [ ] Did I provide ACTUAL test output (not just commands)?
+- [ ] Did I explain my changes?
+- [ ] Did I check for breaking changes?
+- [ ] Did I handle edge cases?
+- [ ] Would this code pass code review?
+- [ ] Can the user copy-paste and run this immediately?
+- [ ] Did I prove with test results that everything works?
+
+## Remember
+- SLOW DOWN - Speed causes bugs
+- THINK FIRST - Then code
+- TEST MENTALLY - Walk through execution
+- TEST ACTUALLY - Run the tests and show results
+- BE COMPLETE - No shortcuts
+- BE THOROUGH - Check everything
+- BE HELPFUL - Explain clearly
+- PROVE IT WORKS - Show test output, not just "it should work"# ============================================
 # .clauderc - Claude CLI Configuration (THOROUGH MODE)
 # ============================================
 # Configured for careful, thorough development with testing
@@ -48,17 +80,36 @@ content = """
    - List what could go wrong
    - Explain how errors are handled
 
-5. **ALWAYS provide verification steps**
-   - Give me exact commands to test
+5. **ALWAYS run actual tests before claiming success**
+   - Run unit tests: `npm test` or `jest` in the affected directory
+   - Run API tests: Execute .http file or curl commands
+   - Run integration tests: Test the full request/response flow
+   - Run existing test suite to catch regressions
+   - Show me the actual test output (pass/fail results)
+   - If tests fail, fix the code and re-test
+   - DO NOT say "the code should work" - PROVE it works with test results
+
+6. **ALWAYS verify nothing broke**
+   - Run the full test suite: `./test-all-mcps.sh` (if available)
+   - Test all related endpoints manually
+   - Check that all health checks still pass
+   - Verify dependent services still function
+   - Show me before/after test results
+
+7. **ALWAYS provide verification steps**
+   - Give me exact commands to test NEW functionality
+   - Give me exact commands to test EXISTING functionality
    - Show expected output vs actual output
    - Provide curl commands or HTTP file examples
    - Include both success and failure test cases
+   - Show actual test execution logs
 
-6. **ALWAYS check for breaking changes**
+8. **ALWAYS check for breaking changes**
    - Will this break existing functionality?
    - Are there dependencies that need updating?
    - Do any tests need to be modified?
    - List all files that interact with this code
+   - Provide migration path if breaking
 
 ### MANDATORY: Error Handling Requirements
 7. **EVERY function must have error handling**
@@ -120,13 +171,27 @@ When making ANY code change, structure your response as:
    - All edge cases handled
 
 **4. VERIFICATION**
-   - Exact test commands
-   - Expected vs actual output
-   - Success test cases
-   - Failure test cases
-   - Integration test examples
+   - Exact test commands for NEW functionality
+   - ACTUAL TEST RESULTS showing tests passed
+   - Exact test commands for EXISTING functionality (regression tests)
+   - ACTUAL REGRESSION TEST RESULTS showing nothing broke
+   - Expected vs actual output for both
+   - Success test cases with real HTTP responses
+   - Failure test cases with real error responses
+   - Integration test examples with actual output
+   - Unit test results: `npm test` output
+   - API test results: curl/HTTP file execution results
+   - Smoke test results: `./test-all-mcps.sh` output
 
-**5. CHECKLIST**
+**5. REGRESSION CHECK**
+   - List all existing features that might be affected
+   - Test commands to verify each one still works
+   - ACTUAL EXECUTION of regression tests
+   - Show test output proving nothing broke
+   - If anything broke, explain why and provide fix
+   - Re-run tests after fix to prove it works
+
+**6. CHECKLIST**
    - [ ] Code is complete (no TODOs)
    - [ ] Error handling added
    - [ ] Input validation added
@@ -207,13 +272,72 @@ app.post('/api/analyze', async (req, res) => {
 });
 ```
 
-### Testing Requirements (MUST PROVIDE)
-When creating/modifying ANY endpoint:
-1. Create .http file with test cases
-2. Show curl commands
-3. Include success case
-4. Include failure cases (missing params, invalid data, server error)
-5. Test with actual service running
+### Testing Requirements (MUST PROVIDE AND RUN)
+When creating/modifying ANY code:
+
+**Unit Tests (MUST RUN):**
+1. Create/update unit tests in tests/ directory
+2. Run: `npm test` or `jest` in the service directory
+3. Show me the actual test output (all tests passing)
+4. If tests fail, fix the code until they pass
+5. Aim for 80%+ code coverage
+
+**API Tests (MUST RUN):**
+1. Create .http file with test cases for NEW functionality
+2. Create regression tests for EXISTING functionality
+3. Run each test in the .http file or via curl
+4. Show me the actual HTTP responses (status codes, body)
+5. Test success cases (200, 201 responses)
+6. Test failure cases (400, 404, 500 responses)
+7. Verify response structure matches expected schema
+
+**Integration Tests (MUST RUN):**
+1. Test the full end-to-end flow
+2. Start the service: `docker compose up -d servicename`
+3. Wait for health check: `curl http://localhost:PORT/health`
+4. Run integration tests
+5. Show actual output from running services
+6. Test with real dependencies (not mocks)
+
+**Regression Tests (MUST RUN):**
+1. Run full test suite: `./test-all-mcps.sh`
+2. Test all existing endpoints still work
+3. Show before/after comparison
+4. If anything breaks, fix it before claiming success
+
+**Mandatory Test Output:**
+- Show actual command executed
+- Show actual output/response
+- Show pass/fail status
+- Show any errors or warnings
+- Confirm all tests pass before finalizing
+
+**Example Test Evidence Required:**
+```bash
+# Unit tests
+$ cd mcps/risk-analyzer
+$ npm test
+✓ should analyze risk correctly (45ms)
+✓ should handle missing data (12ms)
+✓ should validate input (8ms)
+Tests: 3 passed, 3 total
+
+# API tests
+$ curl http://localhost:8300/health
+{"status":"healthy","uptime":123.45}
+HTTP/1.1 200 OK ✓
+
+$ curl -X POST http://localhost:8300/analyze -d '{"storyId":123}'
+{"success":true,"risk":"medium"}
+HTTP/1.1 200 OK ✓
+
+# Regression test
+$ ./test-all-mcps.sh
+Testing: Risk Analyzer MCP
+  ✅ Health check passed
+  ✅ API responded successfully
+All tests passed!
+```
 
 ### Docker Conventions (MUST FOLLOW)
 - Multi-stage builds for optimization
@@ -235,26 +359,43 @@ When creating/modifying ANY endpoint:
 ### "Add a feature"
 1. First, ask me clarifying questions
 2. Show me the existing code structure
-3. Explain your implementation plan
-4. Get my approval before coding
-5. Provide complete, tested implementation
-6. Give me verification steps
+3. Identify ALL areas that might be affected
+4. List existing functionality that could break
+5. Explain your implementation plan
+6. Get my approval before coding
+7. Provide complete, tested implementation
+8. Write unit tests for the new feature
+9. RUN unit tests: `npm test` and show output
+10. Write API tests (.http file)
+11. RUN API tests and show HTTP responses
+12. Write regression tests for existing features
+13. RUN regression tests and show results
+14. Confirm nothing broke with test evidence
 
 ### "Fix a bug"
 1. Ask me to reproduce the issue
 2. Analyze the root cause
-3. Explain what's wrong
-4. Propose a solution
-5. Show the fix with tests
-6. Explain why it won't happen again
+3. Identify what else might break from the fix
+4. Explain what's wrong
+5. Propose a solution
+6. Show the fix with tests
+7. RUN tests to prove the fix works
+8. Provide regression tests to ensure fix doesn't break other things
+9. RUN regression tests and show results
+10. Explain why it won't happen again
 
 ### "Refactor code"
 1. Show current code structure
-2. Explain what's wrong with it
-3. Propose better structure
-4. Show complete refactored code
-5. Provide migration steps if needed
-6. List all affected files
+2. Identify ALL files/features that depend on this code
+3. Explain what's wrong with it
+4. Propose better structure
+5. Show complete refactored code
+6. Write comprehensive test suite for refactored code
+7. RUN all tests before refactoring (baseline)
+8. RUN all tests after refactoring (comparison)
+9. Show that test results are identical (no regressions)
+10. Provide migration steps if needed
+11. List all affected files and test each one
 
 ### "Add tests"
 1. Analyze existing code
