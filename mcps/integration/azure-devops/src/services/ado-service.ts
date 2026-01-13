@@ -2,8 +2,8 @@
  * Azure DevOps API Service
  */
 
-import axios, { AxiosInstance } from 'axios';
-import { logger, ServiceError } from '@qe-mcp-stack/shared';
+import axios, { AxiosInstance } from "axios";
+import { logger, ServiceError } from "@qe-mcp-stack/shared";
 import {
   ADOConfig,
   WorkItem,
@@ -15,7 +15,7 @@ import {
   ADOTeam,
   ADOSprint,
   WIQLQueryResult,
-} from '../types';
+} from "../types";
 
 export class ADOService {
   private client: AxiosInstance;
@@ -29,11 +29,11 @@ export class ADOService {
     this.client = axios.create({
       baseURL: `https://dev.azure.com/${config.organization}/${config.project}/_apis`,
       auth: {
-        username: '',
+        username: "",
         password: config.pat,
       },
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
@@ -41,11 +41,11 @@ export class ADOService {
     this.orgClient = axios.create({
       baseURL: `https://dev.azure.com/${config.organization}/_apis`,
       auth: {
-        username: '',
+        username: "",
         password: config.pat,
       },
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
   }
@@ -63,9 +63,13 @@ export class ADOService {
       }
 
       // Build iteration path condition for sprint queries
-      let iterationPathCondition = '';
+      let iterationPathCondition = "";
       if (sprint) {
-        const fullIterationPath = this.buildIterationPath(sprint, project, team);
+        const fullIterationPath = this.buildIterationPath(
+          sprint,
+          project,
+          team,
+        );
         iterationPathCondition = `AND [System.IterationPath] UNDER '${fullIterationPath}'`;
       }
 
@@ -78,18 +82,18 @@ export class ADOService {
         ${iterationPathCondition}
         ORDER BY [System.Id] DESC`;
 
-      logger.info('Executing WIQL query', { wiql });
+      logger.info("Executing WIQL query", { wiql });
 
       // Execute WIQL query
       const queryResponse = await this.client.post<WIQLQueryResult>(
         `/wit/wiql?api-version=${this.config.apiVersion}`,
-        { query: wiql }
+        { query: wiql },
       );
 
       const idsFromQuery = queryResponse.data.workItems.map((wi) => wi.id);
 
       if (idsFromQuery.length === 0) {
-        logger.info('No work items found for query');
+        logger.info("No work items found for query");
         return [];
       }
 
@@ -98,30 +102,60 @@ export class ADOService {
       // Fetch full work item details with relations
       return await this.getWorkItemsByIds(idsFromQuery);
     } catch (error: any) {
-      logger.error('Failed to query work items', {
+      logger.error("Failed to query work items", {
         error: error.message,
         details: error.response?.data,
       });
-      throw new ServiceError(`Failed to query work items: ${error.message}`, error.response?.status || 500);
+      throw new ServiceError(
+        `Failed to query work items: ${error.message}`,
+        error.response?.status || 500,
+      );
     }
   }
 
   /**
-   * Get specific work items by IDs
+   * Get specific work items by IDs (project-scoped)
    */
   async getWorkItemsByIds(ids: number[]): Promise<WorkItem[]> {
     try {
       const response = await this.client.get<{ value: WorkItem[] }>(
-        `/wit/workitems?ids=${ids.join(',')}&$expand=relations&api-version=${this.config.apiVersion}`
+        `/wit/workitems?ids=${ids.join(",")}&$expand=relations&api-version=${this.config.apiVersion}`,
       );
 
       return response.data.value || [];
     } catch (error: any) {
-      logger.error('Failed to get work items', {
+      logger.error("Failed to get work items", {
         error: error.message,
         ids,
       });
-      throw new ServiceError(`Failed to get work items: ${error.message}`, error.response?.status || 500);
+      throw new ServiceError(
+        `Failed to get work items: ${error.message}`,
+        error.response?.status || 500,
+      );
+    }
+  }
+
+  /**
+   * Get specific work items by IDs (organization-wide)
+   * This allows fetching work items from any project in the organization
+   */
+  async getWorkItemsByIdsOrgWide(ids: number[]): Promise<WorkItem[]> {
+    try {
+      logger.info("Fetching work items org-wide", { ids });
+      const response = await this.orgClient.get<{ value: WorkItem[] }>(
+        `/wit/workitems?ids=${ids.join(",")}&$expand=relations&api-version=${this.config.apiVersion}`,
+      );
+
+      return response.data.value || [];
+    } catch (error: any) {
+      logger.error("Failed to get work items org-wide", {
+        error: error.message,
+        ids,
+      });
+      throw new ServiceError(
+        `Failed to get work items org-wide: ${error.message}`,
+        error.response?.status || 500,
+      );
     }
   }
 
@@ -134,7 +168,7 @@ export class ADOService {
 
       // Build JSON Patch document
       const patchDoc = Object.entries(fields).map(([field, value]) => ({
-        op: 'add',
+        op: "add",
         path: `/fields/${field}`,
         value,
       }));
@@ -143,19 +177,22 @@ export class ADOService {
         `/wit/workitems/${id}?api-version=${this.config.apiVersion}`,
         patchDoc,
         {
-          headers: { 'Content-Type': 'application/json-patch+json' },
-        }
+          headers: { "Content-Type": "application/json-patch+json" },
+        },
       );
 
-      logger.info('Work item updated', { id, fields: Object.keys(fields) });
+      logger.info("Work item updated", { id, fields: Object.keys(fields) });
 
       return response.data;
     } catch (error: any) {
-      logger.error('Failed to update work item', {
+      logger.error("Failed to update work item", {
         error: error.message,
         id: request.id,
       });
-      throw new ServiceError(`Failed to update work item: ${error.message}`, error.response?.status || 500);
+      throw new ServiceError(
+        `Failed to update work item: ${error.message}`,
+        error.response?.status || 500,
+      );
     }
   }
 
@@ -169,11 +206,15 @@ export class ADOService {
 
       for (const testCase of testCases) {
         const doc = [
-          { op: 'add', path: '/fields/System.Title', value: testCase.title },
-          { op: 'add', path: '/fields/System.WorkItemType', value: 'Test Case' },
+          { op: "add", path: "/fields/System.Title", value: testCase.title },
           {
-            op: 'add',
-            path: '/fields/Microsoft.VSTS.TCM.Steps',
+            op: "add",
+            path: "/fields/System.WorkItemType",
+            value: "Test Case",
+          },
+          {
+            op: "add",
+            path: "/fields/Microsoft.VSTS.TCM.Steps",
             value: JSON.stringify(testCase.steps),
           },
         ];
@@ -182,28 +223,33 @@ export class ADOService {
           `/wit/workitems/$Test Case?api-version=${this.config.apiVersion}`,
           doc,
           {
-            headers: { 'Content-Type': 'application/json-patch+json' },
-          }
+            headers: { "Content-Type": "application/json-patch+json" },
+          },
         );
 
         created.push(response.data);
       }
 
-      logger.info('Test cases created', { count: created.length });
+      logger.info("Test cases created", { count: created.length });
 
       return created;
     } catch (error: any) {
-      logger.error('Failed to create test cases', {
+      logger.error("Failed to create test cases", {
         error: error.message,
       });
-      throw new ServiceError(`Failed to create test cases: ${error.message}`, error.response?.status || 500);
+      throw new ServiceError(
+        `Failed to create test cases: ${error.message}`,
+        error.response?.status || 500,
+      );
     }
   }
 
   /**
    * Bulk update work items
    */
-  async bulkUpdate(request: BulkUpdateRequest): Promise<{ updates: Array<{ type: string; data: WorkItem }> }> {
+  async bulkUpdate(
+    request: BulkUpdateRequest,
+  ): Promise<{ updates: Array<{ type: string; data: WorkItem }> }> {
     try {
       const { storyId, testCases, automationReqs } = request;
       const updates: Array<{ type: string; data: WorkItem }> = [];
@@ -212,8 +258,8 @@ export class ADOService {
       if (testCases) {
         const patchDoc = [
           {
-            op: 'add',
-            path: '/fields/Custom.TestCases',
+            op: "add",
+            path: "/fields/Custom.TestCases",
             value: `Generated ${testCases.length} test cases`,
           },
         ];
@@ -222,19 +268,19 @@ export class ADOService {
           `/wit/workitems/${storyId}?api-version=${this.config.apiVersion}`,
           patchDoc,
           {
-            headers: { 'Content-Type': 'application/json-patch+json' },
-          }
+            headers: { "Content-Type": "application/json-patch+json" },
+          },
         );
 
-        updates.push({ type: 'story-update', data: response.data });
+        updates.push({ type: "story-update", data: response.data });
       }
 
       // Add automation requirements
       if (automationReqs) {
         const patchDoc = [
           {
-            op: 'add',
-            path: '/fields/Custom.AutomationRequirements',
+            op: "add",
+            path: "/fields/Custom.AutomationRequirements",
             value: automationReqs.summary || JSON.stringify(automationReqs),
           },
         ];
@@ -243,22 +289,28 @@ export class ADOService {
           `/wit/workitems/${storyId}?api-version=${this.config.apiVersion}`,
           patchDoc,
           {
-            headers: { 'Content-Type': 'application/json-patch+json' },
-          }
+            headers: { "Content-Type": "application/json-patch+json" },
+          },
         );
 
-        updates.push({ type: 'automation-update', data: response.data });
+        updates.push({ type: "automation-update", data: response.data });
       }
 
-      logger.info('Bulk update completed', { storyId, updateCount: updates.length });
+      logger.info("Bulk update completed", {
+        storyId,
+        updateCount: updates.length,
+      });
 
       return { updates };
     } catch (error: any) {
-      logger.error('Failed to bulk update', {
+      logger.error("Failed to bulk update", {
         error: error.message,
         storyId: request.storyId,
       });
-      throw new ServiceError(`Failed to bulk update: ${error.message}`, error.response?.status || 500);
+      throw new ServiceError(
+        `Failed to bulk update: ${error.message}`,
+        error.response?.status || 500,
+      );
     }
   }
 
@@ -268,7 +320,7 @@ export class ADOService {
   async getProjects(): Promise<ADOProject[]> {
     try {
       const response = await this.orgClient.get<{ value: ADOProject[] }>(
-        `/projects?api-version=${this.config.apiVersion}`
+        `/projects?api-version=${this.config.apiVersion}`,
       );
 
       return response.data.value.map((p) => ({
@@ -276,10 +328,13 @@ export class ADOService {
         id: p.id,
       }));
     } catch (error: any) {
-      logger.error('Failed to get projects', {
+      logger.error("Failed to get projects", {
         error: error.message,
       });
-      throw new ServiceError(`Failed to get projects: ${error.message}`, error.response?.status || 500);
+      throw new ServiceError(
+        `Failed to get projects: ${error.message}`,
+        error.response?.status || 500,
+      );
     }
   }
 
@@ -289,7 +344,7 @@ export class ADOService {
   async getTeams(project: string): Promise<ADOTeam[]> {
     try {
       const response = await this.orgClient.get<{ value: ADOTeam[] }>(
-        `/projects/${project}/teams?api-version=${this.config.apiVersion}`
+        `/projects/${project}/teams?api-version=${this.config.apiVersion}`,
       );
 
       return response.data.value.map((t) => ({
@@ -297,11 +352,14 @@ export class ADOService {
         id: t.id,
       }));
     } catch (error: any) {
-      logger.error('Failed to get teams', {
+      logger.error("Failed to get teams", {
         error: error.message,
         project,
       });
-      throw new ServiceError(`Failed to get teams: ${error.message}`, error.response?.status || 500);
+      throw new ServiceError(
+        `Failed to get teams: ${error.message}`,
+        error.response?.status || 500,
+      );
     }
   }
 
@@ -314,10 +372,10 @@ export class ADOService {
         `https://dev.azure.com/${this.config.organization}/${project}/${team}/_apis/work/teamsettings/iterations?api-version=${this.config.apiVersion}`,
         {
           auth: {
-            username: '',
+            username: "",
             password: this.config.pat,
           },
-        }
+        },
       );
 
       return response.data.value.map((s) => ({
@@ -328,27 +386,34 @@ export class ADOService {
         finishDate: s.attributes?.finishDate,
       }));
     } catch (error: any) {
-      logger.error('Failed to get sprints', {
+      logger.error("Failed to get sprints", {
         error: error.message,
         project,
         team,
       });
-      throw new ServiceError(`Failed to get sprints: ${error.message}`, error.response?.status || 500);
+      throw new ServiceError(
+        `Failed to get sprints: ${error.message}`,
+        error.response?.status || 500,
+      );
     }
   }
 
   /**
    * Build full iteration path from sprint name
    */
-  private buildIterationPath(sprint: string, project?: string, team?: string): string {
+  private buildIterationPath(
+    sprint: string,
+    project?: string,
+    team?: string,
+  ): string {
     // If sprint already contains backslashes, it's already a full or partial path
-    if (sprint.includes('\\')) {
+    if (sprint.includes("\\")) {
       return sprint;
     }
 
     // Build full path: Project\Team\Year\Quarter\Sprint
     const projectName = project || this.config.project;
-    const teamName = team || '';
+    const teamName = team || "";
 
     // Extract year and quarter from sprint name (e.g., "25.Q4.07" -> "2025" and "Q4")
     const sprintMatch = sprint.match(/^(\d{2})\.Q(\d)\.(\d{2})$/);

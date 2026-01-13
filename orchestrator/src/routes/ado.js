@@ -55,10 +55,11 @@ router.post("/pull-stories", async (req, res) => {
   }
 });
 
-// Get a single work item by ID
+// Get a single work item by ID (supports cross-project via orgWide query param)
 router.get("/work-item/:id", async (req, res) => {
   try {
     const { id } = req.params;
+    const { orgWide } = req.query;
 
     if (!id || isNaN(parseInt(id))) {
       return res.status(400).json({
@@ -67,12 +68,15 @@ router.get("/work-item/:id", async (req, res) => {
       });
     }
 
-    logger.info("Fetching work item by ID", { id });
+    // Default to org-wide queries to support cross-project work items
+    const useOrgWide = orgWide !== "false";
+
+    logger.info("Fetching work item by ID", { id, orgWide: useOrgWide });
 
     const response = await req.mcpManager.callDockerMcp(
       "azureDevOps",
       "/work-items/get",
-      { ids: [parseInt(id)] },
+      { ids: [parseInt(id)], orgWide: useOrgWide },
     );
 
     // Unwrap MCP response - it returns { success: true, data: [...] }
@@ -316,17 +320,32 @@ Return ONLY the JSON object, no markdown formatting.`;
 });
 
 /**
- * Generate MANUAL test cases for a user story
+ * Generate MANUAL test cases for a user story with QE Risk Methodology
  * POST /api/ado/generate-test-cases
- * Body: { storyId: number, updateADO?: boolean, includeNegativeTests?: boolean, includeEdgeCases?: boolean, model?: string }
+ * Body: {
+ *   storyId: number,
+ *   story?: object,
+ *   parsedAcceptanceCriteria?: array,
+ *   riskAnalysis?: object,
+ *   integrationAnalysis?: object,
+ *   options?: { includeNegative, includeEdgeCases, includeIntegration, namingFormat }
+ *   updateADO?: boolean,
+ *   model?: string
+ * }
  */
 router.post("/generate-test-cases", async (req, res) => {
   try {
     const {
       storyId,
+      story,
+      parsedAcceptanceCriteria,
+      riskAnalysis,
+      integrationAnalysis,
+      options = {},
       updateADO = false,
-      includeNegativeTests = true,
-      includeEdgeCases = true,
+      includeNegativeTests = options.includeNegative ?? true,
+      includeEdgeCases = options.includeEdgeCases ?? true,
+      includeIntegration = options.includeIntegration ?? true,
       model,
     } = req.body;
 
@@ -339,62 +358,168 @@ router.post("/generate-test-cases", async (req, res) => {
 
     logger.info(`Generating MANUAL test cases for story ${storyId}`);
 
-    // Get the story from ADO first
-    const storiesResponse = await req.mcpManager.callDockerMcp(
-      "azureDevOps",
-      "/work-items/get",
-      { ids: [parseInt(storyId)] },
-    );
+    // Use provided story data or fetch from ADO
+    let storyData = story;
+    if (!storyData) {
+      const storiesResponse = await req.mcpManager.callDockerMcp(
+        "azureDevOps",
+        "/work-items/get",
+        { ids: [parseInt(storyId)] },
+      );
 
-    // Unwrap MCP response - it returns { success: true, data: [...] }
-    const stories = storiesResponse?.data || [];
-
-    if (!stories || stories.length === 0) {
-      return res.status(404).json({
-        error: "Story not found",
-        message: `Work item ${storyId} not found in Azure DevOps`,
-      });
+      const stories = storiesResponse?.data || [];
+      if (!stories || stories.length === 0) {
+        return res.status(404).json({
+          error: "Story not found",
+          message: `Work item ${storyId} not found in Azure DevOps`,
+        });
+      }
+      storyData = {
+        id: stories[0].id,
+        title: stories[0].fields["System.Title"],
+        description: stories[0].fields["System.Description"] || "",
+        acceptanceCriteria:
+          stories[0].fields["Microsoft.VSTS.Common.AcceptanceCriteria"] || "",
+      };
     }
 
-    const story = stories[0];
-    const title = story.fields["System.Title"];
-    const description = story.fields["System.Description"] || "";
-    const acceptanceCriteria =
-      story.fields["Microsoft.VSTS.Common.AcceptanceCriteria"] || "";
+    const title = storyData.title;
+    const cleanDescription = (storyData.description || "")
+      .replace(/<[^>]*>/g, "")
+      .trim();
+    const cleanCriteria = (storyData.acceptanceCriteria || "")
+      .replace(/<[^>]*>/g, "")
+      .trim();
 
-    // Strip HTML tags
-    const cleanDescription = description.replace(/<[^>]*>/g, "").trim();
-    const cleanCriteria = acceptanceCriteria.replace(/<[^>]*>/g, "").trim();
+    // Build QE Risk Methodology context if risk analysis is provided
+    let qeRiskContext = "";
+    let acRiskMapping = {};
+
+    if (riskAnalysis) {
+      const riskLevel = riskAnalysis.level || "medium";
+      const riskScore = riskAnalysis.score || 50;
+      const riskFactors = riskAnalysis.factors || {};
+
+      qeRiskContext = `
+## QE Risk Analysis Context
+Overall Risk Level: ${riskLevel.toUpperCase()} (Score: ${riskScore}/100)
+Key Risk Factors:
+- Integration Risk: ${riskFactors.integration?.description || "Unknown"}
+- Complexity Risk: ${riskFactors.complexity?.description || "Unknown"}
+- Business Impact: ${riskFactors.businessImpact?.description || "Unknown"}
+
+Test Generation Guidelines based on Risk Level:
+${
+  riskLevel === "critical" || riskLevel === "high"
+    ? "- Generate EXHAUSTIVE tests: all positive paths, all negative scenarios, edge cases, and integration tests"
+    : riskLevel === "medium"
+      ? "- Generate COMPREHENSIVE tests: happy paths, key negative scenarios, important edge cases"
+      : "- Generate STANDARD tests: primary happy path, obvious negative cases"
+}`;
+    }
+
+    // Build AC-specific context if parsed ACs are provided
+    let acContext = "";
+    if (parsedAcceptanceCriteria && parsedAcceptanceCriteria.length > 0) {
+      acContext = `
+## Acceptance Criteria (Generate tests for EACH AC):
+${parsedAcceptanceCriteria.map((ac) => `${ac.id}: ${ac.text}`).join("\n")}
+
+IMPORTANT: Generate test cases for EACH acceptance criterion using this naming convention:
+  PBI-${storyId} AC{number}: [{type}] {test description}
+
+  Types: positive, negative, edge, integration`;
+
+      // Map ACs to risk levels based on content analysis
+      parsedAcceptanceCriteria.forEach((ac) => {
+        const acText = ac.text.toLowerCase();
+        let acRisk = "medium";
+
+        if (
+          acText.includes("payment") ||
+          acText.includes("billing") ||
+          acText.includes("financial")
+        ) {
+          acRisk = "critical";
+        } else if (
+          acText.includes("epic") ||
+          acText.includes("ehr") ||
+          acText.includes("patient")
+        ) {
+          acRisk = "critical";
+        } else if (
+          acText.includes("security") ||
+          acText.includes("authentication") ||
+          acText.includes("authorization")
+        ) {
+          acRisk = "high";
+        } else if (
+          acText.includes("api") ||
+          acText.includes("integration") ||
+          acText.includes("external")
+        ) {
+          acRisk = "high";
+        } else if (acText.includes("database") || acText.includes("data")) {
+          acRisk = "high";
+        }
+
+        acRiskMapping[ac.id] = acRisk;
+      });
+
+      acContext += `
+
+AC Risk Mapping (test depth should match risk):
+${parsedAcceptanceCriteria.map((ac) => `- ${ac.id}: ${acRiskMapping[ac.id] || "medium"} risk`).join("\n")}`;
+    }
+
+    // Add integration context if available
+    let integrationContext = "";
+    if (integrationAnalysis && integrationAnalysis.result) {
+      const integrations = integrationAnalysis.result.integrations || [];
+      if (integrations.length > 0) {
+        integrationContext = `
+## Integration Points to Test:
+${integrations
+  .slice(0, 10)
+  .map((i) => `- ${i.type}: ${i.name || i.file || "Unknown"}`)
+  .join("\n")}`;
+      }
+    }
 
     // Build AI prompt for manual test case generation
-    const prompt = `You are a QA test case writer. Generate detailed MANUAL test cases for this user story.
+    const prompt = `You are a QA Engineer using QE (Quality Engineering) methodology. Generate detailed MANUAL test cases for this user story, prioritizing based on risk analysis.
+${qeRiskContext}
 
+## Story Information
 Story ID: ${storyId}
 Title: ${title}
 Description: ${cleanDescription || "No description provided"}
 Acceptance Criteria: ${cleanCriteria || "No acceptance criteria provided"}
+${acContext}
+${integrationContext}
 
-Generate comprehensive manual test cases including:
-- Positive test scenarios (happy path)
-${includeNegativeTests ? "- Negative test scenarios (error handling, invalid inputs)" : ""}
+## Test Generation Requirements
+Generate test cases including:
+- Positive test scenarios (happy path) for EACH acceptance criterion
+${includeNegativeTests ? "- Negative test scenarios (error handling, invalid inputs) - more for high-risk areas" : ""}
 ${includeEdgeCases ? "- Edge case scenarios (boundary conditions, empty values, special characters)" : ""}
+${includeIntegration ? "- Integration tests for external system touchpoints" : ""}
 
-For each test case, provide:
-1. Test Case Title (clear, descriptive)
-2. Test Type (Functional, Integration, Negative, Edge Case, etc.)
-3. Priority (1=High, 2=Medium, 3=Low)
-4. Preconditions (what must be true before test starts)
-5. Test Steps (detailed step-by-step instructions)
-6. Expected Results (what should happen for each step)
-7. Test Data (any specific data needed)
+## Output Format
+For each test case, use this EXACT naming format:
+  name: "PBI-${storyId} AC{acNumber}: [{type}] {description}"
+
+Example:
+  name: "PBI-${storyId} AC1: [positive] Verify user can submit form successfully"
 
 Return the response in this JSON format:
 {
   "testCases": [
     {
-      "title": "Test case title",
-      "type": "Functional|Integration|Negative|EdgeCase",
-      "priority": 1,
+      "name": "PBI-${storyId} AC1: [positive] Test description",
+      "acceptanceCriteriaRef": "AC1",
+      "type": "positive|negative|edge|integration",
+      "priority": "critical|high|medium|low",
       "preconditions": ["precondition 1", "precondition 2"],
       "steps": ["step 1", "step 2", "step 3"],
       "expectedResults": ["expected result for step 1", "expected result for step 2"],
@@ -404,13 +529,13 @@ Return the response in this JSON format:
   ]
 }
 
-Generate 5-10 test cases covering all important scenarios. Return ONLY the JSON object, no markdown formatting.`;
+Generate AT LEAST ONE test case for EACH acceptance criterion listed above. For high-risk and critical-risk ACs, generate additional negative and edge case tests. Do not skip any ACs - every AC must have at least one test case. Return ONLY the JSON object, no markdown formatting.`;
 
     try {
       logger.info(`Calling Claude AI to generate manual test cases`);
 
-      // Call Claude AI
-      const aiResponse = await callClaude(prompt, model, 4096);
+      // Call Claude AI - use higher token limit to support many ACs
+      const aiResponse = await callClaude(prompt, model, 16384);
 
       // Parse AI response
       let testCasesData;
@@ -431,12 +556,55 @@ Generate 5-10 test cases covering all important scenarios. Return ONLY the JSON 
 
       const testCases = testCasesData.testCases || [];
 
-      // Add IDs and automated flag
+      // Add IDs and automated flag, ensure proper format
       testCases.forEach((tc, index) => {
         tc.id = index + 1;
         tc.automated = false; // These are MANUAL test cases
         tc.storyId = parseInt(storyId);
+        // Ensure acceptanceCriteriaRef is present (extract from name if needed)
+        if (!tc.acceptanceCriteriaRef && tc.name) {
+          const acMatch = tc.name.match(/AC(\d+)/i);
+          if (acMatch) {
+            tc.acceptanceCriteriaRef = `AC${acMatch[1]}`;
+            tc.acRef = `AC${acMatch[1]}`; // Alias for compatibility
+          }
+        }
+        // Ensure type is lowercase for consistency
+        if (tc.type) {
+          tc.type = tc.type.toLowerCase();
+        }
       });
+
+      // Count by new type categories
+      const typeCounts = {
+        positive: testCases.filter(
+          (tc) => tc.type === "positive" || tc.type === "functional",
+        ).length,
+        negative: testCases.filter((tc) => tc.type === "negative").length,
+        edge: testCases.filter(
+          (tc) =>
+            tc.type === "edge" ||
+            tc.type === "edgecase" ||
+            tc.type === "edge case",
+        ).length,
+        integration: testCases.filter((tc) => tc.type === "integration").length,
+      };
+
+      // Count by priority
+      const priorityCounts = {
+        critical: testCases.filter(
+          (tc) => tc.priority === "critical" || tc.priority === 1,
+        ).length,
+        high: testCases.filter(
+          (tc) => tc.priority === "high" || tc.priority === 2,
+        ).length,
+        medium: testCases.filter(
+          (tc) => tc.priority === "medium" || tc.priority === 3,
+        ).length,
+        low: testCases.filter(
+          (tc) => tc.priority === "low" || tc.priority === 4,
+        ).length,
+      };
 
       const response = {
         success: true,
@@ -446,18 +614,25 @@ Generate 5-10 test cases covering all important scenarios. Return ONLY the JSON 
         testCases: testCases,
         summary: {
           totalTestCases: testCases.length,
-          functionalTests: testCases.filter((tc) => tc.type === "Functional")
-            .length,
-          integrationTests: testCases.filter((tc) => tc.type === "Integration")
-            .length,
-          negativeTests: testCases.filter((tc) => tc.type === "Negative")
-            .length,
-          edgeCaseTests: testCases.filter((tc) => tc.type === "EdgeCase")
-            .length,
-          highPriority: testCases.filter((tc) => tc.priority === 1).length,
-          mediumPriority: testCases.filter((tc) => tc.priority === 2).length,
-          lowPriority: testCases.filter((tc) => tc.priority === 3).length,
+          byType: typeCounts,
+          byPriority: priorityCounts,
+          // Legacy fields for backward compatibility
+          functionalTests: typeCounts.positive,
+          integrationTests: typeCounts.integration,
+          negativeTests: typeCounts.negative,
+          edgeCaseTests: typeCounts.edge,
+          highPriority: priorityCounts.critical + priorityCounts.high,
+          mediumPriority: priorityCounts.medium,
+          lowPriority: priorityCounts.low,
         },
+        // Include risk context if available
+        riskContext: riskAnalysis
+          ? {
+              level: riskAnalysis.level,
+              score: riskAnalysis.score,
+              acRiskMapping: acRiskMapping,
+            }
+          : null,
       };
 
       // If updateADO is true, add test cases to Azure DevOps

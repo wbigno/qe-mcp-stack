@@ -680,11 +680,14 @@ describe("Analysis Routes", () => {
     describe("Successful blast radius analysis", () => {
       it("should analyze blast radius for changed files", async () => {
         const mockResult = {
-          affectedComponents: ["UserService", "OrderService"],
-          impactLevel: "high",
-          testingRecommendations: ["Full regression", "Integration tests"],
+          success: true,
+          result: {
+            affectedComponents: ["UserService", "OrderService"],
+            impactLevel: "high",
+            testingRecommendations: ["Full regression", "Integration tests"],
+          },
         };
-        mockMcpManager.callStdioMcp.mockResolvedValue(mockResult);
+        mockMcpManager.callDockerMcp.mockResolvedValue(mockResult);
 
         const response = await request(app)
           .post("/api/analysis/blast-radius/analyze")
@@ -694,28 +697,31 @@ describe("Analysis Routes", () => {
               "/Services/UserService.cs",
               "/Controllers/UserController.cs",
             ],
-            analysisDepth: "deep",
+            depth: 3,
           });
 
         expect(response.status).toBe(200);
-        expect(response.body).toEqual(mockResult);
-        expect(mockMcpManager.callStdioMcp).toHaveBeenCalledWith(
-          "blast-radius-analyzer",
+        expect(response.body).toHaveProperty("success", true);
+        expect(response.body).toHaveProperty("result");
+        expect(mockMcpManager.callDockerMcp).toHaveBeenCalledWith(
+          "blastRadiusAnalyzer",
+          "/analyze",
           {
-            data: {
-              app: "Core",
-              changedFiles: [
-                "/Services/UserService.cs",
-                "/Controllers/UserController.cs",
-              ],
-              analysisDepth: "deep",
-            },
+            app: "Core",
+            changedFiles: [
+              "/Services/UserService.cs",
+              "/Controllers/UserController.cs",
+            ],
+            depth: 3,
           },
         );
       });
 
       it("should use default analysis depth when not specified", async () => {
-        mockMcpManager.callStdioMcp.mockResolvedValue({});
+        mockMcpManager.callDockerMcp.mockResolvedValue({
+          success: true,
+          result: {},
+        });
 
         await request(app)
           .post("/api/analysis/blast-radius/analyze")
@@ -724,17 +730,21 @@ describe("Analysis Routes", () => {
             changedFiles: ["/file1.cs"],
           });
 
-        expect(mockMcpManager.callStdioMcp).toHaveBeenCalledWith(
-          "blast-radius-analyzer",
+        expect(mockMcpManager.callDockerMcp).toHaveBeenCalledWith(
+          "blastRadiusAnalyzer",
+          "/analyze",
           expect.objectContaining({
-            data: expect.objectContaining({ analysisDepth: "moderate" }),
+            app: "App1",
+            changedFiles: ["/file1.cs"],
+            depth: 2,
           }),
         );
       });
 
       it("should handle single file change", async () => {
-        mockMcpManager.callStdioMcp.mockResolvedValue({
-          affectedComponents: ["Service1"],
+        mockMcpManager.callDockerMcp.mockResolvedValue({
+          success: true,
+          result: { affectedComponents: ["Service1"] },
         });
 
         const response = await request(app)
@@ -748,8 +758,9 @@ describe("Analysis Routes", () => {
       });
 
       it("should handle multiple file changes", async () => {
-        mockMcpManager.callStdioMcp.mockResolvedValue({
-          impactLevel: "critical",
+        mockMcpManager.callDockerMcp.mockResolvedValue({
+          success: true,
+          result: { impactLevel: "critical" },
         });
 
         const changedFiles = [
@@ -764,12 +775,12 @@ describe("Analysis Routes", () => {
           .send({ app: "Core", changedFiles });
 
         expect(response.status).toBe(200);
-        expect(mockMcpManager.callStdioMcp).toHaveBeenCalledWith(
-          "blast-radius-analyzer",
+        expect(mockMcpManager.callDockerMcp).toHaveBeenCalledWith(
+          "blastRadiusAnalyzer",
+          "/analyze",
           expect.objectContaining({
-            data: expect.objectContaining({
-              changedFiles: expect.arrayContaining(changedFiles),
-            }),
+            app: "Core",
+            changedFiles: expect.arrayContaining(changedFiles),
           }),
         );
       });
@@ -812,7 +823,7 @@ describe("Analysis Routes", () => {
 
     describe("Error handling (500)", () => {
       it("should handle blast radius analyzer MCP failures", async () => {
-        mockMcpManager.callStdioMcp.mockRejectedValue(
+        mockMcpManager.callDockerMcp.mockRejectedValue(
           new Error("Blast radius analyzer crashed"),
         );
 

@@ -1215,7 +1215,7 @@ function createOrphanTasksCard(orphans) {
 }
 
 // Function to view story in analysis panel
-function viewStoryAnalysis(story) {
+async function viewStoryAnalysis(story) {
   console.log(
     "[View Story Analysis] Opening story analysis panel for story:",
     story.id,
@@ -1243,9 +1243,72 @@ function viewStoryAnalysis(story) {
     console.log("[View Story Analysis] Analysis tab button activated");
   }
 
+  // Check if story has full ADO fields structure, if not fetch it
+  let fullStory = story;
+  if (!story.fields) {
+    console.log(
+      "[View Story Analysis] Story missing fields, fetching full work item...",
+    );
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/ado/work-item/${story.id}`,
+      );
+      if (response.ok) {
+        const data = await response.json();
+        if (data.workItem) {
+          fullStory = data.workItem;
+          console.log(
+            "[View Story Analysis] Fetched full work item:",
+            fullStory.id,
+          );
+        }
+      } else {
+        console.warn(
+          "[View Story Analysis] Failed to fetch work item, using simplified data",
+        );
+        // Convert simplified format to fields format as fallback
+        fullStory = {
+          id: story.id,
+          fields: {
+            "System.Title": story.title || "Untitled",
+            "System.WorkItemType": story.type || "Unknown",
+            "System.State": story.state || "Unknown",
+            "System.Description": story.description || "",
+            "Microsoft.VSTS.Common.AcceptanceCriteria":
+              story.acceptanceCriteria || "",
+            "Custom.TechnicalDetails": story.technicalDetails || "",
+            "System.AssignedTo": story.assignedTo
+              ? { displayName: story.assignedTo }
+              : null,
+          },
+          _links: story._links,
+        };
+      }
+    } catch (error) {
+      console.error("[View Story Analysis] Error fetching work item:", error);
+      // Convert simplified format to fields format as fallback
+      fullStory = {
+        id: story.id,
+        fields: {
+          "System.Title": story.title || "Untitled",
+          "System.WorkItemType": story.type || "Unknown",
+          "System.State": story.state || "Unknown",
+          "System.Description": story.description || "",
+          "Microsoft.VSTS.Common.AcceptanceCriteria":
+            story.acceptanceCriteria || "",
+          "Custom.TechnicalDetails": story.technicalDetails || "",
+          "System.AssignedTo": story.assignedTo
+            ? { displayName: story.assignedTo }
+            : null,
+        },
+        _links: story._links,
+      };
+    }
+  }
+
   // Show analysis in panel
   console.log("[View Story Analysis] Showing analysis in panel");
-  analysisPanel.showAnalysis(story, currentFilters.app);
+  analysisPanel.showAnalysis(fullStory, currentFilters.app);
   console.log("[View Story Analysis] ✅ Complete");
 }
 
@@ -2070,22 +2133,15 @@ function sanitizeHtmlContent(html) {
 
 function initializeStoryAnalyzer() {
   const analyzeBtn = document.getElementById("analyzeStoryBtn");
-  const generateBtn = document.getElementById("generateTestsBtn");
   const storyIdInput = document.getElementById("storyIdInput");
 
   console.log("Story analyzer elements:", {
     analyzeBtn,
-    generateBtn,
     storyIdInput,
   });
 
   if (!analyzeBtn) {
     console.error("analyzeStoryBtn not found!");
-    return;
-  }
-
-  if (!generateBtn) {
-    console.error("generateTestsBtn not found!");
     return;
   }
 
@@ -2105,17 +2161,8 @@ function initializeStoryAnalyzer() {
     analyzeStoryFull(storyId);
   });
 
-  generateBtn.addEventListener("click", () => {
-    console.log("Generate button clicked");
-    const storyId = storyIdInput.value.trim();
-
-    if (!storyId) {
-      console.warn("No story ID entered");
-      showStatusMessage("Please enter a Story ID", "error");
-      return;
-    }
-    generateTestCases(storyId);
-  });
+  // Note: Generate Tests button removed from Story Analyzer tab per Phase 0 UI changes
+  // Test case generation is now available in the Test Cases tab via generateTestCasesBtn
 
   storyIdInput.addEventListener("keypress", (e) => {
     if (e.key === "Enter") {
@@ -2349,7 +2396,8 @@ async function generateTestCases(storyId) {
     "[Test Generator] Starting test case generation for story:",
     storyId,
   );
-  const btn = document.getElementById("generateTestsBtn");
+  // Use generateTestCasesBtn from Test Cases tab (generateTestsBtn was removed from Story Analyzer)
+  const btn = document.getElementById("generateTestCasesBtn");
   const loading = document.getElementById("generateLoading");
   const text = document.getElementById("generateText");
 
@@ -2451,175 +2499,116 @@ function displayAnalysisResults(data) {
     container.style.setProperty("display", "block", "important");
     container.style.setProperty("visibility", "visible", "important");
 
-    // Create wrapper div
-    const wrapper = document.createElement("div");
-    wrapper.id = "analysis-content-wrapper";
-    wrapper.style.cssText =
-      "background: var(--bg-secondary); padding: 20px; border-radius: 12px; border: 2px solid var(--border-color); margin-top: 20px;";
+    const workItem = data.workItem || {};
+    const typeClass = (workItem.type || "").toLowerCase().replace(/\s+/g, "-");
+    const stateClass = (workItem.state || "").toLowerCase();
 
-    // Create header
-    const header = document.createElement("h3");
-    header.style.cssText =
-      "color: var(--text-primary); margin-bottom: 16px; font-size: 18px;";
-    header.textContent = "📋 Work Item Details";
-    wrapper.appendChild(header);
+    // Build HTML using template similar to Story Analysis panel
+    let html = `
+      <div class="analysis-panel-content" style="margin-top: 20px;">
+        <!-- Story Header -->
+        <div class="analysis-header">
+          <div class="story-header-row">
+            <h2>Work Item Details</h2>
+          </div>
+          <div class="story-info">
+            <span class="story-id">#${workItem.id || "N/A"}</span>
+            <span class="story-type type-${typeClass}">${workItem.type || "Unknown"}</span>
+            <span class="story-state state-${stateClass}">${workItem.state || "Unknown"}</span>
+          </div>
+          <h3 class="story-title">${workItem.title || "Untitled"}</h3>
+          ${workItem.assignedTo ? `<div class="story-assigned"><strong>Assigned To:</strong> ${workItem.assignedTo}</div>` : ""}
+        </div>
 
-    // Create work item details box
-    const detailsBox = document.createElement("div");
-    detailsBox.style.cssText =
-      "background: var(--bg-primary); padding: 16px; border-radius: 8px; margin-bottom: 20px;";
+        <!-- Story Details Sections -->
+        <div class="story-details-sections">
+          ${
+            workItem.description
+              ? `
+            <div class="story-section">
+              <div class="section-header-collapsible" data-section="analyzer-description">
+                <h4>📄 Description</h4>
+                <span class="collapse-icon">▼</span>
+              </div>
+              <div class="section-content" id="section-analyzer-description">
+                <div class="formatted-content">${sanitizeHtmlContent(workItem.description)}</div>
+              </div>
+            </div>
+          `
+              : ""
+          }
 
-    if (data.workItem) {
-      // Add work item fields
-      const fields = [
-        { label: "ID", value: `#${data.workItem.id}` },
-        { label: "Title", value: data.workItem.title || "N/A" },
-        { label: "Type", value: data.workItem.type || "N/A" },
-        { label: "State", value: data.workItem.state || "N/A" },
-        {
-          label: "Assigned To",
-          value: data.workItem.assignedTo || "Unassigned",
-        },
-      ];
+          ${
+            workItem.acceptanceCriteria
+              ? `
+            <div class="story-section">
+              <div class="section-header-collapsible" data-section="analyzer-acceptance">
+                <h4>✅ Acceptance Criteria</h4>
+                <span class="collapse-icon">▼</span>
+              </div>
+              <div class="section-content" id="section-analyzer-acceptance">
+                <div class="formatted-content">${sanitizeHtmlContent(workItem.acceptanceCriteria)}</div>
+              </div>
+            </div>
+          `
+              : ""
+          }
 
-      fields.forEach((field, index) => {
-        const fieldDiv = document.createElement("div");
-        fieldDiv.style.cssText =
-          "margin-bottom: 8px; color: var(--text-secondary); font-size: 14px;";
+          ${
+            workItem.technicalDetails
+              ? `
+            <div class="story-section technical-details-section">
+              <div class="section-header-collapsible" data-section="analyzer-technical">
+                <h4>🔧 Technical Details</h4>
+                <span class="collapse-icon">▼</span>
+              </div>
+              <div class="section-content" id="section-analyzer-technical">
+                <div class="formatted-content">${sanitizeHtmlContent(workItem.technicalDetails)}</div>
+              </div>
+            </div>
+          `
+              : ""
+          }
 
-        const strong = document.createElement("strong");
-        strong.style.color = "var(--text-primary)";
-        strong.textContent = field.label + ": ";
-        fieldDiv.appendChild(strong);
+          ${
+            workItem.childTasks && workItem.childTasks.length > 0
+              ? `
+            <div class="story-section">
+              <div class="section-header-collapsible" data-section="analyzer-tasks">
+                <h4>📋 Child Tasks (${workItem.childTasks.length})</h4>
+                <span class="collapse-icon">▼</span>
+              </div>
+              <div class="section-content" id="section-analyzer-tasks">
+                <div class="child-tasks-list">
+                  ${workItem.childTasks
+                    .map(
+                      (task) => `
+                    <div class="child-task-item">
+                      <span class="task-id">#${task.id}</span>
+                      ${task.title ? `<span class="task-title">${task.title}</span>` : ""}
+                      ${task.state ? `<span class="task-state state-${task.state.toLowerCase()}">${task.state}</span>` : ""}
+                    </div>
+                  `,
+                    )
+                    .join("")}
+                </div>
+              </div>
+            </div>
+          `
+              : ""
+          }
+        </div>
+    `;
 
-        const span = document.createElement("span");
-        span.style.color = "var(--text-secondary)";
-        span.textContent = field.value;
-        fieldDiv.appendChild(span);
-
-        detailsBox.appendChild(fieldDiv);
-      });
-
-      // Add description if exists
-      if (data.workItem.description) {
-        const descDiv = document.createElement("div");
-        descDiv.style.cssText =
-          "margin-top: 16px; padding-top: 16px; border-top: 1px solid #334155;";
-
-        const descLabel = document.createElement("strong");
-        descLabel.style.color = "#e2e8f0";
-        descLabel.textContent = "Description:";
-        descDiv.appendChild(descLabel);
-
-        const descContent = document.createElement("div");
-        descContent.style.cssText = "margin-top: 8px; color: #94a3b8;";
-        descContent.innerHTML = sanitizeHtmlContent(data.workItem.description);
-        descDiv.appendChild(descContent);
-
-        detailsBox.appendChild(descDiv);
-      }
-
-      // Add acceptance criteria if exists
-      if (data.workItem.acceptanceCriteria) {
-        const acDiv = document.createElement("div");
-        acDiv.style.cssText =
-          "margin-top: 16px; padding-top: 16px; border-top: 1px solid #334155;";
-
-        const acLabel = document.createElement("strong");
-        acLabel.style.color = "#e2e8f0";
-        acLabel.textContent = "Acceptance Criteria:";
-        acDiv.appendChild(acLabel);
-
-        const acContent = document.createElement("div");
-        acContent.style.cssText = "margin-top: 8px; color: #94a3b8;";
-        acContent.innerHTML = sanitizeHtmlContent(
-          data.workItem.acceptanceCriteria,
-        );
-        acDiv.appendChild(acContent);
-
-        detailsBox.appendChild(acDiv);
-      }
-
-      // Add technical details if exists
-      if (data.workItem.technicalDetails) {
-        const tdDiv = document.createElement("div");
-        tdDiv.style.cssText =
-          "margin-top: 16px; padding-top: 16px; border-top: 1px solid #334155;";
-
-        const tdLabel = document.createElement("strong");
-        tdLabel.style.color = "#e2e8f0";
-        tdLabel.textContent = "Technical Details:";
-        tdDiv.appendChild(tdLabel);
-
-        const tdContent = document.createElement("div");
-        tdContent.style.cssText = "margin-top: 8px; color: #94a3b8;";
-        tdContent.innerHTML = sanitizeHtmlContent(
-          data.workItem.technicalDetails,
-        );
-        tdDiv.appendChild(tdContent);
-
-        detailsBox.appendChild(tdDiv);
-      }
-
-      // Add child tasks if exists
-      if (data.workItem.childTasks && data.workItem.childTasks.length > 0) {
-        const tasksDiv = document.createElement("div");
-        tasksDiv.style.cssText =
-          "margin-top: 16px; padding-top: 16px; border-top: 1px solid #334155;";
-
-        const tasksLabel = document.createElement("strong");
-        tasksLabel.style.color = "#e2e8f0";
-        tasksLabel.textContent = `Child Tasks (${data.workItem.childTasks.length}):`;
-        tasksDiv.appendChild(tasksLabel);
-
-        const tasksList = document.createElement("ul");
-        tasksList.style.cssText =
-          "margin-top: 8px; margin-left: 20px; color: #94a3b8;";
-
-        data.workItem.childTasks.forEach((task) => {
-          const li = document.createElement("li");
-          li.style.cssText = "margin-bottom: 4px;";
-          li.textContent = `Task #${task.id}`;
-          tasksList.appendChild(li);
-        });
-
-        tasksDiv.appendChild(tasksList);
-        detailsBox.appendChild(tasksDiv);
-      }
-    }
-
-    wrapper.appendChild(detailsBox);
-
-    // Add Requirements Analysis section if available
+    // Add AI Requirements Analysis section if available
     if (data.requirementsAnalysis) {
       const req = data.requirementsAnalysis;
 
-      const analysisHeader = document.createElement("h3");
-      analysisHeader.style.cssText =
-        "color: var(--text-primary); margin-bottom: 16px; font-size: 18px;";
-      analysisHeader.textContent = "🔍 AI Requirements Analysis";
-      wrapper.appendChild(analysisHeader);
+      // Build the inner content with inline styles (original formatting)
+      let innerContent = "";
 
-      const analysisBox = document.createElement("div");
-      analysisBox.style.cssText =
-        "background: var(--bg-primary); padding: 16px; border-radius: 8px; margin-bottom: 20px;";
-
-      // Test Coverage Recommendation
+      // Test Coverage Recommendation - original grid layout
       if (req.testCoverageRecommendation) {
-        const coverageDiv = document.createElement("div");
-        coverageDiv.style.cssText =
-          "margin-bottom: 16px; padding: 12px; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border-left: 4px solid #3b82f6;";
-
-        const coverageTitle = document.createElement("strong");
-        coverageTitle.style.cssText =
-          "color: #60a5fa; display: block; margin-bottom: 8px;";
-        coverageTitle.textContent = "📊 Recommended Test Coverage";
-        coverageDiv.appendChild(coverageTitle);
-
-        const coverageGrid = document.createElement("div");
-        coverageGrid.style.cssText =
-          "display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 8px;";
-
         const testTypes = [
           {
             label: "Functional",
@@ -2648,184 +2637,138 @@ function displayAnalysisResults(data) {
           },
         ];
 
-        testTypes.forEach((type) => {
-          const typeDiv = document.createElement("div");
-          typeDiv.style.cssText = "text-align: center;";
-
-          const valueSpan = document.createElement("div");
-          valueSpan.style.cssText = `font-size: 24px; font-weight: bold; color: ${type.color};`;
-          valueSpan.textContent = type.value;
-
-          const labelSpan = document.createElement("div");
-          labelSpan.style.cssText = "font-size: 12px; color: #94a3b8;";
-          labelSpan.textContent = type.label;
-
-          typeDiv.appendChild(valueSpan);
-          typeDiv.appendChild(labelSpan);
-          coverageGrid.appendChild(typeDiv);
-        });
-
-        coverageDiv.appendChild(coverageGrid);
-
-        if (req.testCoverageRecommendation.rationale) {
-          const rationale = document.createElement("div");
-          rationale.style.cssText =
-            "font-size: 13px; color: #94a3b8; font-style: italic;";
-          rationale.textContent = req.testCoverageRecommendation.rationale;
-          coverageDiv.appendChild(rationale);
-        }
-
-        analysisBox.appendChild(coverageDiv);
+        innerContent += `
+          <div style="margin-bottom: 16px; padding: 12px; background: rgba(59, 130, 246, 0.1); border-radius: 8px; border-left: 4px solid #3b82f6;">
+            <strong style="color: #60a5fa; display: block; margin-bottom: 8px;">📊 Recommended Test Coverage</strong>
+            <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin-bottom: 8px;">
+              ${testTypes
+                .map(
+                  (type) => `
+                <div style="text-align: center;">
+                  <div style="font-size: 24px; font-weight: bold; color: ${type.color};">${type.value}</div>
+                  <div style="font-size: 12px; color: #94a3b8;">${type.label}</div>
+                </div>
+              `,
+                )
+                .join("")}
+            </div>
+            ${req.testCoverageRecommendation.rationale ? `<div style="font-size: 13px; color: #94a3b8; font-style: italic;">${req.testCoverageRecommendation.rationale}</div>` : ""}
+          </div>
+        `;
       }
 
       // Requirement Gaps
       if (req.requirementGaps && req.requirementGaps.length > 0) {
-        const gapsDiv = document.createElement("div");
-        gapsDiv.style.cssText = "margin-top: 16px;";
-
-        const label = document.createElement("strong");
-        label.style.cssText = "color: #f87171;";
-        label.textContent = `⚠️ Requirement Gaps (${req.requirementGaps.length}):`;
-        gapsDiv.appendChild(label);
-
-        const ul = document.createElement("ul");
-        ul.style.cssText = "margin-top: 8px; margin-left: 20px;";
-
-        req.requirementGaps.forEach((item) => {
-          const li = document.createElement("li");
-          li.style.cssText = "color: #94a3b8; margin-bottom: 4px;";
-          li.textContent = item;
-          ul.appendChild(li);
-        });
-
-        gapsDiv.appendChild(ul);
-        analysisBox.appendChild(gapsDiv);
+        innerContent += `
+          <div style="margin-top: 16px;">
+            <strong style="color: #f87171;">⚠️ Requirement Gaps (${req.requirementGaps.length}):</strong>
+            <ul style="margin-top: 8px; margin-left: 20px;">
+              ${req.requirementGaps.map((item) => `<li style="color: #94a3b8; margin-bottom: 4px;">${item}</li>`).join("")}
+            </ul>
+          </div>
+        `;
       }
 
       // Suggested Edge Cases
       if (req.suggestedEdgeCases && req.suggestedEdgeCases.length > 0) {
-        const edgesDiv = document.createElement("div");
-        edgesDiv.style.cssText = "margin-top: 16px;";
-
-        const label = document.createElement("strong");
-        label.style.cssText = "color: #fbbf24;";
-        label.textContent = `💡 Suggested Edge Cases (${req.suggestedEdgeCases.length}):`;
-        edgesDiv.appendChild(label);
-
-        const ul = document.createElement("ul");
-        ul.style.cssText = "margin-top: 8px; margin-left: 20px;";
-
-        req.suggestedEdgeCases.forEach((item) => {
-          const li = document.createElement("li");
-          li.style.cssText = "color: #94a3b8; margin-bottom: 4px;";
-          li.textContent = item;
-          ul.appendChild(li);
-        });
-
-        edgesDiv.appendChild(ul);
-        analysisBox.appendChild(edgesDiv);
+        innerContent += `
+          <div style="margin-top: 16px;">
+            <strong style="color: #fbbf24;">💡 Suggested Edge Cases (${req.suggestedEdgeCases.length}):</strong>
+            <ul style="margin-top: 8px; margin-left: 20px;">
+              ${req.suggestedEdgeCases.map((item) => `<li style="color: #94a3b8; margin-bottom: 4px;">${item}</li>`).join("")}
+            </ul>
+          </div>
+        `;
       }
 
       // Integration Points
       if (req.integrationPoints && req.integrationPoints.length > 0) {
-        const integrationsDiv = document.createElement("div");
-        integrationsDiv.style.cssText = "margin-top: 16px;";
-
-        const label = document.createElement("strong");
-        label.style.cssText = "color: #3b82f6;";
-        label.textContent = `🔗 Integration Points (${req.integrationPoints.length}):`;
-        integrationsDiv.appendChild(label);
-
-        const ul = document.createElement("ul");
-        ul.style.cssText = "margin-top: 8px; margin-left: 20px;";
-
-        req.integrationPoints.forEach((item) => {
-          const li = document.createElement("li");
-          li.style.cssText = "color: #94a3b8; margin-bottom: 4px;";
-          li.textContent = item;
-          ul.appendChild(li);
-        });
-
-        integrationsDiv.appendChild(ul);
-        analysisBox.appendChild(integrationsDiv);
+        innerContent += `
+          <div style="margin-top: 16px;">
+            <strong style="color: #3b82f6;">🔗 Integration Points (${req.integrationPoints.length}):</strong>
+            <ul style="margin-top: 8px; margin-left: 20px;">
+              ${req.integrationPoints.map((item) => `<li style="color: #94a3b8; margin-bottom: 4px;">${item}</li>`).join("")}
+            </ul>
+          </div>
+        `;
       }
 
       // Prioritized Test Areas
       if (req.prioritizedTestAreas && req.prioritizedTestAreas.length > 0) {
-        const priorityDiv = document.createElement("div");
-        priorityDiv.style.cssText = "margin-top: 16px;";
-
-        const label = document.createElement("strong");
-        label.style.cssText = "color: #10b981;";
-        label.textContent = `🎯 Prioritized Test Areas:`;
-        priorityDiv.appendChild(label);
-
-        const ul = document.createElement("ul");
-        ul.style.cssText = "margin-top: 8px; margin-left: 20px;";
-
-        req.prioritizedTestAreas.forEach((item) => {
-          const li = document.createElement("li");
-          const priorityColor =
-            item.priority === "High"
-              ? "#f87171"
-              : item.priority === "Medium"
-                ? "#fbbf24"
-                : "#94a3b8";
-          li.style.cssText = "color: #94a3b8; margin-bottom: 8px;";
-
-          const priorityBadge = document.createElement("span");
-          priorityBadge.style.cssText = `display: inline-block; padding: 2px 8px; border-radius: 4px; background: ${priorityColor}; color: #1e293b; font-size: 11px; font-weight: bold; margin-right: 8px;`;
-          priorityBadge.textContent = item.priority.toUpperCase();
-
-          const areaText = document.createElement("span");
-          areaText.style.cssText = "color: #e2e8f0; font-weight: 500;";
-          areaText.textContent = item.area;
-
-          const reasonText = document.createElement("div");
-          reasonText.style.cssText =
-            "margin-left: 60px; margin-top: 4px; font-size: 13px; color: #94a3b8; font-style: italic;";
-          reasonText.textContent = item.reason;
-
-          li.appendChild(priorityBadge);
-          li.appendChild(areaText);
-          li.appendChild(reasonText);
-          ul.appendChild(li);
-        });
-
-        priorityDiv.appendChild(ul);
-        analysisBox.appendChild(priorityDiv);
+        innerContent += `
+          <div style="margin-top: 16px;">
+            <strong style="color: #10b981;">🎯 Prioritized Test Areas:</strong>
+            <ul style="margin-top: 8px; margin-left: 20px;">
+              ${req.prioritizedTestAreas
+                .map((item) => {
+                  const priorityColor =
+                    item.priority === "High"
+                      ? "#f87171"
+                      : item.priority === "Medium"
+                        ? "#fbbf24"
+                        : "#94a3b8";
+                  return `
+                  <li style="color: #94a3b8; margin-bottom: 8px;">
+                    <span style="display: inline-block; padding: 2px 8px; border-radius: 4px; background: ${priorityColor}; color: #1e293b; font-size: 11px; font-weight: bold; margin-right: 8px;">${item.priority.toUpperCase()}</span>
+                    <span style="color: #e2e8f0; font-weight: 500;">${item.area}</span>
+                    <div style="margin-left: 60px; margin-top: 4px; font-size: 13px; color: #94a3b8; font-style: italic;">${item.reason}</div>
+                  </li>
+                `;
+                })
+                .join("")}
+            </ul>
+          </div>
+        `;
       }
 
-      wrapper.appendChild(analysisBox);
+      // Wrap in collapsible section with story-section styling
+      html += `
+        <div class="story-section">
+          <div class="section-header-collapsible" data-section="analyzer-ai-analysis">
+            <h4>🔍 AI Requirements Analysis</h4>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="section-content" id="section-analyzer-ai-analysis">
+            <div style="background: var(--bg-primary); padding: 16px; border-radius: 8px;">
+              ${innerContent}
+            </div>
+          </div>
+        </div>
+      `;
     }
 
-    // Show a message when no AI analysis is available
+    // Show info message when no AI analysis is available
     if (!data.requirementsAnalysis) {
-      // Show message that AI analysis is unavailable
-      const infoBox = document.createElement("div");
-      infoBox.style.cssText =
-        "background: rgba(99, 102, 241, 0.1); padding: 16px; border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.3); margin-bottom: 20px;";
-
-      const infoHeader = document.createElement("div");
-      infoHeader.style.cssText =
-        "color: #e2e8f0; margin-bottom: 8px; font-size: 14px;";
-      const infoHeaderStrong = document.createElement("strong");
-      infoHeaderStrong.textContent = "💡 AI Requirements Analysis";
-      infoHeader.appendChild(infoHeaderStrong);
-      infoBox.appendChild(infoHeader);
-
-      const infoText = document.createElement("div");
-      infoText.style.cssText =
-        "color: #94a3b8; font-size: 13px; line-height: 1.6;";
-      infoText.textContent =
-        "AI-powered requirements analysis provides completeness scores, testability metrics, and actionable recommendations. Check the console for details if the analysis failed. The work item details above were successfully loaded from Azure DevOps.";
-      infoBox.appendChild(infoText);
-
-      wrapper.appendChild(infoBox);
+      html += `
+        <div style="background: rgba(99, 102, 241, 0.1); padding: 16px; border-radius: 8px; border: 1px solid rgba(99, 102, 241, 0.3); margin: 20px 0;">
+          <div style="color: #e2e8f0; margin-bottom: 8px; font-size: 14px;"><strong>💡 AI Requirements Analysis</strong></div>
+          <div style="color: #94a3b8; font-size: 13px; line-height: 1.6;">AI-powered requirements analysis provides completeness scores, testability metrics, and actionable recommendations. Check the console for details if the analysis failed.</div>
+        </div>
+      `;
     }
 
-    // Append to container
-    container.appendChild(wrapper);
+    // Close the main container div
+    html += `</div>`;
+
+    container.innerHTML = html;
+
+    // Setup collapsible section handlers
+    container
+      .querySelectorAll(".section-header-collapsible")
+      .forEach((header) => {
+        header.addEventListener("click", () => {
+          const sectionId = header.dataset.section;
+          const content = document.getElementById(`section-${sectionId}`);
+          const icon = header.querySelector(".collapse-icon");
+          if (content) {
+            const isCollapsed = content.style.display === "none";
+            content.style.display = isCollapsed ? "block" : "none";
+            if (icon) {
+              icon.classList.toggle("collapsed", !isCollapsed);
+            }
+          }
+        });
+      });
   } catch (error) {
     console.error("Error creating DOM elements:", error);
     container.textContent =

@@ -2,15 +2,15 @@
  * Work Items Routes
  */
 
-import { Router, Request, Response } from 'express';
-import { ADOService } from '../services/ado-service';
-import { APIResponse, logError } from '@qe-mcp-stack/shared';
+import { Router, Request, Response } from "express";
+import { ADOService } from "../services/ado-service";
+import { APIResponse, logError } from "@qe-mcp-stack/shared";
 import {
   WorkItemQueryRequest,
   WorkItemUpdateRequest,
   CreateTestCasesRequest,
   BulkUpdateRequest,
-} from '../types';
+} from "../types";
 
 export function createWorkItemsRouter(adoService: ADOService): Router {
   const router = Router();
@@ -45,7 +45,7 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
    *       500:
    *         description: Server error
    */
-  router.post('/query', async (req: Request, res: Response) => {
+  router.post("/query", async (req: Request, res: Response) => {
     try {
       const request: WorkItemQueryRequest = req.body;
       const workItems = await adoService.queryWorkItems(request);
@@ -57,11 +57,11 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
 
       res.json(response);
     } catch (error) {
-      logError('Work items query failed', { error });
+      logError("Work items query failed", { error });
       const response: APIResponse = {
         success: false,
         error: {
-          code: 'QUERY_FAILED',
+          code: "QUERY_FAILED",
           message: (error as Error).message,
         },
       };
@@ -74,7 +74,7 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
    * /work-items/get:
    *   post:
    *     summary: Get specific work items by IDs
-   *     description: Retrieve work items by their IDs
+   *     description: Retrieve work items by their IDs. Use orgWide=true to fetch from any project.
    *     tags: [Work Items]
    *     requestBody:
    *       required: true
@@ -89,6 +89,9 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
    *                 type: array
    *                 items:
    *                   type: number
+   *               orgWide:
+   *                 type: boolean
+   *                 description: If true, fetches work items from any project in the organization
    *     responses:
    *       200:
    *         description: List of work items
@@ -104,23 +107,26 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
    *                   items:
    *                     $ref: '#/components/schemas/WorkItem'
    */
-  router.post('/get', async (req: Request, res: Response) => {
+  router.post("/get", async (req: Request, res: Response) => {
     try {
-      const { ids } = req.body;
+      const { ids, orgWide } = req.body;
 
       if (!ids || !Array.isArray(ids) || ids.length === 0) {
         const response: APIResponse = {
           success: false,
           error: {
-            code: 'INVALID_REQUEST',
-            message: 'ids array is required',
+            code: "INVALID_REQUEST",
+            message: "ids array is required",
           },
         };
         res.status(400).json(response);
         return;
       }
 
-      const workItems = await adoService.getWorkItemsByIds(ids);
+      // Use org-wide fetch if requested, otherwise use project-scoped
+      const workItems = orgWide
+        ? await adoService.getWorkItemsByIdsOrgWide(ids)
+        : await adoService.getWorkItemsByIds(ids);
 
       const response: APIResponse = {
         success: true,
@@ -129,11 +135,11 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
 
       res.json(response);
     } catch (error) {
-      logError('Get work items failed', { error });
+      logError("Get work items failed", { error });
       const response: APIResponse = {
         success: false,
         error: {
-          code: 'GET_FAILED',
+          code: "GET_FAILED",
           message: (error as Error).message,
         },
       };
@@ -167,7 +173,7 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
    *                 data:
    *                   $ref: '#/components/schemas/WorkItem'
    */
-  router.post('/update', async (req: Request, res: Response) => {
+  router.post("/update", async (req: Request, res: Response) => {
     try {
       const request: WorkItemUpdateRequest = req.body;
 
@@ -175,8 +181,8 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
         const response: APIResponse = {
           success: false,
           error: {
-            code: 'INVALID_REQUEST',
-            message: 'id and fields are required',
+            code: "INVALID_REQUEST",
+            message: "id and fields are required",
           },
         };
         res.status(400).json(response);
@@ -192,11 +198,11 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
 
       res.json(response);
     } catch (error) {
-      logError('Update work item failed', { error });
+      logError("Update work item failed", { error });
       const response: APIResponse = {
         success: false,
         error: {
-          code: 'UPDATE_FAILED',
+          code: "UPDATE_FAILED",
           message: (error as Error).message,
         },
       };
@@ -235,7 +241,7 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
    *                       items:
    *                         $ref: '#/components/schemas/WorkItem'
    */
-  router.post('/create-test-cases', async (req: Request, res: Response) => {
+  router.post("/create-test-cases", async (req: Request, res: Response) => {
     try {
       const request: CreateTestCasesRequest = req.body;
 
@@ -243,8 +249,8 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
         const response: APIResponse = {
           success: false,
           error: {
-            code: 'INVALID_REQUEST',
-            message: 'testCases array is required',
+            code: "INVALID_REQUEST",
+            message: "testCases array is required",
           },
         };
         res.status(400).json(response);
@@ -260,11 +266,11 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
 
       res.json(response);
     } catch (error) {
-      logError('Create test cases failed', { error });
+      logError("Create test cases failed", { error });
       const response: APIResponse = {
         success: false,
         error: {
-          code: 'CREATE_FAILED',
+          code: "CREATE_FAILED",
           message: (error as Error).message,
         },
       };
@@ -303,7 +309,7 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
    *                       items:
    *                         type: object
    */
-  router.post('/bulk-update', async (req: Request, res: Response) => {
+  router.post("/bulk-update", async (req: Request, res: Response) => {
     try {
       const request: BulkUpdateRequest = req.body;
 
@@ -311,8 +317,8 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
         const response: APIResponse = {
           success: false,
           error: {
-            code: 'INVALID_REQUEST',
-            message: 'storyId is required',
+            code: "INVALID_REQUEST",
+            message: "storyId is required",
           },
         };
         res.status(400).json(response);
@@ -328,11 +334,11 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
 
       res.json(response);
     } catch (error) {
-      logError('Bulk update failed', { error });
+      logError("Bulk update failed", { error });
       const response: APIResponse = {
         success: false,
         error: {
-          code: 'BULK_UPDATE_FAILED',
+          code: "BULK_UPDATE_FAILED",
           message: (error as Error).message,
         },
       };
