@@ -55,6 +55,50 @@ router.post("/pull-stories", async (req, res) => {
   }
 });
 
+// Get a single work item by ID
+router.get("/work-item/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid work item ID",
+      });
+    }
+
+    logger.info("Fetching work item by ID", { id });
+
+    const response = await req.mcpManager.callDockerMcp(
+      "azureDevOps",
+      "/work-items/get",
+      { ids: [parseInt(id)] },
+    );
+
+    // Unwrap MCP response - it returns { success: true, data: [...] }
+    const workItems = response?.data || [];
+
+    if (workItems.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `Work item ${id} not found`,
+      });
+    }
+
+    res.json({
+      success: true,
+      workItem: workItems[0],
+    });
+  } catch (error) {
+    logger.error("Get work item error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch work item",
+      message: error.message,
+    });
+  }
+});
+
 // Analyze requirements using AI (Claude)
 router.post("/analyze-requirements", async (req, res) => {
   try {

@@ -1,6 +1,6 @@
-import { PushPreviewModal } from './pushPreviewModal.js';
+import { PushPreviewModal } from "./pushPreviewModal.js";
 
-const API_BASE_URL = 'http://localhost:3000';
+const API_BASE_URL = "http://localhost:3000";
 
 export class AnalysisPanel {
   constructor(containerId) {
@@ -11,8 +11,10 @@ export class AnalysisPanel {
     this.analysisResults = {
       risk: null,
       integration: null,
-      blastRadius: null
+      blastRadius: null,
     };
+    // Render initial empty state
+    this.render();
   }
 
   async showAnalysis(story, app) {
@@ -26,42 +28,72 @@ export class AnalysisPanel {
       <div class="analysis-panel">
         <div class="analysis-header">
           <h2>Story Analysis</h2>
-          ${this.currentStory ? `
+          ${
+            this.currentStory
+              ? `
             <div class="story-info">
               <span class="story-id">#${this.currentStory.id}</span>
-              <span class="story-title">${this.currentStory.fields?.['System.Title'] || 'Untitled'}</span>
+              <span class="story-title">${this.currentStory.fields?.["System.Title"] || "Untitled"}</span>
             </div>
             <div class="story-details" style="margin-top: 16px; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px;">
-              ${this.currentStory.fields?.['System.Description'] ? `
+              ${
+                this.currentStory.fields?.["System.Description"]
+                  ? `
                 <div class="story-field" style="margin-bottom: 12px;">
                   <strong style="color: #e2e8f0;">Description:</strong>
-                  <div style="margin-top: 4px; color: #94a3b8; font-size: 14px;">${this.currentStory.fields['System.Description']}</div>
+                  <div style="margin-top: 4px; color: #94a3b8; font-size: 14px;">${this.currentStory.fields["System.Description"]}</div>
                 </div>
-              ` : ''}
-              ${this.currentStory.fields?.['Microsoft.VSTS.Common.AcceptanceCriteria'] ? `
+              `
+                  : ""
+              }
+              ${
+                this.currentStory.fields?.[
+                  "Microsoft.VSTS.Common.AcceptanceCriteria"
+                ]
+                  ? `
                 <div class="story-field" style="margin-bottom: 12px;">
                   <strong style="color: #e2e8f0;">Acceptance Criteria:</strong>
-                  <div style="margin-top: 4px; color: #94a3b8; font-size: 14px;">${this.currentStory.fields['Microsoft.VSTS.Common.AcceptanceCriteria']}</div>
+                  <div style="margin-top: 4px; color: #94a3b8; font-size: 14px;">${this.currentStory.fields["Microsoft.VSTS.Common.AcceptanceCriteria"]}</div>
                 </div>
-              ` : ''}
+              `
+                  : ""
+              }
               ${this.getChildTasksHtml()}
             </div>
-          ` : `
-            <div class="empty-state-message">
-              <div class="empty-state-icon">📋</div>
-              <h3>No Story Selected</h3>
-              <p>To view analysis for a work item:</p>
-              <ol class="empty-state-instructions">
-                <li>Go to the <strong>Work Items</strong> tab</li>
-                <li>Find the parent item (PBI, Feature, or Bug) you want to analyze</li>
-                <li>Click the <strong>📊 View Analysis</strong> button on the parent card</li>
-              </ol>
-              <p class="empty-state-note">Tip: Use the <strong>🤖 Story Analyzer</strong> tab to generate test cases and requirements analysis with AI.</p>
+          `
+              : `
+            <div class="panel analyzer-panel">
+              <h2>🔍 Story Analysis</h2>
+              <p class="panel-description">Analyze blast radius, risk assessment, and integration impact for any work item</p>
+
+              <div class="analyzer-form">
+                <div class="form-group">
+                  <label for="analysisStoryIdInput">Story ID</label>
+                  <input type="number" id="analysisStoryIdInput" placeholder="Enter story ID (e.g., 12345)">
+                </div>
+
+                <div class="form-actions">
+                  <button id="loadStoryForAnalysisBtn" class="btn btn-primary">
+                    <span id="loadStoryLoading" style="display:none;" class="loading-spinner"></span>
+                    <span id="loadStoryText">📊 Load Story</span>
+                  </button>
+                </div>
+
+                <div id="loadStoryError" class="error-message" style="display:none;"></div>
+              </div>
+
+              <div class="analysis-alt-option">
+                <div class="alt-divider"><span>OR</span></div>
+                <p>Navigate from the <strong>Work Items</strong> tab and click <strong>📊 View Analysis</strong> on any parent item.</p>
+              </div>
             </div>
-          `}
+          `
+          }
         </div>
 
-        ${this.currentStory ? `
+        ${
+          this.currentStory
+            ? `
           <div class="analysis-config">
             <h3>Configuration</h3>
             <div class="form-group">
@@ -112,35 +144,113 @@ Models/Invoice.cs"></textarea>
             </button>
             <p class="push-info">Run at least one analysis to enable pushing results to ADO</p>
           </div>
-        ` : ''}
+        `
+            : ""
+        }
       </div>
     `;
 
     if (this.currentStory) {
       this.attachEventListeners();
+    } else {
+      this.attachEmptyStateListeners();
+    }
+  }
+
+  attachEmptyStateListeners() {
+    const loadStoryBtn = document.getElementById("loadStoryForAnalysisBtn");
+    const storyInput = document.getElementById("analysisStoryIdInput");
+
+    if (loadStoryBtn) {
+      loadStoryBtn.addEventListener("click", () => this.loadStoryById());
+    }
+
+    if (storyInput) {
+      storyInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          this.loadStoryById();
+        }
+      });
+    }
+  }
+
+  async loadStoryById() {
+    const input = document.getElementById("analysisStoryIdInput");
+    const loadingSpinner = document.getElementById("loadStoryLoading");
+    const loadText = document.getElementById("loadStoryText");
+    const errorDiv = document.getElementById("loadStoryError");
+    const loadBtn = document.getElementById("loadStoryForAnalysisBtn");
+
+    const storyId = input?.value?.trim();
+
+    if (!storyId) {
+      errorDiv.textContent = "Please enter a story ID";
+      errorDiv.style.display = "block";
+      return;
+    }
+
+    // Show loading state
+    loadingSpinner.style.display = "inline-block";
+    loadText.textContent = "Loading...";
+    loadBtn.disabled = true;
+    errorDiv.style.display = "none";
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/ado/work-item/${storyId}`,
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || `Failed to load story (HTTP ${response.status})`,
+        );
+      }
+
+      const data = await response.json();
+
+      if (!data.success || !data.workItem) {
+        throw new Error(data.error || "Story not found");
+      }
+
+      // Load the story into the analysis panel
+      this.showAnalysis(data.workItem, null);
+    } catch (error) {
+      console.error("Failed to load story:", error);
+      errorDiv.textContent =
+        error.message ||
+        "Failed to load story. Please check the ID and try again.";
+      errorDiv.style.display = "block";
+
+      // Reset button state
+      loadingSpinner.style.display = "none";
+      loadText.textContent = "📊 Load Story";
+      loadBtn.disabled = false;
     }
   }
 
   attachEventListeners() {
-    const runBlastRadiusBtn = document.getElementById('runBlastRadiusBtn');
-    const runRiskBtn = document.getElementById('runRiskBtn');
-    const runIntegrationBtn = document.getElementById('runIntegrationBtn');
-    const pushToAdoBtn = document.getElementById('pushToAdoBtn');
+    const runBlastRadiusBtn = document.getElementById("runBlastRadiusBtn");
+    const runRiskBtn = document.getElementById("runRiskBtn");
+    const runIntegrationBtn = document.getElementById("runIntegrationBtn");
+    const pushToAdoBtn = document.getElementById("pushToAdoBtn");
 
     if (runBlastRadiusBtn) {
-      runBlastRadiusBtn.addEventListener('click', () => this.loadBlastRadius());
+      runBlastRadiusBtn.addEventListener("click", () => this.loadBlastRadius());
     }
 
     if (runRiskBtn) {
-      runRiskBtn.addEventListener('click', () => this.loadRiskAnalysis());
+      runRiskBtn.addEventListener("click", () => this.loadRiskAnalysis());
     }
 
     if (runIntegrationBtn) {
-      runIntegrationBtn.addEventListener('click', () => this.loadIntegrationAnalysis());
+      runIntegrationBtn.addEventListener("click", () =>
+        this.loadIntegrationAnalysis(),
+      );
     }
 
     if (pushToAdoBtn) {
-      pushToAdoBtn.addEventListener('click', () => this.showPushPreview());
+      pushToAdoBtn.addEventListener("click", () => this.showPushPreview());
     }
   }
 
@@ -148,12 +258,13 @@ Models/Invoice.cs"></textarea>
    * Check if any analysis has been run and enable/disable push button
    */
   updatePushButtonState() {
-    const pushBtn = document.getElementById('pushToAdoBtn');
+    const pushBtn = document.getElementById("pushToAdoBtn");
     if (!pushBtn) return;
 
-    const hasAnyAnalysis = this.analysisResults.risk ||
-                           this.analysisResults.integration ||
-                           this.analysisResults.blastRadius;
+    const hasAnyAnalysis =
+      this.analysisResults.risk ||
+      this.analysisResults.integration ||
+      this.analysisResults.blastRadius;
 
     pushBtn.disabled = !hasAnyAnalysis;
 
@@ -161,13 +272,13 @@ Models/Invoice.cs"></textarea>
       const analysisCount = [
         this.analysisResults.risk,
         this.analysisResults.integration,
-        this.analysisResults.blastRadius
+        this.analysisResults.blastRadius,
       ].filter(Boolean).length;
 
-      const pushInfo = document.querySelector('.push-info');
+      const pushInfo = document.querySelector(".push-info");
       if (pushInfo) {
-        pushInfo.textContent = `${analysisCount} analysis result${analysisCount > 1 ? 's' : ''} ready to push`;
-        pushInfo.style.color = '#28a745';
+        pushInfo.textContent = `${analysisCount} analysis result${analysisCount > 1 ? "s" : ""} ready to push`;
+        pushInfo.style.color = "#28a745";
       }
     }
   }
@@ -182,12 +293,12 @@ Models/Invoice.cs"></textarea>
 
   getChildTasksHtml() {
     if (!this.currentStory || !this.currentStory.relations) {
-      return '';
+      return "";
     }
 
     const childTasks = [];
     for (const relation of this.currentStory.relations) {
-      if (relation.rel === 'System.LinkTypes.Hierarchy-Forward') {
+      if (relation.rel === "System.LinkTypes.Hierarchy-Forward") {
         const childIdMatch = relation.url.match(/\/(\d+)$/);
         if (childIdMatch) {
           childTasks.push({ id: parseInt(childIdMatch[1]) });
@@ -196,52 +307,58 @@ Models/Invoice.cs"></textarea>
     }
 
     if (childTasks.length === 0) {
-      return '';
+      return "";
     }
 
     return `
       <div class="story-field">
         <strong style="color: #e2e8f0;">Child Tasks (${childTasks.length}):</strong>
         <ul style="margin-top: 4px; margin-left: 20px; color: #94a3b8; font-size: 14px;">
-          ${childTasks.map(task => `<li>Task #${task.id}</li>`).join('')}
+          ${childTasks.map((task) => `<li>Task #${task.id}</li>`).join("")}
         </ul>
       </div>
     `;
   }
 
   extractChangedFiles() {
-    const textarea = document.getElementById('changedFilesInput');
+    const textarea = document.getElementById("changedFilesInput");
     if (!textarea) return [];
 
     const text = textarea.value.trim();
     if (!text) return [];
 
-    return text.split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0);
+    return text
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
   }
 
   async loadBlastRadius() {
-    const container = document.getElementById('blastRadiusContent');
+    const container = document.getElementById("blastRadiusContent");
     const changedFiles = this.extractChangedFiles();
 
     if (changedFiles.length === 0) {
-      container.innerHTML = '<div class="error">Please enter at least one file path in the "Changed Files" field</div>';
+      container.innerHTML =
+        '<div class="error">Please enter at least one file path in the "Changed Files" field</div>';
       return;
     }
 
-    container.innerHTML = '<div class="loading">Analyzing blast radius...</div>';
+    container.innerHTML =
+      '<div class="loading">Analyzing blast radius...</div>';
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analysis/blast-radius/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          app: this.currentApp,
-          changedFiles,
-          analysisDepth: 'moderate'
-        })
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/analysis/blast-radius/analyze`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            app: this.currentApp,
+            changedFiles,
+            analysisDepth: "moderate",
+          }),
+        },
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -250,7 +367,7 @@ Models/Invoice.cs"></textarea>
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Analysis failed');
+        throw new Error(data.error || "Analysis failed");
       }
 
       const blast = data.result;
@@ -278,63 +395,79 @@ Models/Invoice.cs"></textarea>
         <div class="impact-details">
           <h4>📁 Changed Files (${blast.changedFiles?.length || 0})</h4>
           <ul class="file-list">
-            ${(blast.changedFiles || []).map(file => `
+            ${(blast.changedFiles || [])
+              .map(
+                (file) => `
               <li>
                 <span class="file-name">${file.file}</span>
                 ${file.exists ? '<span class="badge success">exists</span>' : '<span class="badge error">not found</span>'}
-                ${file.classes ? `<small>${file.classes.length} classes</small>` : ''}
+                ${file.classes ? `<small>${file.classes.length} classes</small>` : ""}
               </li>
-            `).join('')}
+            `,
+              )
+              .join("")}
           </ul>
 
           <h4>🎯 Affected Components (${blast.impact?.affectedComponents?.length || 0})</h4>
           <ul class="component-list">
-            ${(blast.impact?.affectedComponents || []).map(comp => `<li>${comp}</li>`).join('') || '<li class="empty">No components identified</li>'}
+            ${(blast.impact?.affectedComponents || []).map((comp) => `<li>${comp}</li>`).join("") || '<li class="empty">No components identified</li>'}
           </ul>
 
           <h4>🧪 Affected Tests (${blast.impact?.affectedTests?.length || 0})</h4>
           <ul class="test-list">
-            ${(blast.impact?.affectedTests || []).map(test => `<li>${test}</li>`).join('') || '<li class="empty">No test files identified</li>'}
+            ${(blast.impact?.affectedTests || []).map((test) => `<li>${test}</li>`).join("") || '<li class="empty">No test files identified</li>'}
           </ul>
         </div>
 
         <div class="recommendations">
           <h4>💡 Recommendations</h4>
           <ul>
-            ${(blast.recommendations || []).map(rec => `
+            ${
+              (blast.recommendations || [])
+                .map(
+                  (rec) => `
               <li class="priority-${rec.priority}">
                 <strong>[${rec.category}]</strong> ${rec.recommendation}
-                ${rec.files ? `<br><small>Files: ${rec.files.join(', ')}</small>` : ''}
+                ${rec.files ? `<br><small>Files: ${rec.files.join(", ")}</small>` : ""}
               </li>
-            `).join('') || '<li>No specific recommendations</li>'}
+            `,
+                )
+                .join("") || "<li>No specific recommendations</li>"
+            }
           </ul>
         </div>
       `;
-
     } catch (error) {
-      console.error('Blast radius error:', error);
+      console.error("Blast radius error:", error);
       container.innerHTML = `<div class="error">Error loading blast radius: ${error.message}</div>`;
     }
   }
 
   async loadRiskAnalysis() {
-    const container = document.getElementById('riskAnalysisContent');
-    container.innerHTML = '<div class="loading">Analyzing risk factors...</div>';
+    const container = document.getElementById("riskAnalysisContent");
+    container.innerHTML =
+      '<div class="loading">Analyzing risk factors...</div>';
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analysis/risk/analyze-story`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          app: this.currentApp,
-          story: {
-            id: this.currentStory.id,
-            title: this.currentStory.fields['System.Title'],
-            description: this.currentStory.fields['System.Description'] || '',
-            acceptanceCriteria: this.currentStory.fields['Microsoft.VSTS.Common.AcceptanceCriteria'] || ''
-          }
-        })
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/analysis/risk/analyze-story`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            app: this.currentApp,
+            story: {
+              id: this.currentStory.id,
+              title: this.currentStory.fields["System.Title"],
+              description: this.currentStory.fields["System.Description"] || "",
+              acceptanceCriteria:
+                this.currentStory.fields[
+                  "Microsoft.VSTS.Common.AcceptanceCriteria"
+                ] || "",
+            },
+          }),
+        },
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -343,7 +476,7 @@ Models/Invoice.cs"></textarea>
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Risk analysis failed');
+        throw new Error(data.error || "Risk analysis failed");
       }
 
       const risk = data.result.risk;
@@ -360,27 +493,34 @@ Models/Invoice.cs"></textarea>
 
         <div class="risk-factors">
           <h4>Risk Factors:</h4>
-          ${Object.entries(risk.factors).map(([name, factor]) => `
+          ${Object.entries(risk.factors)
+            .map(
+              ([name, factor]) => `
             <div class="factor">
               <strong>${name}:</strong> ${factor.score}/100 - ${factor.description}
             </div>
-          `).join('')}
+          `,
+            )
+            .join("")}
         </div>
 
         <div class="recommendations">
           <h4>Recommendations:</h4>
           <ul>
-            ${risk.recommendations.map(rec => `
+            ${risk.recommendations
+              .map(
+                (rec) => `
               <li class="priority-${rec.priority}">
                 <strong>[${rec.category}]</strong> ${rec.text}
               </li>
-            `).join('')}
+            `,
+              )
+              .join("")}
           </ul>
         </div>
       `;
-
     } catch (error) {
-      console.error('Risk analysis error:', error);
+      console.error("Risk analysis error:", error);
       container.innerHTML = `
         <div class="warning">
           <p><strong>Note:</strong> Risk Analyzer requires full implementation (Phase 3).</p>
@@ -391,19 +531,22 @@ Models/Invoice.cs"></textarea>
   }
 
   async loadIntegrationAnalysis() {
-    const container = document.getElementById('integrationAnalysisContent');
+    const container = document.getElementById("integrationAnalysisContent");
     container.innerHTML = '<div class="loading">Mapping integrations...</div>';
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analysis/integrations/map`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          app: this.currentApp,
-          integrationType: 'all',
-          includeDiagram: false
-        })
-      });
+      const response = await fetch(
+        `${API_BASE_URL}/api/analysis/integrations/map`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            app: this.currentApp,
+            integrationType: "all",
+            includeDiagram: false,
+          }),
+        },
+      );
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -412,7 +555,7 @@ Models/Invoice.cs"></textarea>
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || 'Integration mapping failed');
+        throw new Error(data.error || "Integration mapping failed");
       }
 
       const integrations = data.result;
@@ -428,28 +571,38 @@ Models/Invoice.cs"></textarea>
             <span class="value">${integrations.summary?.total || 0}</span>
           </div>
           <div class="integration-types">
-            ${Object.entries(integrations.summary?.byType || {}).map(([type, count]) => `
+            ${Object.entries(integrations.summary?.byType || {})
+              .map(
+                ([type, count]) => `
               <span class="type-badge ${type}">${type}: ${count}</span>
-            `).join('')}
+            `,
+              )
+              .join("")}
           </div>
         </div>
 
         <div class="integration-list">
           <h4>Integration Points:</h4>
           <ul>
-            ${(integrations.integrations || []).slice(0, 10).map(integration => `
+            ${
+              (integrations.integrations || [])
+                .slice(0, 10)
+                .map(
+                  (integration) => `
               <li>
-                <strong>${integration.type}:</strong> ${integration.url || integration.details?.className || 'Unknown'}
-                <br><small>${integration.file || 'No file info'}</small>
+                <strong>${integration.type}:</strong> ${integration.url || integration.details?.className || "Unknown"}
+                <br><small>${integration.file || "No file info"}</small>
               </li>
-            `).join('') || '<li class="empty">No integrations found</li>'}
+            `,
+                )
+                .join("") || '<li class="empty">No integrations found</li>'
+            }
           </ul>
-          ${integrations.integrations?.length > 10 ? `<p class="more">...and ${integrations.integrations.length - 10} more</p>` : ''}
+          ${integrations.integrations?.length > 10 ? `<p class="more">...and ${integrations.integrations.length - 10} more</p>` : ""}
         </div>
       `;
-
     } catch (error) {
-      console.error('Integration mapping error:', error);
+      console.error("Integration mapping error:", error);
       container.innerHTML = `
         <div class="warning">
           <p><strong>Note:</strong> Integration Mapper requires full implementation (Phase 4).</p>
