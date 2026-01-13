@@ -803,4 +803,284 @@ describe("ADOService", () => {
       ).rejects.toThrow("Failed to get sprints: Team not found");
     });
   });
+
+  // ============================================
+  // TEST PLAN MANAGEMENT TESTS
+  // ============================================
+
+  describe("getTestPlans", () => {
+    it("should fetch all test plans", async () => {
+      const mockResponse = {
+        data: {
+          value: [
+            { id: 100, name: "Test Plan 1", state: "Active" },
+            { id: 200, name: "Test Plan 2", state: "Active" },
+          ],
+        },
+      };
+
+      mockClientInstance.get.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.getTestPlans();
+
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe(100);
+      expect(result[1].id).toBe(200);
+      expect(mockClientInstance.get).toHaveBeenCalledWith(
+        expect.stringContaining("testplan/plans"),
+      );
+    });
+
+    it("should return empty array when no test plans exist", async () => {
+      mockClientInstance.get.mockResolvedValueOnce({
+        data: { value: [] },
+      });
+
+      const result = await service.getTestPlans();
+
+      expect(result).toEqual([]);
+    });
+
+    it("should handle API errors", async () => {
+      mockClientInstance.get.mockRejectedValueOnce({
+        message: "Permission denied",
+        response: { status: 403 },
+      });
+
+      await expect(service.getTestPlans()).rejects.toThrow(
+        "Failed to get test plans: Permission denied",
+      );
+    });
+  });
+
+  describe("getTestPlan", () => {
+    it("should fetch a specific test plan by ID", async () => {
+      const mockResponse = {
+        data: {
+          id: 100,
+          name: "Sprint 42 Test Plan",
+          state: "Active",
+          rootSuite: { id: 101 },
+        },
+      };
+
+      mockClientInstance.get.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.getTestPlan(100);
+
+      expect(result.id).toBe(100);
+      expect(result.name).toBe("Sprint 42 Test Plan");
+      expect(mockClientInstance.get).toHaveBeenCalledWith(
+        expect.stringContaining("testplan/plans/100"),
+      );
+    });
+  });
+
+  describe("createTestPlan", () => {
+    it("should create a new test plan", async () => {
+      const mockResponse = {
+        data: {
+          id: 300,
+          name: "New Test Plan",
+          state: "Active",
+          rootSuite: { id: 301 },
+        },
+      };
+
+      mockClientInstance.post.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.createTestPlan({
+        name: "New Test Plan",
+        iteration: "Project\\Sprint 44",
+      });
+
+      expect(result.id).toBe(300);
+      expect(result.name).toBe("New Test Plan");
+      expect(mockClientInstance.post).toHaveBeenCalledWith(
+        expect.stringContaining("testplan/plans"),
+        expect.objectContaining({
+          name: "New Test Plan",
+          iteration: "Project\\Sprint 44",
+        }),
+      );
+    });
+
+    it("should handle creation errors", async () => {
+      mockClientInstance.post.mockRejectedValueOnce({
+        message: "Invalid iteration path",
+        response: { status: 400 },
+      });
+
+      await expect(
+        service.createTestPlan({
+          name: "Test Plan",
+          iteration: "Invalid\\Path",
+        }),
+      ).rejects.toThrow("Failed to create test plan: Invalid iteration path");
+    });
+  });
+
+  describe("getTestSuites", () => {
+    it("should fetch test suites for a plan", async () => {
+      const mockResponse = {
+        data: {
+          value: [
+            { id: 100, name: "Root Suite", suiteType: "StaticTestSuite" },
+            {
+              id: 101,
+              name: "Feature Suite",
+              suiteType: "StaticTestSuite",
+              parentSuite: { id: 100 },
+            },
+          ],
+        },
+      };
+
+      mockClientInstance.get.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.getTestSuites(100);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].suiteType).toBe("StaticTestSuite");
+      expect(mockClientInstance.get).toHaveBeenCalledWith(
+        expect.stringContaining("testplan/plans/100/suites"),
+      );
+    });
+  });
+
+  describe("createTestSuite", () => {
+    it("should create a static test suite", async () => {
+      const mockResponse = {
+        data: {
+          id: 200,
+          name: "Feature Suite",
+          suiteType: "StaticTestSuite",
+        },
+      };
+
+      mockClientInstance.post.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.createTestSuite({
+        planId: 100,
+        name: "Feature Suite",
+        suiteType: "StaticTestSuite",
+        parentSuiteId: 101,
+      });
+
+      expect(result.id).toBe(200);
+      expect(result.suiteType).toBe("StaticTestSuite");
+    });
+
+    it("should create a requirement test suite", async () => {
+      const mockResponse = {
+        data: {
+          id: 201,
+          name: "PBI 456",
+          suiteType: "RequirementTestSuite",
+          requirementId: 456,
+        },
+      };
+
+      mockClientInstance.post.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.createTestSuite({
+        planId: 100,
+        name: "PBI 456",
+        suiteType: "RequirementTestSuite",
+        parentSuiteId: 200,
+        requirementId: 456,
+      });
+
+      expect(result.requirementId).toBe(456);
+    });
+  });
+
+  describe("addTestCasesToSuite", () => {
+    it("should add test cases to a suite", async () => {
+      const mockResponse = {
+        data: {
+          value: [{ id: 1001 }, { id: 1002 }],
+        },
+      };
+
+      mockClientInstance.post.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.addTestCasesToSuite({
+        planId: 100,
+        suiteId: 200,
+        testCaseIds: [1001, 1002],
+      });
+
+      expect(result).toHaveLength(2);
+      expect(mockClientInstance.post).toHaveBeenCalledWith(
+        expect.stringContaining("suites/200/testcases"),
+        expect.any(Array),
+      );
+    });
+  });
+
+  describe("createTestCasesInPlan", () => {
+    it("should create test cases with full hierarchy", async () => {
+      // Mock getTestSuites to return empty (no existing suites)
+      mockClientInstance.get.mockResolvedValueOnce({
+        data: {
+          value: [{ id: 100, name: "Root", suiteType: "StaticTestSuite" }],
+        },
+      });
+
+      // Mock createTestSuite for feature suite
+      mockClientInstance.post.mockResolvedValueOnce({
+        data: { id: 200, name: "Feature 123", suiteType: "StaticTestSuite" },
+      });
+
+      // Mock getTestSuites again
+      mockClientInstance.get.mockResolvedValueOnce({
+        data: {
+          value: [
+            { id: 100, name: "Root" },
+            { id: 200, name: "Feature 123" },
+          ],
+        },
+      });
+
+      // Mock createTestSuite for PBI suite
+      mockClientInstance.post.mockResolvedValueOnce({
+        data: {
+          id: 300,
+          name: "456: Story",
+          suiteType: "RequirementTestSuite",
+          requirementId: 456,
+        },
+      });
+
+      // Mock createTestCases
+      mockClientInstance.post
+        .mockResolvedValueOnce({
+          data: { id: 1001, fields: { "System.Title": "Test 1" } },
+        })
+        .mockResolvedValueOnce({
+          data: { id: 1002, fields: { "System.Title": "Test 2" } },
+        });
+
+      // Mock addTestCasesToSuite
+      mockClientInstance.post.mockResolvedValueOnce({
+        data: { value: [{ id: 1001 }, { id: 1002 }] },
+      });
+
+      const result = await service.createTestCasesInPlan(
+        100, // testPlanId
+        456, // storyId
+        "Story Title", // storyTitle
+        [
+          { title: "Test 1", steps: [] },
+          { title: "Test 2", steps: [] },
+        ],
+        123, // featureId
+        "Feature Title", // featureTitle
+      );
+
+      expect(result.suite).toBeDefined();
+      expect(result.testCases).toBeDefined();
+    });
+  });
 });

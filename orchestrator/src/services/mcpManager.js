@@ -238,10 +238,15 @@ export class MCPManager {
     }
 
     try {
+      // Longer timeout for operations that may create multiple items (e.g., test cases with suites)
+      const isLongRunningOperation =
+        endpoint.includes("create-test-cases") ||
+        endpoint.includes("bulk-update") ||
+        endpoint.includes("create-test-plan");
       const config = {
         method,
         url: `${mcp.url}${endpoint}`,
-        timeout: 30000,
+        timeout: isLongRunningOperation ? 120000 : 30000, // 2 min for long ops, 30s default
       };
 
       if (method === "POST" || method === "PUT") {

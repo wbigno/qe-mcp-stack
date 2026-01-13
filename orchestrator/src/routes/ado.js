@@ -341,6 +341,7 @@ router.post("/generate-test-cases", async (req, res) => {
       parsedAcceptanceCriteria,
       riskAnalysis,
       integrationAnalysis,
+      blastRadiusAnalysis,
       options = {},
       updateADO = false,
       includeNegativeTests = options.includeNegative ?? true,
@@ -394,11 +395,39 @@ router.post("/generate-test-cases", async (req, res) => {
     // Build QE Risk Methodology context if risk analysis is provided
     let qeRiskContext = "";
     let acRiskMapping = {};
+    let prioritizedACs = []; // ACs sorted by risk (Critical first)
 
     if (riskAnalysis) {
       const riskLevel = riskAnalysis.level || "medium";
       const riskScore = riskAnalysis.score || 50;
       const riskFactors = riskAnalysis.factors || {};
+
+      // Use the actual AC risk mapping from risk analysis if available
+      if (
+        riskAnalysis.acRiskMapping &&
+        Array.isArray(riskAnalysis.acRiskMapping)
+      ) {
+        riskAnalysis.acRiskMapping.forEach((ac) => {
+          acRiskMapping[ac.ac] = ac.riskLevel || "medium";
+        });
+        // Sort ACs by risk level (critical > high > medium > low)
+        const riskOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+        prioritizedACs = [...riskAnalysis.acRiskMapping].sort(
+          (a, b) =>
+            (riskOrder[a.riskLevel] || 2) - (riskOrder[b.riskLevel] || 2),
+        );
+      }
+
+      // Use testing priority order if available
+      if (riskAnalysis.formattedOutput?.testingPriority?.order) {
+        prioritizedACs = riskAnalysis.formattedOutput.testingPriority.order.map(
+          (item) => ({
+            ac: item.ac,
+            riskLevel: item.riskLevel,
+            reason: item.reason,
+          }),
+        );
+      }
 
       qeRiskContext = `
 ## QE Risk Analysis Context
@@ -421,55 +450,124 @@ ${
     // Build AC-specific context if parsed ACs are provided
     let acContext = "";
     if (parsedAcceptanceCriteria && parsedAcceptanceCriteria.length > 0) {
-      acContext = `
-## Acceptance Criteria (Generate tests for EACH AC):
-${parsedAcceptanceCriteria.map((ac) => `${ac.id}: ${ac.text}`).join("\n")}
+      // If we don't have risk analysis AC mapping, do keyword-based analysis
+      if (Object.keys(acRiskMapping).length === 0) {
+        parsedAcceptanceCriteria.forEach((ac) => {
+          const acText = ac.text.toLowerCase();
+          let acRisk = "medium";
 
-IMPORTANT: Generate test cases for EACH acceptance criterion using this naming convention:
-  PBI-${storyId} AC{number}: [{type}] {test description}
+          if (
+            acText.includes("payment") ||
+            acText.includes("billing") ||
+            acText.includes("financial")
+          ) {
+            acRisk = "critical";
+          } else if (
+            acText.includes("epic") ||
+            acText.includes("ehr") ||
+            acText.includes("patient")
+          ) {
+            acRisk = "critical";
+          } else if (
+            acText.includes("security") ||
+            acText.includes("authentication") ||
+            acText.includes("authorization")
+          ) {
+            acRisk = "high";
+          } else if (
+            acText.includes("api") ||
+            acText.includes("integration") ||
+            acText.includes("external")
+          ) {
+            acRisk = "high";
+          } else if (acText.includes("database") || acText.includes("data")) {
+            acRisk = "high";
+          }
 
-  Types: positive, negative, edge, integration`;
+          acRiskMapping[ac.id] = acRisk;
+        });
 
-      // Map ACs to risk levels based on content analysis
-      parsedAcceptanceCriteria.forEach((ac) => {
-        const acText = ac.text.toLowerCase();
-        let acRisk = "medium";
+        // Build prioritizedACs from keyword analysis
+        const riskOrder = { critical: 0, high: 1, medium: 2, low: 3 };
+        prioritizedACs = parsedAcceptanceCriteria
+          .map((ac) => ({
+            ac: ac.id,
+            text: ac.text,
+            riskLevel: acRiskMapping[ac.id] || "medium",
+          }))
+          .sort(
+            (a, b) =>
+              (riskOrder[a.riskLevel] || 2) - (riskOrder[b.riskLevel] || 2),
+          );
+      } else {
+        // Merge text from parsedAcceptanceCriteria into prioritizedACs
+        prioritizedACs = prioritizedACs.map((pAc) => {
+          const matchedAc = parsedAcceptanceCriteria.find(
+            (ac) => ac.id === pAc.ac,
+          );
+          return { ...pAc, text: matchedAc?.text || "" };
+        });
+      }
 
-        if (
-          acText.includes("payment") ||
-          acText.includes("billing") ||
-          acText.includes("financial")
-        ) {
-          acRisk = "critical";
-        } else if (
-          acText.includes("epic") ||
-          acText.includes("ehr") ||
-          acText.includes("patient")
-        ) {
-          acRisk = "critical";
-        } else if (
-          acText.includes("security") ||
-          acText.includes("authentication") ||
-          acText.includes("authorization")
-        ) {
-          acRisk = "high";
-        } else if (
-          acText.includes("api") ||
-          acText.includes("integration") ||
-          acText.includes("external")
-        ) {
-          acRisk = "high";
-        } else if (acText.includes("database") || acText.includes("data")) {
-          acRisk = "high";
+      // Check if we have hierarchical ACs (with steps)
+      const hasHierarchicalACs = parsedAcceptanceCriteria.some(
+        (ac) => ac.steps && ac.steps.length > 0,
+      );
+
+      // Build AC list in RISK PRIORITY ORDER (Critical first)
+      if (hasHierarchicalACs) {
+        // Use hierarchical format for smarter test generation
+        acContext = `
+## Acceptance Criteria - HIERARCHICAL STRUCTURE (Generate tests using steps as test steps):
+
+${prioritizedACs
+  .map((ac, idx) => {
+    const matchedAc = parsedAcceptanceCriteria.find((pAc) => pAc.id === ac.ac);
+    const steps = matchedAc?.steps || [];
+    let acText = `${idx + 1}. [${ac.riskLevel.toUpperCase()}] ${ac.ac}: ${matchedAc?.title || ac.text}`;
+
+    if (steps.length > 0) {
+      acText += `\n   STEPS (use these as test steps):`;
+      steps.forEach((step, stepIdx) => {
+        acText += `\n     Step ${stepIdx + 1}: ${step.action}`;
+        if (step.details && step.details.length > 0) {
+          acText += `\n       Validate: ${step.details.join(", ")}`;
         }
-
-        acRiskMapping[ac.id] = acRisk;
       });
+    }
+    return acText;
+  })
+  .join("\n\n")}
+
+HIERARCHICAL TEST GENERATION INSTRUCTIONS:
+- Each AC represents a COMPLETE flow/scenario that should be tested together
+- The "Steps" under each AC should become the STEPS in your test case
+- The "Validate" items are the specific assertions/validations to check
+- Generate FEWER, MORE COMPREHENSIVE test cases that cover the full AC flow
+- For an AC with 3 steps, create test cases that verify all 3 steps work together
+- Use this naming convention: TC{nn} PBI-${storyId} AC{originalAcNumber}: [{type}] {test description}
+
+Types: positive (happy path), negative (error scenarios), edge (boundary cases), integration (API/external system tests)`;
+      } else {
+        // Fallback to flat format
+        acContext = `
+## Acceptance Criteria - LISTED IN RISK PRIORITY ORDER (Generate tests in this order):
+${prioritizedACs.map((ac, idx) => `${idx + 1}. [${ac.riskLevel.toUpperCase()}] ${ac.ac}: ${ac.text}`).join("\n")}
+
+CRITICAL INSTRUCTION - TEST GENERATION ORDER:
+- Generate test cases starting with the HIGHEST RISK ACs first (Critical, then High, then Medium, then Low)
+- The first test cases in your output should be for Critical risk ACs
+- Use this naming convention: TC{nn} PBI-${storyId} AC{originalAcNumber}: [{type}] {test description}
+- TC numbers are sequential (TC01, TC02, TC03...) based on generation order (risk priority)
+- The AC number in the name should match the ORIGINAL AC number (AC1, AC2, etc.), not the priority order
+
+Types: positive, negative, edge, integration`;
+      }
 
       acContext += `
 
-AC Risk Mapping (test depth should match risk):
-${parsedAcceptanceCriteria.map((ac) => `- ${ac.id}: ${acRiskMapping[ac.id] || "medium"} risk`).join("\n")}`;
+AC Risk Summary:
+${prioritizedACs.map((ac) => `- ${ac.ac}: ${ac.riskLevel.toUpperCase()} risk`).join("\n")}`;
     }
 
     // Add integration context if available
@@ -486,6 +584,52 @@ ${integrations
       }
     }
 
+    // Add blast radius context if available
+    let blastRadiusContext = "";
+    if (blastRadiusAnalysis && blastRadiusAnalysis.result) {
+      const blast = blastRadiusAnalysis.result;
+      const affectedFiles =
+        blast.affectedFiles || blast.impact?.affectedComponents || [];
+      const affectedTests =
+        blast.affectedTests || blast.impact?.affectedTests || [];
+
+      if (affectedFiles.length > 0 || affectedTests.length > 0) {
+        blastRadiusContext = `
+## Blast Radius Analysis - Areas Requiring Extra Testing:
+${blast.risk ? `Risk Level: ${blast.risk.level?.toUpperCase()} (Score: ${blast.risk.score}/100)` : ""}
+${
+  affectedFiles.length > 0
+    ? `
+Affected Components (${affectedFiles.length}):
+${affectedFiles
+  .slice(0, 10)
+  .map((f) => `- ${typeof f === "string" ? f : f.file || f.name || "Unknown"}`)
+  .join("\n")}`
+    : ""
+}
+${
+  affectedTests.length > 0
+    ? `
+Existing Tests That May Need Updates:
+${affectedTests
+  .slice(0, 10)
+  .map((t) => `- ${typeof t === "string" ? t : t.file || t.name || "Unknown"}`)
+  .join("\n")}`
+    : ""
+}
+${
+  blast.recommendations
+    ? `
+Recommendations:
+${blast.recommendations
+  .slice(0, 5)
+  .map((r) => `- ${r.recommendation || r}`)
+  .join("\n")}`
+    : ""
+}`;
+      }
+    }
+
     // Build AI prompt for manual test case generation
     const prompt = `You are a QA Engineer using QE (Quality Engineering) methodology. Generate detailed MANUAL test cases for this user story, prioritizing based on risk analysis.
 ${qeRiskContext}
@@ -497,45 +641,75 @@ Description: ${cleanDescription || "No description provided"}
 Acceptance Criteria: ${cleanCriteria || "No acceptance criteria provided"}
 ${acContext}
 ${integrationContext}
+${blastRadiusContext}
 
-## Test Generation Requirements
-Generate test cases including:
-- Positive test scenarios (happy path) for EACH acceptance criterion
-${includeNegativeTests ? "- Negative test scenarios (error handling, invalid inputs) - more for high-risk areas" : ""}
-${includeEdgeCases ? "- Edge case scenarios (boundary conditions, empty values, special characters)" : ""}
-${includeIntegration ? "- Integration tests for external system touchpoints" : ""}
+## Test Generation Requirements - RISK-PRIORITY ORDER IS MANDATORY
+
+STRICT RULES:
+1. RISK-PRIORITY ORDER: Generate test cases for CRITICAL risk ACs FIRST, then HIGH, then MEDIUM, then LOW
+2. HARD LIMIT: Maximum 6 tests per AC - NEVER exceed this for ANY AC
+3. EVERY AC MUST HAVE TESTS: You must generate tests for ALL ${parsedAcceptanceCriteria?.length || "listed"} acceptance criteria
+
+Per-AC test counts based on risk level:
+- CRITICAL risk AC: 4-6 tests (positive + negative + edge + integration)
+- HIGH risk AC: 3-4 tests (positive + negative)
+- MEDIUM risk AC: 2-3 tests (positive + 1 negative)
+- LOW risk AC: 1-2 tests (positive only)
+
+Test types:
+- Positive (happy path) - REQUIRED for every AC
+${includeNegativeTests ? "- Negative (error handling) - required for critical, high, AND medium risk ACs" : ""}
+${includeEdgeCases ? "- Edge cases - for critical and high risk ACs only" : ""}
+${includeIntegration ? "- Integration - only if AC involves external systems" : ""}
+
+OUTPUT ORDER: The testCases array should be ordered by risk priority:
+1. First, all test cases for CRITICAL risk ACs
+2. Then, all test cases for HIGH risk ACs
+3. Then, all test cases for MEDIUM risk ACs
+4. Finally, all test cases for LOW risk ACs
+
+STOP AND CHECK: Before returning, verify you have tests for ALL ${parsedAcceptanceCriteria?.length || "listed"} ACs and NO AC has more than 6 tests.
 
 ## Output Format
-For each test case, use this EXACT naming format:
-  name: "PBI-${storyId} AC{acNumber}: [{type}] {description}"
+For each test case, use this EXACT naming format (TC number is sequential, starting at 01):
+  name: "TC{nn} PBI-${storyId} AC{acNumber}: [{type}] {description}"
 
-Example:
-  name: "PBI-${storyId} AC1: [positive] Verify user can submit form successfully"
+Where {nn} is a zero-padded sequential number (01, 02, 03... 10, 11, etc.)
 
 Return the response in this JSON format:
 {
   "testCases": [
     {
-      "name": "PBI-${storyId} AC1: [positive] Test description",
-      "acceptanceCriteriaRef": "AC1",
+      "name": "TC01 PBI-${storyId} AC3: [positive] Test description for critical AC",
+      "acceptanceCriteriaRef": "AC3",
       "type": "positive|negative|edge|integration",
       "priority": "critical|high|medium|low",
-      "preconditions": ["precondition 1", "precondition 2"],
       "steps": ["step 1", "step 2", "step 3"],
-      "expectedResults": ["expected result for step 1", "expected result for step 2"],
-      "testData": {"field": "value"},
-      "notes": "any additional notes"
+      "expectedResult": "what should happen"
+    },
+    {
+      "name": "TC02 PBI-${storyId} AC3: [negative] Another test for critical AC",
+      "acceptanceCriteriaRef": "AC3",
+      "type": "negative",
+      "priority": "critical",
+      "steps": ["step 1", "step 2"],
+      "expectedResult": "expected error handling"
     }
   ]
 }
 
-Generate AT LEAST ONE test case for EACH acceptance criterion listed above. For high-risk and critical-risk ACs, generate additional negative and edge case tests. Do not skip any ACs - every AC must have at least one test case. Return ONLY the JSON object, no markdown formatting.`;
+FINAL CHECK BEFORE RESPONDING:
+1. TC NUMBERING: Ensure TC numbers are sequential (TC01, TC02, TC03...) in risk-priority order
+2. AC COVERAGE: You MUST have tests for ALL ${parsedAcceptanceCriteria?.length || "listed"} ACs
+3. PER-AC LIMIT: Each AC should have 2-6 tests, NEVER more than 6
+
+Return ONLY the JSON object, no markdown.`;
 
     try {
       logger.info(`Calling Claude AI to generate manual test cases`);
 
-      // Call Claude AI - use higher token limit to support many ACs
-      const aiResponse = await callClaude(prompt, model, 16384);
+      // Call Claude AI - use higher token limit to support many ACs (up to 6 tests per AC)
+      const aiResponse = await callClaude(prompt, model, 32768);
 
       // Parse AI response
       let testCasesData;
@@ -730,6 +904,270 @@ function parseTestCasesFromPlaywrightTest(code, storyTitle) {
 }
 
 // ... (keep all other existing endpoints: analyze-requirements, generate-test-cases, etc.)
+
+// ============================================
+// TEST PLAN MANAGEMENT ENDPOINTS
+// ============================================
+
+/**
+ * Get all test plans
+ * GET /api/ado/test-plans?project=ProjectName
+ * Query params:
+ *   - project: Optional project name (uses default if not specified)
+ */
+router.get("/test-plans", async (req, res) => {
+  try {
+    const { project } = req.query;
+    logger.info("Fetching test plans from Azure DevOps", {
+      project: project || "default",
+    });
+
+    // Pass project as query param to MCP
+    const url = project
+      ? `/work-items/test-plans?project=${encodeURIComponent(project)}`
+      : "/work-items/test-plans";
+
+    const result = await req.mcpManager.callDockerMcp(
+      "azureDevOps",
+      url,
+      {},
+      "GET",
+    );
+
+    const testPlans = result?.data || [];
+
+    res.json({
+      success: true,
+      project: project || null,
+      count: testPlans.length,
+      testPlans: testPlans.map((tp) => ({
+        id: tp.id,
+        name: tp.name,
+        state: tp.state,
+        iteration: tp.iteration,
+        rootSuiteId: tp.rootSuite?.id,
+      })),
+    });
+  } catch (error) {
+    logger.error("Get test plans error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+/**
+ * Get test suites for a plan (for hierarchy exploration)
+ * GET /api/ado/test-plans/:planId/suites
+ */
+router.get("/test-plans/:planId/suites", async (req, res) => {
+  try {
+    const { planId } = req.params;
+    logger.info(`Fetching test suites for plan ${planId}`);
+
+    const result = await req.mcpManager.callDockerMcp(
+      "azureDevOps",
+      `/work-items/test-plans/${planId}/suites`,
+      {},
+      "GET",
+    );
+
+    const suites = result?.data || [];
+
+    res.json({
+      success: true,
+      planId: parseInt(planId),
+      count: suites.length,
+      suites: suites.map((s) => ({
+        id: s.id,
+        name: s.name,
+        suiteType: s.suiteType,
+        parentSuiteId: s.parentSuite?.id,
+        requirementId: s.requirementId,
+      })),
+    });
+  } catch (error) {
+    logger.error("Get test suites error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
+
+// ============================================
+// CREATE TEST CASES IN ADO
+// ============================================
+
+/**
+ * Create test cases in Azure DevOps with proper Test Plan hierarchy
+ * POST /api/ado/create-test-cases
+ * Body: {
+ *   storyId: number,
+ *   storyTitle: string,
+ *   testPlanId?: number,        // Optional: If provided, organizes test cases in Test Plan hierarchy
+ *   featureId?: number,         // Optional: Parent feature ID for grouping
+ *   featureTitle?: string,      // Optional: Parent feature title
+ *   testCases: [{ title, steps, expectedResult, priority, type, acceptanceCriteriaRef }]
+ * }
+ *
+ * If testPlanId is provided:
+ *   Creates hierarchy: Test Plan > Feature Suite (if featureId provided) > PBI Suite > Test Cases
+ * If testPlanId is not provided:
+ *   Creates test cases without Test Plan organization (legacy behavior)
+ */
+router.post("/create-test-cases", async (req, res) => {
+  try {
+    const {
+      storyId,
+      storyTitle,
+      testPlanId,
+      featureId,
+      featureTitle,
+      testCases,
+      project,
+    } = req.body;
+
+    if (!storyId) {
+      return res.status(400).json({
+        success: false,
+        error: "storyId is required",
+      });
+    }
+
+    if (!testCases || !Array.isArray(testCases) || testCases.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "testCases array is required and cannot be empty",
+      });
+    }
+
+    logger.info(
+      `Creating ${testCases.length} test cases for story ${storyId}`,
+      {
+        testPlanId: testPlanId || "none",
+        featureId: featureId || "none",
+      },
+    );
+
+    // Transform test cases to MCP format
+    const mcpTestCases = testCases.map((tc, index) => ({
+      title: tc.title || tc.name,
+      steps: (tc.steps || []).map((step, stepIdx) => ({
+        action: typeof step === "string" ? step : step.action || step,
+        expectedResult: tc.expectedResult || "Verify expected behavior",
+        stepNumber: stepIdx + 1,
+      })),
+    }));
+
+    let result;
+    let createdTestCases = [];
+    let suiteInfo = null;
+
+    // If testPlanId is provided, use the hierarchy endpoint
+    if (testPlanId) {
+      // Need story title for the PBI suite name
+      let resolvedStoryTitle = storyTitle;
+      if (!resolvedStoryTitle) {
+        // Try to fetch it from ADO
+        try {
+          const storyResponse = await req.mcpManager.callDockerMcp(
+            "azureDevOps",
+            "/work-items/get",
+            { ids: [parseInt(storyId)], orgWide: true },
+          );
+          const storyData = storyResponse?.data?.[0];
+          resolvedStoryTitle =
+            storyData?.fields?.["System.Title"] || `PBI ${storyId}`;
+        } catch (fetchErr) {
+          logger.warn(
+            `Could not fetch story title for ${storyId}, using default`,
+          );
+          resolvedStoryTitle = `PBI ${storyId}`;
+        }
+      }
+
+      logger.info(
+        `Using Test Plan hierarchy: Plan ${testPlanId} > Feature ${featureId || "none"} > PBI ${storyId}`,
+      );
+
+      result = await req.mcpManager.callDockerMcp(
+        "azureDevOps",
+        "/work-items/create-test-cases-in-plan",
+        {
+          testPlanId: parseInt(testPlanId),
+          storyId: parseInt(storyId),
+          storyTitle: resolvedStoryTitle,
+          testCases: mcpTestCases,
+          featureId: featureId ? parseInt(featureId) : undefined,
+          featureTitle: featureTitle || undefined,
+          project: project || undefined,
+        },
+      );
+
+      if (!result.success) {
+        throw new Error(
+          result.error?.message || "Failed to create test cases in plan",
+        );
+      }
+
+      createdTestCases = result.data?.testCases || [];
+      suiteInfo = result.data?.suite || null;
+
+      logger.info(
+        `Successfully created ${createdTestCases.length} test cases in Test Plan ${testPlanId}`,
+        {
+          suiteId: suiteInfo?.id,
+          suiteName: suiteInfo?.name,
+        },
+      );
+    } else {
+      // Legacy behavior: create test cases without Test Plan organization
+      result = await req.mcpManager.callDockerMcp(
+        "azureDevOps",
+        "/work-items/create-test-cases",
+        {
+          parentId: parseInt(storyId),
+          testCases: mcpTestCases,
+        },
+      );
+
+      if (!result.success) {
+        throw new Error(result.error?.message || "Failed to create test cases");
+      }
+
+      createdTestCases = result.data?.created || [];
+      logger.info(
+        `Successfully created ${createdTestCases.length} test cases (no Test Plan)`,
+      );
+    }
+
+    res.json({
+      success: true,
+      createdCount: createdTestCases.length,
+      testPlanId: testPlanId ? parseInt(testPlanId) : null,
+      suite: suiteInfo
+        ? {
+            id: suiteInfo.id,
+            name: suiteInfo.name,
+            type: suiteInfo.suiteType,
+          }
+        : null,
+      testCases: createdTestCases.map((tc) => ({
+        id: tc.id,
+        title: tc.fields?.["System.Title"],
+        url: tc._links?.html?.href,
+      })),
+    });
+  } catch (error) {
+    logger.error("Create test cases error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message,
+    });
+  }
+});
 
 // ============================================
 // NEW DEFECT MANAGEMENT ENDPOINTS

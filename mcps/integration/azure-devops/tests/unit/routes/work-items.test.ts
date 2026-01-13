@@ -22,9 +22,17 @@ describe("Work Items Routes", () => {
     mockAdoService = {
       queryWorkItems: jest.fn(),
       getWorkItemsByIds: jest.fn(),
+      getWorkItemsByIdsOrgWide: jest.fn(),
       updateWorkItem: jest.fn(),
       createTestCases: jest.fn(),
       bulkUpdate: jest.fn(),
+      getTestPlans: jest.fn(),
+      getTestPlan: jest.fn(),
+      createTestPlan: jest.fn(),
+      getTestSuites: jest.fn(),
+      createTestSuite: jest.fn(),
+      addTestCasesToSuite: jest.fn(),
+      createTestCasesInPlan: jest.fn(),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any;
 
@@ -643,6 +651,484 @@ describe("Work Items Routes", () => {
         error: {
           code: "BULK_UPDATE_FAILED",
           message: "Story not found",
+        },
+      });
+    });
+  });
+
+  // ============================================
+  // TEST PLAN MANAGEMENT ROUTES
+  // ============================================
+
+  describe("GET /work-items/test-plans", () => {
+    it("should get all test plans successfully", async () => {
+      const mockTestPlans = [
+        {
+          id: 100,
+          name: "Sprint 42 Test Plan",
+          state: "Active",
+          iteration: "Project\\Sprint 42",
+          rootSuite: { id: 101, name: "Sprint 42 Test Plan" },
+        },
+        {
+          id: 200,
+          name: "Sprint 43 Test Plan",
+          state: "Active",
+          iteration: "Project\\Sprint 43",
+          rootSuite: { id: 201, name: "Sprint 43 Test Plan" },
+        },
+      ];
+
+      mockAdoService.getTestPlans.mockResolvedValueOnce(mockTestPlans);
+
+      const response = await request(app).get("/work-items/test-plans");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        data: mockTestPlans,
+      });
+      expect(mockAdoService.getTestPlans).toHaveBeenCalled();
+    });
+
+    it("should return empty array when no test plans exist", async () => {
+      mockAdoService.getTestPlans.mockResolvedValueOnce([]);
+
+      const response = await request(app).get("/work-items/test-plans");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        data: [],
+      });
+    });
+
+    it("should handle service errors with 500 status", async () => {
+      mockAdoService.getTestPlans.mockRejectedValueOnce(
+        new Error("ADO API unavailable"),
+      );
+
+      const response = await request(app).get("/work-items/test-plans");
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({
+        success: false,
+        error: {
+          code: "GET_TEST_PLANS_FAILED",
+          message: "ADO API unavailable",
+        },
+      });
+    });
+  });
+
+  describe("GET /work-items/test-plans/:planId", () => {
+    it("should get a specific test plan by ID", async () => {
+      const mockTestPlan = {
+        id: 100,
+        name: "Sprint 42 Test Plan",
+        state: "Active",
+        rootSuite: { id: 101, name: "Sprint 42 Test Plan" },
+      };
+
+      mockAdoService.getTestPlan.mockResolvedValueOnce(mockTestPlan);
+
+      const response = await request(app).get("/work-items/test-plans/100");
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        data: mockTestPlan,
+      });
+      expect(mockAdoService.getTestPlan).toHaveBeenCalledWith(100);
+    });
+
+    it("should handle non-existent test plan", async () => {
+      mockAdoService.getTestPlan.mockRejectedValueOnce(
+        new Error("Test plan not found"),
+      );
+
+      const response = await request(app).get("/work-items/test-plans/999");
+
+      expect(response.status).toBe(500);
+      expect(response.body.error.code).toBe("GET_TEST_PLAN_FAILED");
+    });
+  });
+
+  describe("POST /work-items/test-plans", () => {
+    it("should create a new test plan", async () => {
+      const mockCreatedPlan = {
+        id: 300,
+        name: "New Test Plan",
+        state: "Active",
+        rootSuite: { id: 301, name: "New Test Plan" },
+      };
+
+      mockAdoService.createTestPlan.mockResolvedValueOnce(mockCreatedPlan);
+
+      const response = await request(app).post("/work-items/test-plans").send({
+        name: "New Test Plan",
+        iteration: "Project\\Sprint 44",
+      });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        data: mockCreatedPlan,
+      });
+      expect(mockAdoService.createTestPlan).toHaveBeenCalledWith({
+        name: "New Test Plan",
+        iteration: "Project\\Sprint 44",
+      });
+    });
+
+    it("should return 400 when name is missing", async () => {
+      const response = await request(app).post("/work-items/test-plans").send({
+        iteration: "Project\\Sprint 44",
+      });
+
+      expect(response.status).toBe(400);
+      expect(response.body).toEqual({
+        success: false,
+        error: {
+          code: "INVALID_REQUEST",
+          message: "name is required",
+        },
+      });
+      expect(mockAdoService.createTestPlan).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("GET /work-items/test-plans/:planId/suites", () => {
+    it("should get test suites for a plan", async () => {
+      const mockSuites = [
+        {
+          id: 100,
+          name: "Root Suite",
+          suiteType: "StaticTestSuite",
+          parentSuite: null,
+        },
+        {
+          id: 101,
+          name: "Feature Suite",
+          suiteType: "StaticTestSuite",
+          parentSuite: { id: 100 },
+        },
+        {
+          id: 102,
+          name: "PBI 123: Login Feature",
+          suiteType: "RequirementTestSuite",
+          parentSuite: { id: 101 },
+          requirementId: 123,
+        },
+      ];
+
+      mockAdoService.getTestSuites.mockResolvedValueOnce(mockSuites);
+
+      const response = await request(app).get(
+        "/work-items/test-plans/100/suites",
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        data: mockSuites,
+      });
+      expect(mockAdoService.getTestSuites).toHaveBeenCalledWith(100);
+    });
+
+    it("should return empty array when no suites exist", async () => {
+      mockAdoService.getTestSuites.mockResolvedValueOnce([]);
+
+      const response = await request(app).get(
+        "/work-items/test-plans/100/suites",
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toEqual([]);
+    });
+  });
+
+  describe("POST /work-items/test-plans/:planId/suites", () => {
+    it("should create a static test suite", async () => {
+      const mockCreatedSuite = {
+        id: 200,
+        name: "Feature 456: User Auth",
+        suiteType: "StaticTestSuite",
+      };
+
+      mockAdoService.createTestSuite.mockResolvedValueOnce(mockCreatedSuite);
+
+      const response = await request(app)
+        .post("/work-items/test-plans/100/suites")
+        .send({
+          name: "Feature 456: User Auth",
+          suiteType: "StaticTestSuite",
+          parentSuiteId: 101,
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        data: mockCreatedSuite,
+      });
+      expect(mockAdoService.createTestSuite).toHaveBeenCalledWith({
+        planId: 100,
+        name: "Feature 456: User Auth",
+        suiteType: "StaticTestSuite",
+        parentSuiteId: 101,
+      });
+    });
+
+    it("should create a requirement test suite", async () => {
+      const mockCreatedSuite = {
+        id: 201,
+        name: "PBI 789: Login Page",
+        suiteType: "RequirementTestSuite",
+        requirementId: 789,
+      };
+
+      mockAdoService.createTestSuite.mockResolvedValueOnce(mockCreatedSuite);
+
+      const response = await request(app)
+        .post("/work-items/test-plans/100/suites")
+        .send({
+          name: "PBI 789: Login Page",
+          suiteType: "RequirementTestSuite",
+          parentSuiteId: 200,
+          requirementId: 789,
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.requirementId).toBe(789);
+    });
+
+    it("should return 400 when name is missing", async () => {
+      const response = await request(app)
+        .post("/work-items/test-plans/100/suites")
+        .send({
+          suiteType: "StaticTestSuite",
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.message).toBe(
+        "name and suiteType are required",
+      );
+    });
+
+    it("should return 400 when suiteType is missing", async () => {
+      const response = await request(app)
+        .post("/work-items/test-plans/100/suites")
+        .send({
+          name: "Test Suite",
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe("INVALID_REQUEST");
+    });
+  });
+
+  describe("POST /work-items/test-plans/:planId/suites/:suiteId/test-cases", () => {
+    it("should add test cases to a suite", async () => {
+      const mockResult = [{ id: 1001 }, { id: 1002 }];
+
+      mockAdoService.addTestCasesToSuite.mockResolvedValueOnce(mockResult);
+
+      const response = await request(app)
+        .post("/work-items/test-plans/100/suites/200/test-cases")
+        .send({
+          testCaseIds: [1001, 1002],
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        data: mockResult,
+      });
+      expect(mockAdoService.addTestCasesToSuite).toHaveBeenCalledWith({
+        planId: 100,
+        suiteId: 200,
+        testCaseIds: [1001, 1002],
+      });
+    });
+
+    it("should return 400 when testCaseIds is missing", async () => {
+      const response = await request(app)
+        .post("/work-items/test-plans/100/suites/200/test-cases")
+        .send({});
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.message).toBe("testCaseIds array is required");
+    });
+
+    it("should return 400 when testCaseIds is not an array", async () => {
+      const response = await request(app)
+        .post("/work-items/test-plans/100/suites/200/test-cases")
+        .send({
+          testCaseIds: "not-an-array",
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe("INVALID_REQUEST");
+    });
+  });
+
+  describe("POST /work-items/create-test-cases-in-plan", () => {
+    it("should create test cases with full hierarchy", async () => {
+      const mockResult = {
+        testCases: [
+          { id: 1001, fields: { "System.Title": "Test Case 1" } },
+          { id: 1002, fields: { "System.Title": "Test Case 2" } },
+        ],
+        suite: {
+          id: 300,
+          name: "456: Login Feature",
+          suiteType: "RequirementTestSuite",
+          requirementId: 456,
+        },
+      };
+
+      mockAdoService.createTestCasesInPlan.mockResolvedValueOnce(mockResult);
+
+      const response = await request(app)
+        .post("/work-items/create-test-cases-in-plan")
+        .send({
+          testPlanId: 100,
+          storyId: 456,
+          storyTitle: "Login Feature",
+          featureId: 123,
+          featureTitle: "User Authentication",
+          testCases: [
+            {
+              title: "Test Case 1",
+              steps: [
+                {
+                  stepNumber: 1,
+                  action: "Navigate",
+                  expectedResult: "Page loads",
+                },
+              ],
+            },
+            {
+              title: "Test Case 2",
+              steps: [
+                {
+                  stepNumber: 1,
+                  action: "Click",
+                  expectedResult: "Action occurs",
+                },
+              ],
+            },
+          ],
+        });
+
+      expect(response.status).toBe(200);
+      expect(response.body).toEqual({
+        success: true,
+        data: mockResult,
+      });
+      expect(mockAdoService.createTestCasesInPlan).toHaveBeenCalledWith(
+        100, // testPlanId
+        456, // storyId
+        "Login Feature", // storyTitle
+        expect.any(Array), // testCases
+        123, // featureId
+        "User Authentication", // featureTitle
+      );
+    });
+
+    it("should create test cases without feature (directly under root)", async () => {
+      const mockResult = {
+        testCases: [{ id: 1001 }],
+        suite: {
+          id: 300,
+          name: "456: Story",
+          suiteType: "RequirementTestSuite",
+        },
+      };
+
+      mockAdoService.createTestCasesInPlan.mockResolvedValueOnce(mockResult);
+
+      const response = await request(app)
+        .post("/work-items/create-test-cases-in-plan")
+        .send({
+          testPlanId: 100,
+          storyId: 456,
+          storyTitle: "Story",
+          testCases: [{ title: "Test 1", steps: [] }],
+        });
+
+      expect(response.status).toBe(200);
+      expect(mockAdoService.createTestCasesInPlan).toHaveBeenCalledWith(
+        100,
+        456,
+        "Story",
+        expect.any(Array),
+        undefined, // no featureId
+        undefined, // no featureTitle
+      );
+    });
+
+    it("should return 400 when testPlanId is missing", async () => {
+      const response = await request(app)
+        .post("/work-items/create-test-cases-in-plan")
+        .send({
+          storyId: 456,
+          storyTitle: "Story",
+          testCases: [{ title: "Test", steps: [] }],
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.message).toBe(
+        "testPlanId, storyId, storyTitle, and testCases are required",
+      );
+    });
+
+    it("should return 400 when storyId is missing", async () => {
+      const response = await request(app)
+        .post("/work-items/create-test-cases-in-plan")
+        .send({
+          testPlanId: 100,
+          storyTitle: "Story",
+          testCases: [{ title: "Test", steps: [] }],
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe("INVALID_REQUEST");
+    });
+
+    it("should return 400 when testCases is missing", async () => {
+      const response = await request(app)
+        .post("/work-items/create-test-cases-in-plan")
+        .send({
+          testPlanId: 100,
+          storyId: 456,
+          storyTitle: "Story",
+        });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error.code).toBe("INVALID_REQUEST");
+    });
+
+    it("should handle service errors with 500 status", async () => {
+      mockAdoService.createTestCasesInPlan.mockRejectedValueOnce(
+        new Error("Test plan not found"),
+      );
+
+      const response = await request(app)
+        .post("/work-items/create-test-cases-in-plan")
+        .send({
+          testPlanId: 999,
+          storyId: 456,
+          storyTitle: "Story",
+          testCases: [{ title: "Test", steps: [] }],
+        });
+
+      expect(response.status).toBe(500);
+      expect(response.body).toEqual({
+        success: false,
+        error: {
+          code: "CREATE_TEST_CASES_IN_PLAN_FAILED",
+          message: "Test plan not found",
         },
       });
     });

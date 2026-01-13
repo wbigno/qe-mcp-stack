@@ -10,9 +10,9 @@ This directory contains all Model Context Protocol (MCP) services that power the
 
 ### Integration MCPs (Port Range: 8100-8199)
 
-| MCP              | Port | Description                                                |
-| ---------------- | ---- | ---------------------------------------------------------- |
-| **azure-devops** | 8100 | Azure DevOps integration (work items, queries, test cases) |
+| MCP              | Port | Description                                                             |
+| ---------------- | ---- | ----------------------------------------------------------------------- |
+| **azure-devops** | 8100 | Azure DevOps integration (work items, test plans, test suites, queries) |
 
 ### Code Analysis MCPs (Port Range: 8200-8299)
 

@@ -25,6 +25,10 @@ export class AnalysisPanel {
     };
     // Store generated test cases
     this.generatedTestCases = null;
+    // Test Plan management
+    this.testPlans = [];
+    this.selectedTestPlanId = null;
+    this.parentFeature = null;
     // Load available apps
     this.loadAvailableApps();
     // Render initial empty state
@@ -42,6 +46,92 @@ export class AnalysisPanel {
     } catch (error) {
       console.error("Failed to load apps:", error);
     }
+  }
+
+  /**
+   * Get the project name from the current story
+   */
+  getStoryProject() {
+    if (!this.currentStory || !this.currentStory.fields) {
+      return null;
+    }
+    // ADO stores project in System.TeamProject field
+    return this.currentStory.fields["System.TeamProject"] || null;
+  }
+
+  /**
+   * Fetch available Test Plans from Azure DevOps
+   * Uses the project from the current story to get the correct test plans
+   */
+  async loadTestPlans() {
+    try {
+      const project = this.getStoryProject();
+      const url = project
+        ? `${API_BASE_URL}/api/ado/test-plans?project=${encodeURIComponent(project)}`
+        : `${API_BASE_URL}/api/ado/test-plans`;
+
+      console.log(`Loading Test Plans for project: ${project || "default"}`);
+
+      const response = await fetch(url);
+      if (response.ok) {
+        const data = await response.json();
+        this.testPlans = data.testPlans || [];
+        console.log(
+          `Loaded ${this.testPlans.length} Test Plans for project ${project || "default"}`,
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load Test Plans:", error);
+      this.testPlans = [];
+    }
+  }
+
+  /**
+   * Get parent Feature from story relations
+   * Returns { id, title } or null if no parent Feature found
+   */
+  async getParentFeature() {
+    if (!this.currentStory || !this.currentStory.relations) {
+      return null;
+    }
+
+    // Find parent (Hierarchy-Reverse relation)
+    for (const relation of this.currentStory.relations) {
+      if (relation.rel === "System.LinkTypes.Hierarchy-Reverse") {
+        const parentIdMatch = relation.url.match(/\/(\d+)$/);
+        if (parentIdMatch) {
+          const parentId = parseInt(parentIdMatch[1]);
+          // Fetch the parent work item to get its title and type
+          try {
+            const response = await fetch(
+              `${API_BASE_URL}/api/ado/work-item/${parentId}`,
+            );
+            if (response.ok) {
+              const data = await response.json();
+              const parentWorkItem = data.workItem || data;
+              const workItemType =
+                parentWorkItem.fields?.["System.WorkItemType"];
+
+              // Only return if it's a Feature (not Epic or other types)
+              if (workItemType === "Feature") {
+                return {
+                  id: parentId,
+                  title:
+                    parentWorkItem.fields?.["System.Title"] ||
+                    `Feature ${parentId}`,
+                };
+              }
+            }
+          } catch (error) {
+            console.error(
+              `Failed to fetch parent work item ${parentId}:`,
+              error,
+            );
+          }
+        }
+      }
+    }
+    return null;
   }
 
   async showAnalysis(story, app) {
@@ -148,11 +238,34 @@ export class AnalysisPanel {
   }
 
   /**
-   * Strip HTML tags and decode entities
+   * Strip HTML tags and decode entities, preserving structure
    */
-  stripHtml(html) {
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    return doc.body.textContent || "";
+  stripHtml(html, preserveStructure = false) {
+    if (!preserveStructure) {
+      const doc = new DOMParser().parseFromString(html, "text/html");
+      return doc.body.textContent || "";
+    }
+
+    // Preserve structure by converting block elements to newlines
+    let text = html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n\n")
+      .replace(/<\/div>/gi, "\n")
+      .replace(/<\/li>/gi, "\n")
+      .replace(/<\/tr>/gi, "\n")
+      .replace(/<\/h[1-6]>/gi, "\n\n")
+      .replace(/<li[^>]*>/gi, "• ")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/&lt;/gi, "<")
+      .replace(/&gt;/gi, ">")
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+
+    return text;
   }
 
   /**
@@ -331,7 +444,7 @@ export class AnalysisPanel {
 
           <div class="form-group">
             <label for="analysisStoryIdInput" class="required">Story ID</label>
-            <input type="number" id="analysisStoryIdInput" placeholder="Enter story ID (e.g., 12345)">
+            <input type="text" id="analysisStoryIdInput" placeholder="Enter story ID (e.g., 12345)" inputmode="numeric" pattern="[0-9]*">
           </div>
 
           <div class="form-actions">
@@ -518,7 +631,7 @@ export class AnalysisPanel {
               <span class="collapse-icon">▼</span>
               <h3>🔥 Blast Radius Analysis</h3>
             </div>
-            <button id="runBlastRadiusBtn" class="btn-secondary" ${!hasExtractedFiles && !this.currentApp ? "disabled" : ""}>
+            <button id="runBlastRadiusBtn" class="btn-secondary" ${!hasExtractedFiles ? "disabled" : ""}>
               ${hasExtractedFiles ? "Auto-Analyze" : "Run Analysis"}
             </button>
           </div>
@@ -592,11 +705,7 @@ export class AnalysisPanel {
           <span id="generateTestCasesAnalysisLoading" style="display:none;" class="loading-spinner"></span>
           <span id="generateTestCasesAnalysisText">✅ Generate Test Cases</span>
         </button>
-        <button id="pushToAdoBtn" class="btn-primary btn-push" disabled>
-          <span class="btn-icon">⬆</span>
-          Push Analysis to Azure DevOps
-        </button>
-        <p class="push-info">Run Risk Analysis to enable test case generation, or run any analysis to push to ADO</p>
+        <p class="push-info">Run Risk Analysis first to enable risk-prioritized test case generation</p>
       </div>
     `;
   }
@@ -700,7 +809,6 @@ export class AnalysisPanel {
     const runBlastRadiusBtn = document.getElementById("runBlastRadiusBtn");
     const runRiskBtn = document.getElementById("runRiskBtn");
     const runIntegrationBtn = document.getElementById("runIntegrationBtn");
-    const pushToAdoBtn = document.getElementById("pushToAdoBtn");
     const clearStoryBtn = document.getElementById("clearStoryBtn");
     const refreshPriorStoriesBtn = document.getElementById(
       "refreshPriorStoriesBtn",
@@ -784,6 +892,15 @@ export class AnalysisPanel {
       runBlastRadiusBtn.addEventListener("click", () => this.loadBlastRadius());
     }
 
+    // Enable/disable blast radius button based on manual file input
+    const changedFilesInput = document.getElementById("changedFilesInput");
+    if (changedFilesInput && runBlastRadiusBtn) {
+      changedFilesInput.addEventListener("input", () => {
+        const hasFiles = changedFilesInput.value.trim().length > 0;
+        runBlastRadiusBtn.disabled = !hasFiles;
+      });
+    }
+
     if (runRiskBtn) {
       runRiskBtn.addEventListener("click", () => this.loadRiskAnalysis());
     }
@@ -792,10 +909,6 @@ export class AnalysisPanel {
       runIntegrationBtn.addEventListener("click", () =>
         this.loadIntegrationAnalysis(),
       );
-    }
-
-    if (pushToAdoBtn) {
-      pushToAdoBtn.addEventListener("click", () => this.showPushPreview());
     }
 
     if (generateTestCasesBtn) {
@@ -1061,13 +1174,7 @@ export class AnalysisPanel {
   }
 
   renderEnhancedRiskAnalysis(data) {
-    const {
-      riskMatrix,
-      acRiskMapping,
-      formattedOutput,
-      testPrioritization,
-      suggestedTestTypes,
-    } = data;
+    const { riskMatrix, formattedOutput, suggestedTestTypes } = data;
 
     // Overall risk summary
     const overallHtml = riskMatrix
@@ -1330,6 +1437,59 @@ export class AnalysisPanel {
   }
 
   /**
+   * Get ACs from Risk Analysis results (preferred source - more complete)
+   */
+  getACsFromRiskAnalysis() {
+    const riskData = this.analysisResults?.risk;
+    if (!riskData) return [];
+
+    // Try acRiskMapping first (has AC details with risk levels)
+    if (riskData.acRiskMapping && Array.isArray(riskData.acRiskMapping)) {
+      return riskData.acRiskMapping.map((ac) => ({
+        id: ac.ac,
+        number: parseInt(ac.ac.replace(/\D/g, "")) || 0,
+        text:
+          ac.text ||
+          ac.description ||
+          `Acceptance Criterion ${ac.ac.replace("AC", "")}`,
+        riskLevel: ac.riskLevel,
+      }));
+    }
+
+    // Try formattedOutput.summaryTable (has AC, description, risk)
+    if (
+      riskData.formattedOutput?.summaryTable &&
+      Array.isArray(riskData.formattedOutput.summaryTable)
+    ) {
+      return riskData.formattedOutput.summaryTable.map((row) => ({
+        id: row.ac,
+        number: parseInt(row.ac.replace(/\D/g, "")) || 0,
+        text:
+          row.description || `Acceptance Criterion ${row.ac.replace("AC", "")}`,
+        riskLevel: row.riskLevel,
+      }));
+    }
+
+    // Try formattedOutput.detailedAnalysis
+    if (
+      riskData.formattedOutput?.detailedAnalysis &&
+      Array.isArray(riskData.formattedOutput.detailedAnalysis)
+    ) {
+      return riskData.formattedOutput.detailedAnalysis.map((ac) => ({
+        id: ac.ac,
+        number: parseInt(ac.ac.replace(/\D/g, "")) || 0,
+        text:
+          ac.text ||
+          ac.description ||
+          `Acceptance Criterion ${ac.ac.replace("AC", "")}`,
+        riskLevel: ac.riskLevel,
+      }));
+    }
+
+    return [];
+  }
+
+  /**
    * Parse Acceptance Criteria from story
    */
   parseAcceptanceCriteria() {
@@ -1338,23 +1498,80 @@ export class AnalysisPanel {
       "";
     if (!acField) return [];
 
-    const textContent = this.stripHtml(acField);
     const acceptanceCriteria = [];
-
-    // Pattern 1: Numbered ACs (1. AC text, 2. AC text)
-    const numberedPattern = /(\d+)\.\s*([^\d\n][^\n]+)/g;
+    const usedNumbers = new Set();
     let match;
-    while ((match = numberedPattern.exec(textContent)) !== null) {
-      acceptanceCriteria.push({
-        number: parseInt(match[1]),
-        text: match[2].trim(),
-        id: `AC${match[1]}`,
-      });
+
+    // FIRST: Try hierarchical parsing to capture structure (headers → bullets → sub-bullets)
+    const hierarchicalACs = this.parseHierarchicalACs(acField);
+    if (hierarchicalACs.length > 0) {
+      console.log(
+        "[AnalysisPanel] Using hierarchical AC parsing:",
+        hierarchicalACs.length,
+      );
+      return hierarchicalACs;
     }
 
-    // If no numbered ACs found, try bullet points or "Given/When/Then"
+    // SECOND: Try to extract sections from HTML structure (bold/strong tags often denote headers)
+    const boldSections = this.extractBoldSections(acField);
+    if (boldSections.length >= 3) {
+      console.log("[AnalysisPanel] Found bold sections:", boldSections.length);
+      boldSections.forEach((section, index) => {
+        acceptanceCriteria.push({
+          number: index + 1,
+          text: section.title + (section.content ? ": " + section.content : ""),
+          id: `AC${index + 1}`,
+          title: section.title,
+          steps: [], // Empty steps for backward compat
+        });
+      });
+      console.log(
+        "[AnalysisPanel] Parsed Acceptance Criteria:",
+        acceptanceCriteria.length,
+        acceptanceCriteria,
+      );
+      return acceptanceCriteria;
+    }
+
+    // Use structure-preserving HTML stripping
+    const textContent = this.stripHtml(acField, true);
+    console.log("[AnalysisPanel] Raw AC text (structured):", textContent);
+
+    // Pattern 1: "AC1:" or "AC 1:" format (common in ADO)
+    const acPrefixPattern = /AC\s*(\d+)[:\s]+([^\n]+)/gi;
+    while ((match = acPrefixPattern.exec(textContent)) !== null) {
+      const num = parseInt(match[1]);
+      if (!usedNumbers.has(num)) {
+        acceptanceCriteria.push({
+          number: num,
+          text: match[2].trim(),
+          id: `AC${num}`,
+        });
+        usedNumbers.add(num);
+      }
+    }
+
+    // Pattern 2: Numbered ACs (1. AC text, 2. AC text)
     if (acceptanceCriteria.length === 0) {
-      // Pattern 2: Given/When/Then scenarios
+      const numberedPattern = /(?:^|\n)\s*(\d+)\.\s+(.+?)(?=\n\s*\d+\.|$)/gs;
+      while ((match = numberedPattern.exec(textContent)) !== null) {
+        const num = parseInt(match[1]);
+        if (!usedNumbers.has(num) && num <= 50) {
+          const text = match[2].replace(/\s+/g, " ").trim();
+          if (text.length > 5) {
+            acceptanceCriteria.push({
+              number: num,
+              text: text,
+              id: `AC${num}`,
+            });
+            usedNumbers.add(num);
+          }
+        }
+      }
+    }
+
+    // Pattern 3: Given/When/Then scenarios
+    if (acceptanceCriteria.length === 0) {
       const gwtPattern =
         /(?:Given|Scenario)[:\s]+([^\n]+(?:\n(?:And|When|Then)[^\n]+)*)/gi;
       let acNum = 1;
@@ -1368,26 +1585,61 @@ export class AnalysisPanel {
       }
     }
 
-    // Pattern 3: Bullet points (- or *)
+    // Pattern 4: Bullet points (- or * or •)
     if (acceptanceCriteria.length === 0) {
       const bulletPattern = /^[\s]*[-*•]\s*(.+)$/gm;
       let acNum = 1;
       while ((match = bulletPattern.exec(textContent)) !== null) {
-        acceptanceCriteria.push({
-          number: acNum,
-          text: match[1].trim(),
-          id: `AC${acNum}`,
-        });
-        acNum++;
+        const text = match[1].trim();
+        if (text.length > 10) {
+          acceptanceCriteria.push({
+            number: acNum,
+            text: text,
+            id: `AC${acNum}`,
+          });
+          acNum++;
+        }
       }
     }
 
-    // If still nothing, split by sentences
+    // Pattern 5: Double newline separated sections
     if (acceptanceCriteria.length === 0) {
-      const sentences = textContent
+      const items = textContent
+        .split(/\n\n+/)
+        .filter((s) => s.trim().length > 20);
+      if (items.length >= 2) {
+        items.forEach((item, index) => {
+          acceptanceCriteria.push({
+            number: index + 1,
+            text: item.trim().replace(/\s+/g, " "),
+            id: `AC${index + 1}`,
+          });
+        });
+      }
+    }
+
+    // Pattern 6: If still nothing, try to split by Title Case headers
+    if (acceptanceCriteria.length === 0) {
+      const plainText = this.stripHtml(acField, false);
+      const titleCaseSections = this.splitByTitleCaseHeaders(plainText);
+      if (titleCaseSections.length >= 3) {
+        titleCaseSections.forEach((section, index) => {
+          acceptanceCriteria.push({
+            number: index + 1,
+            text: section,
+            id: `AC${index + 1}`,
+          });
+        });
+      }
+    }
+
+    // Final fallback: split by sentences
+    if (acceptanceCriteria.length === 0) {
+      const plainText = this.stripHtml(acField, false);
+      const sentences = plainText
         .split(/[.!?]+/)
-        .filter((s) => s.trim().length > 10);
-      sentences.forEach((sentence, index) => {
+        .filter((s) => s.trim().length > 15);
+      sentences.slice(0, 20).forEach((sentence, index) => {
         acceptanceCriteria.push({
           number: index + 1,
           text: sentence.trim(),
@@ -1396,11 +1648,354 @@ export class AnalysisPanel {
       });
     }
 
+    // Sort by number
+    acceptanceCriteria.sort((a, b) => a.number - b.number);
+
     console.log(
       "[AnalysisPanel] Parsed Acceptance Criteria:",
+      acceptanceCriteria.length,
       acceptanceCriteria,
     );
     return acceptanceCriteria;
+  }
+
+  /**
+   * Parse Acceptance Criteria with hierarchical structure awareness
+   * Recognizes: Headers → Bullets (steps) → Sub-bullets (details)
+   * Returns ACs with steps array for smarter test generation
+   */
+  parseHierarchicalACs(html) {
+    const hierarchicalACs = [];
+
+    // First, try to detect hierarchical structure from HTML
+    // Look for patterns like: <b>Header</b> followed by <ul><li>bullets</li></ul>
+
+    // Pattern 1: Bold headers with bullet lists
+    const sectionPattern =
+      /<(?:b|strong)[^>]*>([^<]+)<\/(?:b|strong)>\s*(?:<br\s*\/?>|\s)*(?:<ul[^>]*>([\s\S]*?)<\/ul>|<ol[^>]*>([\s\S]*?)<\/ol>)?/gi;
+    let sectionMatch;
+    let acNumber = 1;
+
+    while ((sectionMatch = sectionPattern.exec(html)) !== null) {
+      const headerText = sectionMatch[1].trim();
+      const listContent = sectionMatch[2] || sectionMatch[3] || "";
+
+      // Skip very short headers or pure numbers
+      if (headerText.length < 3 || /^\d+$/.test(headerText)) continue;
+
+      const ac = {
+        number: acNumber,
+        id: `AC${acNumber}`,
+        title: headerText,
+        text: headerText,
+        steps: [],
+      };
+
+      // Parse bullets from the list content
+      if (listContent) {
+        const steps = this.parseBulletsWithSubItems(listContent);
+        ac.steps = steps;
+
+        // Update text to include step summary
+        if (steps.length > 0) {
+          ac.text = `${headerText}: ${steps.map((s) => s.action).join("; ")}`;
+        }
+      }
+
+      hierarchicalACs.push(ac);
+      acNumber++;
+    }
+
+    // Pattern 2: If no bold sections found, try Title Case headers followed by bullets
+    if (hierarchicalACs.length === 0) {
+      const textContent = this.stripHtml(html, true);
+      const lines = textContent
+        .split("\n")
+        .map((l) => l.trim())
+        .filter((l) => l);
+
+      let currentAC = null;
+      let currentStep = null;
+      acNumber = 1;
+
+      for (const line of lines) {
+        const indentLevel = this.getIndentLevel(line);
+        const cleanLine = line.replace(/^[\s•*\d.-]+/, "").trim();
+
+        if (!cleanLine) continue;
+
+        // Detect header: Title Case, ends with colon, or is followed by bullets
+        const isHeader =
+          this.isTitleCase(cleanLine) ||
+          (cleanLine.endsWith(":") && cleanLine.length < 60) ||
+          (cleanLine.includes("&") &&
+            this.isTitleCase(cleanLine.replace(/&/g, "and")));
+
+        const isBullet =
+          /^[•*-]/.test(line.trim()) || /^\d+\./.test(line.trim());
+        const isSubBullet = indentLevel > 1 || /^\s{4,}[•*-]/.test(line);
+
+        if (isHeader && !isBullet) {
+          // Save previous AC if exists
+          if (currentAC && currentAC.steps.length > 0) {
+            hierarchicalACs.push(currentAC);
+          }
+
+          // Start new AC
+          currentAC = {
+            number: acNumber,
+            id: `AC${acNumber}`,
+            title: cleanLine.replace(/:$/, ""),
+            text: cleanLine.replace(/:$/, ""),
+            steps: [],
+          };
+          acNumber++;
+          currentStep = null;
+        } else if (isBullet && currentAC) {
+          if (isSubBullet && currentStep) {
+            // This is a sub-bullet (detail) under the current step
+            currentStep.details.push(cleanLine);
+          } else {
+            // This is a main bullet (step)
+            currentStep = {
+              stepNumber: currentAC.steps.length + 1,
+              action: cleanLine,
+              details: [],
+            };
+            currentAC.steps.push(currentStep);
+          }
+        } else if (currentAC && currentStep && indentLevel > 0) {
+          // Continuation or sub-item
+          currentStep.details.push(cleanLine);
+        } else if (!currentAC && cleanLine.length > 10) {
+          // First line without explicit header - treat as header
+          currentAC = {
+            number: acNumber,
+            id: `AC${acNumber}`,
+            title: cleanLine.replace(/:$/, ""),
+            text: cleanLine.replace(/:$/, ""),
+            steps: [],
+          };
+          acNumber++;
+        }
+      }
+
+      // Don't forget the last AC
+      if (currentAC && currentAC.steps.length > 0) {
+        hierarchicalACs.push(currentAC);
+      }
+    }
+
+    // Update text field to include full context for backward compatibility
+    hierarchicalACs.forEach((ac) => {
+      if (ac.steps.length > 0) {
+        const stepsText = ac.steps
+          .map((s) => {
+            let stepText = s.action;
+            if (s.details.length > 0) {
+              stepText += ` [${s.details.join(", ")}]`;
+            }
+            return stepText;
+          })
+          .join(" | ");
+        ac.text = `${ac.title}: ${stepsText}`;
+      }
+    });
+
+    console.log(
+      "[AnalysisPanel] Parsed Hierarchical ACs:",
+      hierarchicalACs.length,
+      hierarchicalACs,
+    );
+    return hierarchicalACs;
+  }
+
+  /**
+   * Parse bullet list HTML into steps with sub-items as details
+   */
+  parseBulletsWithSubItems(listHtml) {
+    const steps = [];
+
+    // Match top-level <li> items
+    const liPattern = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+    let liMatch;
+    let stepNumber = 1;
+
+    while ((liMatch = liPattern.exec(listHtml)) !== null) {
+      const liContent = liMatch[1];
+
+      // Check if this li contains a nested list
+      const nestedListMatch = liContent.match(
+        /<(?:ul|ol)[^>]*>([\s\S]*?)<\/(?:ul|ol)>/i,
+      );
+
+      let action = liContent;
+      const details = [];
+
+      if (nestedListMatch) {
+        // Extract the main action (text before nested list)
+        action = liContent.substring(0, liContent.indexOf(nestedListMatch[0]));
+
+        // Extract nested items as details
+        const nestedLiPattern = /<li[^>]*>([^<]+)<\/li>/gi;
+        let nestedMatch;
+        while (
+          (nestedMatch = nestedLiPattern.exec(nestedListMatch[1])) !== null
+        ) {
+          details.push(this.stripHtml(nestedMatch[1], false).trim());
+        }
+      }
+
+      // Clean up the action text
+      action = this.stripHtml(action, false).trim();
+
+      if (action.length > 3) {
+        steps.push({
+          stepNumber: stepNumber,
+          action: action,
+          details: details,
+        });
+        stepNumber++;
+      }
+    }
+
+    return steps;
+  }
+
+  /**
+   * Detect indent level of a line (for hierarchical parsing)
+   */
+  getIndentLevel(line) {
+    const match = line.match(/^(\s*)/);
+    if (!match) return 0;
+    const spaces = match[1].length;
+    // Consider 2-4 spaces or 1 tab as one indent level
+    return Math.floor(spaces / 2);
+  }
+
+  /**
+   * Check if text is Title Case (e.g., "API Integration & Record Creation")
+   */
+  isTitleCase(text) {
+    if (!text || text.length < 5) return false;
+    // Remove common connectors and check if most words start with uppercase
+    const words = text
+      .replace(/[&-]/g, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2);
+    if (words.length < 2) return false;
+    const capitalizedWords = words.filter((w) => /^[A-Z]/.test(w));
+    return capitalizedWords.length >= words.length * 0.6; // At least 60% capitalized
+  }
+
+  /**
+   * Extract sections from HTML based on bold/strong tags (common AC format)
+   */
+  extractBoldSections(html) {
+    const sections = [];
+    // Match bold/strong tags and capture the text after them
+    const boldPattern = /<(?:b|strong)[^>]*>([^<]+)<\/(?:b|strong)>/gi;
+    let match;
+    const boldTexts = [];
+
+    while ((match = boldPattern.exec(html)) !== null) {
+      const boldText = match[1].trim();
+      // Filter out very short bold text (likely not a header)
+      if (boldText.length > 3 && boldText.length < 100) {
+        boldTexts.push({
+          text: boldText,
+          index: match.index,
+        });
+      }
+    }
+
+    // For each bold text, extract content until the next bold text
+    for (let i = 0; i < boldTexts.length; i++) {
+      const current = boldTexts[i];
+      const next = boldTexts[i + 1];
+
+      // Get content between this bold and the next
+      const startIdx =
+        current.index + html.substring(current.index).indexOf(">") + 1;
+      const endIdx = next ? next.index : html.length;
+      const contentHtml = html.substring(startIdx, endIdx);
+      const content = this.stripHtml(contentHtml, false).trim();
+
+      // Only include if it looks like a real section (has some content)
+      if (current.text && !current.text.match(/^\d+$/)) {
+        sections.push({
+          title: current.text,
+          content: content.substring(0, 200), // Truncate long content
+        });
+      }
+    }
+
+    return sections;
+  }
+
+  /**
+   * Split text by Title Case headers (e.g., "Page Entry", "Error Handling")
+   */
+  splitByTitleCaseHeaders(text) {
+    // Common AC section headers pattern
+    const sectionHeaders = [
+      "Page Entry",
+      "Payment Amount",
+      "Navigation Controls",
+      "API Integration",
+      "Record Creation",
+      "Success Flow",
+      "Error Handling",
+      "Data Persistence",
+      "Validation",
+      "User Interface",
+      "Authentication",
+      "Authorization",
+      "Input Validation",
+      "Output",
+      "Display",
+      "Workflow",
+      "Integration",
+      "Database",
+      "Security",
+      "Performance",
+    ];
+
+    // Try to split by known headers first
+    let remainingText = text;
+
+    for (const header of sectionHeaders) {
+      const headerIndex = remainingText.indexOf(header);
+      if (headerIndex !== -1) {
+        // Found a header, mark it
+        remainingText = remainingText.replace(
+          header,
+          `\n###SECTION###${header}`,
+        );
+      }
+    }
+
+    // Also try to detect Title Case phrases (2-4 capitalized words together)
+    const titleCasePattern =
+      /(?:^|[.!?\n]\s*)([A-Z][a-z]+(?:\s+(?:[A-Z][a-z]+|&|and)){1,4})(?=\s+[A-Z]|\s+[a-z])/g;
+    let match;
+    while ((match = titleCasePattern.exec(remainingText)) !== null) {
+      const potentialHeader = match[1];
+      if (
+        potentialHeader.length > 5 &&
+        potentialHeader.length < 50 &&
+        !remainingText.includes(`###SECTION###${potentialHeader}`)
+      ) {
+        remainingText = remainingText.replace(
+          potentialHeader,
+          `\n###SECTION###${potentialHeader}`,
+        );
+      }
+    }
+
+    // Split by section markers
+    const parts = remainingText.split("###SECTION###").filter((s) => s.trim());
+    return parts.map((p) => p.trim()).filter((p) => p.length > 10);
   }
 
   /**
@@ -1458,10 +2053,21 @@ export class AnalysisPanel {
       return;
     }
 
-    const acceptanceCriteria = this.parseAcceptanceCriteria();
+    // Prefer ACs from Risk Analysis (more complete), fall back to parsing
+    let acceptanceCriteria = this.getACsFromRiskAnalysis();
+    if (acceptanceCriteria.length === 0) {
+      acceptanceCriteria = this.parseAcceptanceCriteria();
+    }
+
+    console.log(
+      "[AnalysisPanel] Using ACs for test generation:",
+      acceptanceCriteria.length,
+      acceptanceCriteria,
+    );
+
     if (acceptanceCriteria.length === 0) {
       alert(
-        "No Acceptance Criteria found in story. Cannot generate test cases.",
+        "No Acceptance Criteria found. Run Risk Analysis first or ensure story has ACs.",
       );
       return;
     }
@@ -1508,12 +2114,13 @@ export class AnalysisPanel {
             parsedAcceptanceCriteria: acceptanceCriteria,
             riskAnalysis: this.analysisResults.risk,
             integrationAnalysis: this.analysisResults.integration,
+            blastRadiusAnalysis: this.analysisResults.blastRadius,
             options: {
               includeNegative,
               includeEdgeCases,
               includeIntegration,
               namingFormat:
-                "PBI-{storyId} AC{acNumber}: [{type}] {description}",
+                "TC{nn} PBI-{storyId} AC{acNumber}: [{type}] {description}",
             },
           }),
         },
@@ -1530,6 +2137,15 @@ export class AnalysisPanel {
       }
 
       this.generatedTestCases = data.testCases;
+
+      // Load Test Plans and parent Feature for the push UI
+      await Promise.all([
+        this.loadTestPlans(),
+        this.getParentFeature().then((feature) => {
+          this.parentFeature = feature;
+        }),
+      ]);
+
       this.renderGeneratedTestCases(acceptanceCriteria);
     } catch (error) {
       console.error("Test case generation error:", error);
@@ -1560,11 +2176,47 @@ export class AnalysisPanel {
 
     const testCases = this.generatedTestCases;
 
-    // Group test cases by AC
-    const groupedByAC = {};
+    // Prefer ACs from Risk Analysis for complete descriptions
+    const riskACs = this.getACsFromRiskAnalysis();
+    const allACs = riskACs.length > 0 ? riskACs : acceptanceCriteria;
+
+    // Build AC lookup from the best available AC source
+    const acLookup = {};
+    allACs.forEach((ac) => {
+      acLookup[ac.id] = ac;
+    });
+    // Also add any from passed acceptanceCriteria that might be missing
     acceptanceCriteria.forEach((ac) => {
-      groupedByAC[ac.id] = {
-        ac: ac,
+      if (!acLookup[ac.id]) {
+        acLookup[ac.id] = ac;
+      }
+    });
+
+    // Extract ALL unique ACs from test cases (may include ACs not in acceptanceCriteria)
+    const allACRefs = new Set();
+    testCases.forEach((tc) => {
+      const acRef = tc.acceptanceCriteriaRef || tc.acRef || "AC1";
+      allACRefs.add(acRef);
+    });
+
+    // Also include ACs from acceptanceCriteria that might not have tests
+    acceptanceCriteria.forEach((ac) => allACRefs.add(ac.id));
+
+    // Sort AC refs naturally (AC1, AC2, ... AC10, AC11)
+    const sortedACRefs = Array.from(allACRefs).sort((a, b) => {
+      const numA = parseInt(a.replace(/\D/g, "")) || 0;
+      const numB = parseInt(b.replace(/\D/g, "")) || 0;
+      return numA - numB;
+    });
+
+    // Group test cases by AC - create groups for ALL referenced ACs
+    const groupedByAC = {};
+    sortedACRefs.forEach((acRef) => {
+      groupedByAC[acRef] = {
+        ac: acLookup[acRef] || {
+          id: acRef,
+          text: `Acceptance Criterion ${acRef.replace("AC", "")}`,
+        },
         testCases: [],
       };
     });
@@ -1574,12 +2226,6 @@ export class AnalysisPanel {
       const acRef = tc.acceptanceCriteriaRef || tc.acRef || "AC1";
       if (groupedByAC[acRef]) {
         groupedByAC[acRef].testCases.push(tc);
-      } else {
-        // If AC not found, add to first AC
-        const firstAC = Object.keys(groupedByAC)[0];
-        if (firstAC) {
-          groupedByAC[firstAC].testCases.push(tc);
-        }
       }
     });
 
@@ -1591,38 +2237,58 @@ export class AnalysisPanel {
       integration: testCases.filter((tc) => tc.type === "integration").length,
     };
 
+    // Store current filter state
+    this.currentTestFilter = this.currentTestFilter || "all";
+
     resultsContainer.innerHTML = `
       <div class="test-cases-summary">
         <h4>Generated Test Cases Summary</h4>
         <div class="test-stats">
-          <span class="stat"><strong>${testCases.length}</strong> Total Test Cases</span>
-          <span class="stat type-positive">${typeCounts.positive} Positive</span>
-          <span class="stat type-negative">${typeCounts.negative} Negative</span>
-          <span class="stat type-edge">${typeCounts.edge} Edge Cases</span>
-          <span class="stat type-integration">${typeCounts.integration} Integration</span>
+          <span class="stat total-stat"><strong id="totalTestCount">${testCases.length}</strong> Total Test Cases</span>
+          <button class="stat-filter stat type-positive ${this.currentTestFilter === "positive" ? "active" : ""}" data-filter="positive">
+            <span class="filter-count">${typeCounts.positive}</span> Positive
+          </button>
+          <button class="stat-filter stat type-negative ${this.currentTestFilter === "negative" ? "active" : ""}" data-filter="negative">
+            <span class="filter-count">${typeCounts.negative}</span> Negative
+          </button>
+          <button class="stat-filter stat type-edge ${this.currentTestFilter === "edge" ? "active" : ""}" data-filter="edge">
+            <span class="filter-count">${typeCounts.edge}</span> Edge Cases
+          </button>
+          <button class="stat-filter stat type-integration ${this.currentTestFilter === "integration" ? "active" : ""}" data-filter="integration">
+            <span class="filter-count">${typeCounts.integration}</span> Integration
+          </button>
+          <button class="stat-filter stat stat-all ${this.currentTestFilter === "all" ? "active" : ""}" data-filter="all">
+            Show All
+          </button>
         </div>
       </div>
 
-      <div class="test-cases-by-ac">
+      <div class="test-cases-by-ac" id="testCasesByAC">
         ${Object.entries(groupedByAC)
           .map(
             ([acId, data]) => `
-          <div class="ac-group">
-            <div class="ac-header">
-              <h5>${acId}: ${this.truncateText(data.ac.text, 80)}</h5>
+          <div class="ac-group" data-ac="${acId}">
+            <div class="ac-header-collapsible" data-ac="${acId}">
+              <div class="ac-header-left">
+                <span class="ac-collapse-icon">▼</span>
+                <h5>${acId}: ${this.truncateText(data.ac.text, 80)}</h5>
+              </div>
               <span class="ac-test-count">${data.testCases.length} tests</span>
             </div>
-            <div class="ac-test-cases">
+            <div class="ac-test-cases" id="ac-tests-${acId}">
               ${
                 data.testCases.length > 0
                   ? data.testCases
                       .map(
-                        (tc) => `
-                <div class="test-case-item priority-${tc.priority || "medium"}">
+                        (tc, index) => `
+                <div class="test-case-item priority-${tc.priority || "medium"}" data-type="${tc.type}" data-tc-index="${index}" data-ac-ref="${acId}">
                   <div class="test-case-header">
-                    <span class="test-type type-${tc.type}">[${tc.type}]</span>
+                    <span class="test-type type-${tc.type}">[${tc.type.toUpperCase()}]</span>
                     <span class="test-name">${tc.name}</span>
-                    ${tc.priority ? `<span class="test-priority priority-${tc.priority}">${tc.priority}</span>` : ""}
+                    <div class="test-case-actions">
+                      ${tc.priority ? `<span class="test-priority priority-${tc.priority}">${tc.priority}</span>` : ""}
+                      <button class="btn-delete-test" data-tc-name="${tc.name}" title="Remove test case">✕</button>
+                    </div>
                   </div>
                   ${
                     tc.steps && tc.steps.length > 0
@@ -1658,17 +2324,200 @@ export class AnalysisPanel {
       </div>
 
       <div class="test-cases-actions">
-        <button class="btn btn-primary" onclick="window.analysisPanel?.exportTestCases()">
-          📥 Export Test Cases
-        </button>
-        <button class="btn btn-success" onclick="window.analysisPanel?.pushTestCasesToAdo()">
-          ⬆️ Push to Azure DevOps
-        </button>
+        <div class="test-plan-selector">
+          <h4>📋 Push to Test Plan</h4>
+          <div class="test-plan-info">
+            ${
+              this.parentFeature
+                ? `
+              <div class="parent-feature">
+                <strong>Feature:</strong> ${this.parentFeature.id}: ${this.parentFeature.title}
+              </div>
+            `
+                : `
+              <div class="parent-feature warning">
+                <strong>⚠️ No parent Feature found</strong> - Test cases will be created under root suite
+              </div>
+            `
+            }
+            <div class="story-info">
+              <strong>PBI:</strong> ${this.currentStory?.id}: ${this.currentStory?.fields?.["System.Title"] || "Unknown"}
+            </div>
+            <div class="project-info">
+              <strong>Project:</strong> ${this.getStoryProject() || "Default"}
+            </div>
+          </div>
+          <div class="test-plan-dropdown">
+            <label for="testPlanSelect">Select Test Plan (from ${this.getStoryProject() || "default"} project):</label>
+            <select id="testPlanSelect" class="form-select" onchange="window.analysisPanel?.onTestPlanSelected(this.value)">
+              <option value="">-- Select a Test Plan --</option>
+              ${this.testPlans
+                .map(
+                  (tp) => `
+                <option value="${tp.id}" ${tp.id === this.selectedTestPlanId ? "selected" : ""}>
+                  ${tp.name} ${tp.state ? `(${tp.state})` : ""}
+                </option>
+              `,
+                )
+                .join("")}
+            </select>
+            ${
+              this.testPlans.length === 0
+                ? `
+              <p class="test-plan-warning">No Test Plans found. <button class="btn-link" onclick="window.analysisPanel?.loadTestPlans().then(() => window.analysisPanel?.refreshTestPlanSelector())">Refresh</button></p>
+            `
+                : ""
+            }
+          </div>
+        </div>
+        <div class="test-cases-buttons">
+          <button class="btn-generate" onclick="window.analysisPanel?.exportTestCases()">
+            📥 Export Test Cases
+          </button>
+          <button class="btn-push" id="pushToAdoBtn" onclick="window.analysisPanel?.pushTestCasesToAdo()" ${!this.selectedTestPlanId ? "disabled" : ""}>
+            ⬆️ Push to Azure DevOps
+          </button>
+        </div>
+        ${
+          !this.selectedTestPlanId
+            ? `
+          <p class="push-warning">⚠️ Select a Test Plan to enable push</p>
+        `
+            : ""
+        }
       </div>
     `;
 
     // Store reference for export/push
     window.analysisPanel = this;
+
+    // Attach event listeners for new functionality
+    this.attachTestCaseEventListeners(acceptanceCriteria);
+  }
+
+  /**
+   * Handle Test Plan selection
+   */
+  onTestPlanSelected(planId) {
+    this.selectedTestPlanId = planId ? parseInt(planId) : null;
+    const pushBtn = document.getElementById("pushToAdoBtn");
+    if (pushBtn) {
+      pushBtn.disabled = !this.selectedTestPlanId;
+    }
+    // Update warning message
+    const warning = document.querySelector(".push-warning");
+    if (warning) {
+      warning.style.display = this.selectedTestPlanId ? "none" : "block";
+    }
+  }
+
+  /**
+   * Refresh Test Plan selector dropdown
+   */
+  refreshTestPlanSelector() {
+    const select = document.getElementById("testPlanSelect");
+    if (select) {
+      select.innerHTML = `
+        <option value="">-- Select a Test Plan --</option>
+        ${this.testPlans
+          .map(
+            (tp) => `
+          <option value="${tp.id}" ${tp.id === this.selectedTestPlanId ? "selected" : ""}>
+            ${tp.name} ${tp.state ? `(${tp.state})` : ""}
+          </option>
+        `,
+          )
+          .join("")}
+      `;
+    }
+  }
+
+  /**
+   * Attach event listeners for test case filtering, collapsing, and deletion
+   */
+  attachTestCaseEventListeners(acceptanceCriteria) {
+    // Filter buttons
+    document.querySelectorAll(".stat-filter").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const filterType = btn.dataset.filter;
+        this.filterTestCases(filterType);
+
+        // Update active state
+        document
+          .querySelectorAll(".stat-filter")
+          .forEach((b) => b.classList.remove("active"));
+        btn.classList.add("active");
+        this.currentTestFilter = filterType;
+      });
+    });
+
+    // AC header collapse/expand
+    document.querySelectorAll(".ac-header-collapsible").forEach((header) => {
+      header.addEventListener("click", () => {
+        const acId = header.dataset.ac;
+        const testCases = document.getElementById(`ac-tests-${acId}`);
+        const icon = header.querySelector(".ac-collapse-icon");
+
+        if (testCases) {
+          testCases.classList.toggle("collapsed");
+          icon.textContent = testCases.classList.contains("collapsed")
+            ? "▶"
+            : "▼";
+        }
+      });
+    });
+
+    // Delete test case buttons
+    document.querySelectorAll(".btn-delete-test").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const tcName = btn.dataset.tcName;
+        this.deleteTestCase(tcName, acceptanceCriteria);
+      });
+    });
+  }
+
+  /**
+   * Filter test cases by type
+   */
+  filterTestCases(filterType) {
+    const testItems = document.querySelectorAll(".test-case-item");
+
+    testItems.forEach((item) => {
+      const itemType = item.dataset.type;
+      if (filterType === "all" || itemType === filterType) {
+        item.style.display = "";
+      } else {
+        item.style.display = "none";
+      }
+    });
+
+    // Update AC groups visibility - fade if no visible tests
+    document.querySelectorAll(".ac-group").forEach((group) => {
+      const visibleTests = group.querySelectorAll(
+        '.test-case-item:not([style*="display: none"])',
+      );
+
+      if (visibleTests.length === 0 && filterType !== "all") {
+        group.style.opacity = "0.5";
+      } else {
+        group.style.opacity = "1";
+      }
+    });
+  }
+
+  /**
+   * Delete a test case from the list
+   */
+  deleteTestCase(tcName, acceptanceCriteria) {
+    // Remove from generatedTestCases array
+    const index = this.generatedTestCases.findIndex((tc) => tc.name === tcName);
+    if (index > -1) {
+      this.generatedTestCases.splice(index, 1);
+    }
+
+    // Re-render the test cases
+    this.renderGeneratedTestCases(acceptanceCriteria);
   }
 
   /**
@@ -1701,7 +2550,8 @@ export class AnalysisPanel {
   }
 
   /**
-   * Push test cases to Azure DevOps
+   * Push test cases to Azure DevOps with Test Plan hierarchy
+   * Structure: Feature Suite > PBI Suite > Test Cases
    */
   async pushTestCasesToAdo() {
     if (!this.generatedTestCases || this.generatedTestCases.length === 0) {
@@ -1709,50 +2559,85 @@ export class AnalysisPanel {
       return;
     }
 
-    if (
-      !confirm(
-        `Push ${this.generatedTestCases.length} test cases to Azure DevOps?`,
-      )
-    ) {
+    if (!this.selectedTestPlanId) {
+      alert("Please select a Test Plan first.");
       return;
     }
 
+    // Disable button and show loading
+    const pushBtn = document.getElementById("pushToAdoBtn");
+    const originalText = pushBtn?.innerHTML;
+    if (pushBtn) {
+      pushBtn.disabled = true;
+      pushBtn.innerHTML = "⏳ Pushing...";
+    }
+
     try {
+      const requestBody = {
+        // Test Plan hierarchy data
+        testPlanId: this.selectedTestPlanId,
+        storyId: this.currentStory.id,
+        storyTitle: this.currentStory.fields["System.Title"],
+        // Project for Test Plan operations (critical for cross-project scenarios)
+        project: this.getStoryProject(),
+        // Parent Feature (if exists)
+        featureId: this.parentFeature?.id,
+        featureTitle: this.parentFeature?.title,
+        // Test cases
+        testCases: this.generatedTestCases.map((tc) => ({
+          title: tc.name,
+          steps: tc.steps,
+          expectedResult: tc.expectedResult,
+          priority: tc.priority,
+          type: tc.type,
+          acceptanceCriteriaRef: tc.acceptanceCriteriaRef,
+        })),
+      };
+
+      console.log("Pushing test cases with hierarchy:", {
+        testPlanId: requestBody.testPlanId,
+        storyId: requestBody.storyId,
+        featureId: requestBody.featureId,
+        testCaseCount: requestBody.testCases.length,
+      });
+
       const response = await fetch(
         `${API_BASE_URL}/api/ado/create-test-cases`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            storyId: this.currentStory.id,
-            testCases: this.generatedTestCases.map((tc) => ({
-              title: tc.name,
-              steps: tc.steps,
-              expectedResult: tc.expectedResult,
-              priority: tc.priority,
-              type: tc.type,
-              acceptanceCriteriaRef: tc.acceptanceCriteriaRef,
-            })),
-          }),
+          body: JSON.stringify(requestBody),
         },
       );
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || `HTTP error! status: ${response.status}`,
+        );
       }
 
       const data = await response.json();
 
       if (data.success) {
-        alert(
-          `Successfully created ${data.createdCount || this.generatedTestCases.length} test cases in Azure DevOps!`,
-        );
+        let successMsg = `Successfully created ${data.createdCount || this.generatedTestCases.length} test cases!\n\n`;
+        successMsg += `Test Plan: ${selectedPlan?.name}\n`;
+        if (data.suite) {
+          successMsg += `Suite: ${data.suite.name} (${data.suite.type})`;
+        }
+        alert(successMsg);
       } else {
         throw new Error(data.error || "Failed to create test cases");
       }
     } catch (error) {
       console.error("Push to ADO error:", error);
       alert(`Error pushing test cases: ${error.message}`);
+    } finally {
+      // Restore button state
+      if (pushBtn) {
+        pushBtn.disabled = false;
+        pushBtn.innerHTML = originalText || "⬆️ Push to Azure DevOps";
+      }
     }
   }
 }
