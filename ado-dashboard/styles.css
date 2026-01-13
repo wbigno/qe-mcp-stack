@@ -2675,12 +2675,6 @@ svg defs {
     text-align: center;
 }
 
-.btn-push {
-    padding: 15px 40px;
-    font-size: 16px;
-    font-weight: 600;
-}
-
 .push-info {
     margin-top: 12px;
     font-size: 13px;
@@ -3956,6 +3950,47 @@ button:disabled:hover {
     display: none;
 }
 
+/* Collapsible Analysis Sections (with action buttons) */
+.section-header-collapsible-with-action {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.02);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.section-header-collapsible-with-action .section-header-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-header-collapsible-with-action .section-header-left:hover {
+    opacity: 0.8;
+}
+
+.section-header-collapsible-with-action h3 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.section-header-collapsible-with-action .collapse-icon {
+    color: var(--text-muted);
+    font-size: 12px;
+    transition: transform 0.2s;
+}
+
+.section-collapsible-content {
+    padding: 16px;
+}
+
+.section-collapsible-content.collapsed {
+    display: none;
+}
+
 /* Formatted Content */
 .formatted-content {
     font-size: 14px;
@@ -4252,10 +4287,44 @@ button:disabled:hover {
     accent-color: var(--accent-primary);
 }
 
-.btn-generate {
+.btn-generate,
+.btn-push {
     padding: 12px 24px;
-    font-size: 16px;
+    font-size: 15px;
     font-weight: 600;
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s, opacity 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: white;
+}
+
+.btn-generate {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+}
+
+.btn-generate:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+}
+
+.btn-push {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+}
+
+.btn-push:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+}
+
+.btn-generate:disabled,
+.btn-push:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
 }
 
 /* Test Cases Results */

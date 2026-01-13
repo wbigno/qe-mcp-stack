@@ -513,13 +513,16 @@ export class AnalysisPanel {
       <!-- Analysis Sections -->
       <div class="analysis-sections">
         <div class="analysis-section">
-          <div class="section-header">
-            <h3>🔥 Blast Radius Analysis</h3>
+          <div class="section-header-collapsible-with-action" data-section="blast-radius">
+            <div class="section-header-left">
+              <span class="collapse-icon">▼</span>
+              <h3>🔥 Blast Radius Analysis</h3>
+            </div>
             <button id="runBlastRadiusBtn" class="btn-secondary" ${!hasExtractedFiles && !this.currentApp ? "disabled" : ""}>
               ${hasExtractedFiles ? "Auto-Analyze" : "Run Analysis"}
             </button>
           </div>
-          <div id="blastRadiusContent" class="analysis-content">
+          <div id="blastRadiusContent" class="analysis-content section-collapsible-content" data-section="blast-radius">
             ${
               hasExtractedFiles
                 ? `
@@ -537,21 +540,27 @@ export class AnalysisPanel {
         </div>
 
         <div class="analysis-section">
-          <div class="section-header">
-            <h3>⚠️ Risk Assessment</h3>
+          <div class="section-header-collapsible-with-action" data-section="risk-assessment">
+            <div class="section-header-left">
+              <span class="collapse-icon">▼</span>
+              <h3>⚠️ Risk Assessment</h3>
+            </div>
             <button id="runRiskBtn" class="btn-secondary">Run Analysis</button>
           </div>
-          <div id="riskAnalysisContent" class="analysis-content">
+          <div id="riskAnalysisContent" class="analysis-content section-collapsible-content" data-section="risk-assessment">
             <p class="placeholder">Click "Run Analysis" to assess risk factors based on story content and detected patterns.</p>
           </div>
         </div>
 
         <div class="analysis-section">
-          <div class="section-header">
-            <h3>🔗 Integration Impact</h3>
+          <div class="section-header-collapsible-with-action" data-section="integration-impact">
+            <div class="section-header-left">
+              <span class="collapse-icon">▼</span>
+              <h3>🔗 Integration Impact</h3>
+            </div>
             <button id="runIntegrationBtn" class="btn-secondary" ${!this.currentApp ? "disabled title='Select an app first'" : ""}>Run Analysis</button>
           </div>
-          <div id="integrationAnalysisContent" class="analysis-content">
+          <div id="integrationAnalysisContent" class="analysis-content section-collapsible-content" data-section="integration-impact">
             <p class="placeholder">${this.currentApp ? 'Click "Run Analysis" to discover integration points.' : "⚠️ Application selection required for integration analysis."}</p>
           </div>
         </div>
@@ -559,10 +568,13 @@ export class AnalysisPanel {
 
       <!-- Test Case Generation Section -->
       <div class="analysis-section test-generation-section">
-        <div class="section-header">
-          <h3>✅ Test Case Generation</h3>
+        <div class="section-header-collapsible-with-action" data-section="test-generation">
+          <div class="section-header-left">
+            <span class="collapse-icon">▼</span>
+            <h3>✅ Test Case Generation</h3>
+          </div>
         </div>
-        <div id="testGenerationContent" class="analysis-content">
+        <div id="testGenerationContent" class="analysis-content section-collapsible-content" data-section="test-generation">
           <p class="placeholder">Run Risk Analysis first to enable risk-prioritized test case generation.</p>
           <div class="test-gen-options" style="display:none;">
             <label><input type="checkbox" id="includeNegativeTestsAnalysis" checked> Include Negative Tests</label>
@@ -570,7 +582,7 @@ export class AnalysisPanel {
             <label><input type="checkbox" id="includeIntegrationTestsAnalysis" checked> Include Integration Tests</label>
           </div>
         </div>
-        <div id="generatedTestCasesResults" style="display:none;">
+        <div id="generatedTestCasesResults" class="section-collapsible-content" data-section="test-generation" style="display:none;">
           <!-- Generated test cases will appear here -->
         </div>
       </div>
@@ -697,7 +709,7 @@ export class AnalysisPanel {
       "generateTestCasesFromAnalysisBtn",
     );
 
-    // Collapsible sections
+    // Collapsible sections (story details - Description, AC, Technical Details)
     document
       .querySelectorAll(".section-header-collapsible")
       .forEach((header) => {
@@ -712,6 +724,33 @@ export class AnalysisPanel {
               : "▼";
           }
         });
+      });
+
+    // Collapsible analysis sections (with action buttons)
+    document
+      .querySelectorAll(".section-header-collapsible-with-action")
+      .forEach((header) => {
+        // Only toggle when clicking on the left side (title area), not the button
+        const leftSide = header.querySelector(".section-header-left");
+        if (leftSide) {
+          leftSide.style.cursor = "pointer";
+          leftSide.addEventListener("click", () => {
+            const sectionId = header.dataset.section;
+            const contents = document.querySelectorAll(
+              `.section-collapsible-content[data-section="${sectionId}"]`,
+            );
+            const icon = header.querySelector(".collapse-icon");
+
+            contents.forEach((content) => {
+              content.classList.toggle("collapsed");
+            });
+
+            if (icon) {
+              const isCollapsed = contents[0]?.classList.contains("collapsed");
+              icon.textContent = isCollapsed ? "▶" : "▼";
+            }
+          });
+        }
       });
 
     if (clearStoryBtn) {
