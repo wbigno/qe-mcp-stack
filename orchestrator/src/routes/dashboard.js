@@ -533,10 +533,20 @@ router.get("/aod-summary", async (req, res) => {
       environment,
     });
 
+    // Extract project name from sprint path (e.g., "Sandbox - DevOps\Sprint 1" -> "Sandbox - DevOps")
+    let project = null;
+    if (sprint && sprint.includes("\\")) {
+      project = sprint.split("\\")[0];
+      logger.info("[Dashboard] Extracted project from sprint path", {
+        project,
+      });
+    }
+
     // Fetch work items from Azure DevOps MCP (includes relations now)
     const workItemsResponse = await req.mcpManager
       .callDockerMcp("azureDevOps", "/work-items/query", {
         sprint,
+        project,
       })
       .catch((err) => {
         logger.warn("[Dashboard] Failed to fetch work items:", err.message);

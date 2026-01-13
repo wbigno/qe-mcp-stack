@@ -31,11 +31,14 @@ router.post("/pull-stories", async (req, res) => {
       team,
     });
 
-    const stories = await req.mcpManager.callDockerMcp(
+    const storiesResponse = await req.mcpManager.callDockerMcp(
       "azureDevOps",
       "/work-items/query",
       { sprint, workItemIds, query, organization, project, team },
     );
+
+    // Unwrap MCP response - it returns { success: true, data: [...] }
+    const stories = storiesResponse?.data || [];
 
     res.json({
       success: true,
@@ -69,11 +72,14 @@ router.post("/analyze-requirements", async (req, res) => {
     }
 
     // Get stories from Azure DevOps
-    const stories = await req.mcpManager.callDockerMcp(
+    const storiesResponse = await req.mcpManager.callDockerMcp(
       "azureDevOps",
       "/work-items/get",
       { ids: storyIds.map((id) => parseInt(id)) },
     );
+
+    // Unwrap MCP response - it returns { success: true, data: [...] }
+    const stories = storiesResponse?.data || [];
 
     if (!stories || stories.length === 0) {
       return res.status(404).json({
@@ -90,6 +96,8 @@ router.post("/analyze-requirements", async (req, res) => {
           const description = story.fields["System.Description"] || "";
           const acceptanceCriteria =
             story.fields["Microsoft.VSTS.Common.AcceptanceCriteria"] || "";
+          const technicalDetails =
+            story.fields["Custom.TechnicalDetails"] || "";
 
           // Extract child tasks from relations
           const childTasks = [];
@@ -218,6 +226,7 @@ Return ONLY the JSON object, no markdown formatting.`;
             title: title,
             description: description, // Include raw HTML description
             acceptanceCriteria: acceptanceCriteria, // Include raw HTML acceptance criteria
+            technicalDetails: technicalDetails, // Include raw HTML technical details
             childTasks: childTasks, // Include related child tasks
             workItemType: story.fields["System.WorkItemType"],
             state: story.fields["System.State"],
@@ -287,11 +296,14 @@ router.post("/generate-test-cases", async (req, res) => {
     logger.info(`Generating MANUAL test cases for story ${storyId}`);
 
     // Get the story from ADO first
-    const stories = await req.mcpManager.callDockerMcp(
+    const storiesResponse = await req.mcpManager.callDockerMcp(
       "azureDevOps",
       "/work-items/get",
       { ids: [parseInt(storyId)] },
     );
+
+    // Unwrap MCP response - it returns { success: true, data: [...] }
+    const stories = storiesResponse?.data || [];
 
     if (!stories || stories.length === 0) {
       return res.status(404).json({

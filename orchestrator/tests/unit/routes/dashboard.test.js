@@ -19,6 +19,56 @@ import { createMockMcpManager } from "../../helpers/mocks.js";
  * - GET /api/dashboard/config/apps - Get application configuration
  */
 
+// ============================================
+// TEST DATA FACTORIES - Avoid hardcoded values
+// ============================================
+
+/**
+ * Creates a mock ADO work item with realistic structure
+ * @param {Object} overrides - Override default values
+ */
+function createMockAdoWorkItem(overrides = {}) {
+  const id = overrides.id ?? Math.floor(Math.random() * 100000);
+  const workItemType = overrides.type ?? "Product Backlog Item";
+  const state = overrides.state ?? "Active";
+
+  return {
+    id,
+    fields: {
+      "System.Title": overrides.title ?? `Work Item ${id}`,
+      "System.WorkItemType": workItemType,
+      "System.State": state,
+      "System.AssignedTo": overrides.assignedTo ?? { displayName: "Test User" },
+      "Microsoft.VSTS.Common.Priority": overrides.priority ?? 2,
+      "System.Tags": overrides.tags ?? "",
+      "System.IterationPath": overrides.iterationPath ?? "Project\\Sprint 1",
+      "System.AreaPath": overrides.areaPath ?? "Project",
+      ...overrides.fields,
+    },
+    relations: overrides.relations ?? [],
+  };
+}
+
+/**
+ * Creates a mock MCP response wrapper
+ * @param {Array} data - Array of work items
+ */
+function createMockMcpResponse(data = []) {
+  return {
+    success: true,
+    data,
+  };
+}
+
+/**
+ * Creates a sprint path with project prefix
+ * @param {string} project - Project name
+ * @param {string} sprint - Sprint name
+ */
+function createSprintPath(project, sprint) {
+  return `${project}\\${sprint}`;
+}
+
 describe("Dashboard Routes", () => {
   let app;
   let mockMcpManager;
@@ -629,25 +679,100 @@ describe("Dashboard Routes", () => {
 
   describe("GET /api/dashboard/aod-summary", () => {
     describe("Successful ADO summary", () => {
-      it("should return Azure DevOps summary", async () => {
-        const mockAdoData = {
-          workItems: {
-            total: 100,
-            active: 45,
-            closed: 55,
-          },
-          defects: {
-            total: 25,
-            open: 10,
-            resolved: 15,
-          },
-        };
-        mockMcpManager.callDockerMcp.mockResolvedValue(mockAdoData);
+      it("should return Azure DevOps summary with work items", async () => {
+        // Use factories to create test data - avoids hardcoded values
+        const testProject = "Test Project";
+        const testSprint = "Sprint 1";
+        const sprintPath = createSprintPath(testProject, testSprint);
 
-        const response = await request(app).get("/api/dashboard/aod-summary");
+        const pbiItem = createMockAdoWorkItem({
+          type: "Product Backlog Item",
+          state: "Active",
+          iterationPath: sprintPath,
+        });
+        const bugItem = createMockAdoWorkItem({
+          type: "Bug",
+          state: "New",
+        });
+
+        mockMcpManager.callDockerMcp.mockResolvedValue(
+          createMockMcpResponse([pbiItem, bugItem]),
+        );
+
+        const response = await request(app).get(
+          `/api/dashboard/aod-summary?sprint=${encodeURIComponent(sprintPath)}`,
+        );
 
         expect(response.status).toBe(200);
-        expect(response.body).toBeDefined();
+        expect(response.body.success).toBe(true);
+        // Verify workItemDetails is an array with correct structure
+        expect(Array.isArray(response.body.workItemDetails)).toBe(true);
+        expect(response.body.workItemDetails).toHaveLength(2);
+        // Verify work item fields are correctly transformed (using factory data)
+        expect(response.body.workItemDetails[0]).toMatchObject({
+          id: pbiItem.id,
+          title: pbiItem.fields["System.Title"],
+          type: pbiItem.fields["System.WorkItemType"],
+          state: pbiItem.fields["System.State"],
+        });
+        // Verify summary counts match what we created
+        expect(response.body.summary.total).toBe(2);
+        expect(response.body.summary.byType).toHaveProperty(
+          "Product Backlog Item",
+          1,
+        );
+        expect(response.body.summary.byType).toHaveProperty("Bug", 1);
+      });
+
+      it("should extract project from sprint path and pass to MCP", async () => {
+        // Use factory with dynamic project/sprint - tests the fix for project extraction
+        const testProject = "Dynamic Test Project";
+        const testSprint = "Sprint 5";
+        const sprintPath = createSprintPath(testProject, testSprint);
+
+        const testWorkItem = createMockAdoWorkItem({
+          state: "Committed",
+          iterationPath: sprintPath,
+        });
+        mockMcpManager.callDockerMcp.mockResolvedValue(
+          createMockMcpResponse([testWorkItem]),
+        );
+
+        const response = await request(app).get(
+          `/api/dashboard/aod-summary?sprint=${encodeURIComponent(sprintPath)}`,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.workItemDetails).toHaveLength(1);
+        expect(response.body.workItemDetails[0].id).toBe(testWorkItem.id);
+
+        // Verify MCP was called with project extracted from sprint path
+        expect(mockMcpManager.callDockerMcp).toHaveBeenCalledWith(
+          "azureDevOps",
+          "/work-items/query",
+          expect.objectContaining({
+            sprint: sprintPath,
+            project: testProject,
+          }),
+        );
+      });
+
+      it("should handle empty work items", async () => {
+        const testProject = "Empty Project";
+        const testSprint = "Empty Sprint";
+        const sprintPath = createSprintPath(testProject, testSprint);
+
+        mockMcpManager.callDockerMcp.mockResolvedValue(
+          createMockMcpResponse([]),
+        );
+
+        const response = await request(app).get(
+          `/api/dashboard/aod-summary?sprint=${encodeURIComponent(sprintPath)}`,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.workItemDetails).toEqual([]);
+        expect(response.body.summary.total).toBe(0);
       });
     });
 
@@ -661,6 +786,7 @@ describe("Dashboard Routes", () => {
 
         // Route catches errors and returns 200 with empty data
         expect(response.status).toBe(200);
+        expect(response.body.workItemDetails).toEqual([]);
       });
     });
   });

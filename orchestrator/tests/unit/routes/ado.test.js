@@ -18,6 +18,53 @@ import { createMockMcpManager } from "../../helpers/mocks.js";
  * All endpoints from pull-stories to batch-update
  */
 
+// ============================================
+// TEST DATA FACTORIES - Avoid hardcoded values
+// ============================================
+
+/**
+ * Creates a mock work item with realistic ADO structure
+ * @param {Object} overrides - Override default values
+ */
+function createMockWorkItem(overrides = {}) {
+  const id = overrides.id ?? Math.floor(Math.random() * 100000);
+  const defaults = {
+    id,
+    fields: {
+      "System.Title": `Work Item ${id}`,
+      "System.WorkItemType": "Product Backlog Item",
+      "System.State": "Active",
+      "System.IterationPath": "Project\\Sprint 1",
+      "System.AreaPath": "Project",
+      "System.AssignedTo": { displayName: "Test User" },
+      "Microsoft.VSTS.Common.Priority": 2,
+      ...overrides.fields,
+    },
+    relations: overrides.relations ?? [],
+  };
+  return { ...defaults, ...overrides, fields: defaults.fields };
+}
+
+/**
+ * Creates a mock MCP response wrapper
+ * @param {Array} data - Array of work items or other data
+ */
+function createMockMcpResponse(data = []) {
+  return {
+    success: true,
+    data,
+  };
+}
+
+/**
+ * Creates a sprint path with project prefix
+ * @param {string} project - Project name
+ * @param {string} sprint - Sprint name
+ */
+function createSprintPath(project, sprint) {
+  return `${project}\\${sprint}`;
+}
+
 describe("ADO Routes", () => {
   let app;
   let mockMcpManager;
@@ -70,9 +117,11 @@ describe("ADO Routes", () => {
   // Test 2 endpoints per describe block to keep file manageable
   describe("Story Management Endpoints", () => {
     it("POST /pull-stories should pull stories from ADO", async () => {
-      mockMcpManager.callDockerMcp.mockResolvedValue([
-        { id: 123, title: "Story 1" },
-      ]);
+      // Use factory to create test data - avoids hardcoded values
+      const testWorkItem = createMockWorkItem();
+      mockMcpManager.callDockerMcp.mockResolvedValue(
+        createMockMcpResponse([testWorkItem]),
+      );
 
       const response = await request(app)
         .post("/api/ado/pull-stories")
@@ -80,6 +129,48 @@ describe("ADO Routes", () => {
 
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty("success", true);
+      // Verify stories is an array (not a nested object) - this would have caught the bug
+      expect(Array.isArray(response.body.stories)).toBe(true);
+      expect(response.body.count).toBe(1);
+      // Verify story structure matches what we sent
+      expect(response.body.stories[0]).toHaveProperty("id", testWorkItem.id);
+      expect(response.body.stories[0].fields["System.Title"]).toBe(
+        testWorkItem.fields["System.Title"],
+      );
+    });
+
+    it("POST /pull-stories should extract project from sprint path", async () => {
+      // Use factory with dynamic project/sprint values
+      const testProject = "Test Project";
+      const testSprint = "Sprint 1";
+      const sprintPath = createSprintPath(testProject, testSprint);
+
+      const testWorkItem = createMockWorkItem({
+        fields: { "System.IterationPath": sprintPath },
+      });
+      mockMcpManager.callDockerMcp.mockResolvedValue(
+        createMockMcpResponse([testWorkItem]),
+      );
+
+      const response = await request(app)
+        .post("/api/ado/pull-stories")
+        .send({ sprint: sprintPath });
+
+      expect(response.status).toBe(200);
+      expect(response.body.stories).toHaveLength(1);
+      expect(response.body.stories[0].id).toBe(testWorkItem.id);
+    });
+
+    it("POST /pull-stories should handle empty results", async () => {
+      mockMcpManager.callDockerMcp.mockResolvedValue(createMockMcpResponse([]));
+
+      const response = await request(app)
+        .post("/api/ado/pull-stories")
+        .send({ sprint: "Any Sprint" });
+
+      expect(response.status).toBe(200);
+      expect(response.body.stories).toEqual([]);
+      expect(response.body.count).toBe(0);
     });
 
     it("POST /pull-stories should handle MCP errors", async () => {
