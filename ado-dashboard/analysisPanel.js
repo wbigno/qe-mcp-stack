@@ -2620,8 +2620,11 @@ export class AnalysisPanel {
       const data = await response.json();
 
       if (data.success) {
+        const selectedPlan = this.testPlans.find(
+          (tp) => tp.id === this.selectedTestPlanId,
+        );
         let successMsg = `Successfully created ${data.createdCount || this.generatedTestCases.length} test cases!\n\n`;
-        successMsg += `Test Plan: ${selectedPlan?.name}\n`;
+        successMsg += `Test Plan: ${selectedPlan?.name || this.selectedTestPlanId}\n`;
         if (data.suite) {
           successMsg += `Suite: ${data.suite.name} (${data.suite.type})`;
         }

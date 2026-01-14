@@ -202,6 +202,53 @@ export class ADOService {
   }
 
   /**
+   * Convert test steps to Azure DevOps XML format
+   * ADO expects steps in this format:
+   * <steps id="0" last="N">
+   *   <step id="1" type="ActionStep">
+   *     <parameterizedString isformatted="true">Action</parameterizedString>
+   *     <parameterizedString isformatted="true">Expected Result</parameterizedString>
+   *   </step>
+   * </steps>
+   */
+  private formatStepsAsXml(
+    steps: Array<{
+      action: string;
+      expectedResult: string;
+      stepNumber: number;
+    }>,
+  ): string {
+    if (!steps || steps.length === 0) {
+      return '<steps id="0" last="0"></steps>';
+    }
+
+    // Sort by step number
+    const sortedSteps = [...steps].sort((a, b) => a.stepNumber - b.stepNumber);
+    const lastStepId = sortedSteps.length;
+
+    // Escape XML special characters
+    const escapeXml = (text: string): string => {
+      return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&apos;");
+    };
+
+    const stepElements = sortedSteps
+      .map((step, index) => {
+        const stepId = index + 1;
+        const action = escapeXml(step.action || "");
+        const expected = escapeXml(step.expectedResult || "");
+        return `<step id="${stepId}" type="ActionStep"><parameterizedString isformatted="true">${action}</parameterizedString><parameterizedString isformatted="true">${expected}</parameterizedString></step>`;
+      })
+      .join("");
+
+    return `<steps id="0" last="${lastStepId}">${stepElements}</steps>`;
+  }
+
+  /**
    * Create test cases
    */
   async createTestCases(request: CreateTestCasesRequest): Promise<WorkItem[]> {
@@ -210,6 +257,16 @@ export class ADOService {
       const created: WorkItem[] = [];
 
       for (const testCase of testCases) {
+        // Format steps as XML for Azure DevOps
+        const stepsXml = this.formatStepsAsXml(testCase.steps);
+
+        // Log the XML being sent for debugging
+        logger.info("Creating test case with steps", {
+          title: testCase.title,
+          stepCount: testCase.steps?.length || 0,
+          stepsXmlPreview: stepsXml.substring(0, 200),
+        });
+
         const doc = [
           { op: "add", path: "/fields/System.Title", value: testCase.title },
           {
@@ -220,7 +277,7 @@ export class ADOService {
           {
             op: "add",
             path: "/fields/Microsoft.VSTS.TCM.Steps",
-            value: JSON.stringify(testCase.steps),
+            value: stepsXml,
           },
         ];
 
@@ -233,6 +290,11 @@ export class ADOService {
         );
 
         created.push(response.data);
+        logger.info("Created test case", {
+          id: response.data.id,
+          title: testCase.title,
+          stepCount: testCase.steps?.length || 0,
+        });
       }
 
       logger.info("Test cases created", { count: created.length });
@@ -884,27 +946,87 @@ export class ADOService {
     parentSuiteId?: number,
   ): Promise<TestSuite> {
     try {
+      // Normalize suite name for comparison
+      const normalizedName = suiteName.trim();
+
       // First, try to find existing suite with this name
       const suitesResponse = await client.get<{ value: TestSuite[] }>(
         `/testplan/plans/${planId}/suites?api-version=${this.config.apiVersion}`,
       );
       const suites = suitesResponse.data.value || [];
-      const existingSuite = suites.find(
-        (s) => s.suiteType === "StaticTestSuite" && s.name === suiteName,
+
+      // Log ALL suites for debugging (to see what suiteType values ADO returns)
+      logger.info("All suites from API", {
+        planId,
+        totalCount: suites.length,
+        allSuites: suites.map((s) => ({
+          id: s.id,
+          name: s.name,
+          suiteType: s.suiteType,
+        })),
+      });
+
+      // Find static suites - check for various possible suiteType values
+      const staticSuites = suites.filter(
+        (s) =>
+          s.suiteType === "StaticTestSuite" ||
+          s.suiteType === "staticTestSuite" ||
+          s.suiteType === "Static",
       );
+      logger.info("Looking for static suite", {
+        planId,
+        searchingFor: normalizedName,
+        existingStaticSuites: staticSuites.map((s) => ({
+          id: s.id,
+          name: s.name,
+          suiteType: s.suiteType,
+        })),
+      });
+
+      // Find by normalized name comparison (trim whitespace, case-insensitive for Feature suites)
+      const existingSuite = suites.find((s) => {
+        // Case-insensitive check for static suite type
+        const suiteType = (s.suiteType || "").toLowerCase();
+        if (suiteType !== "statictestsuite" && suiteType !== "static")
+          return false;
+        const existingName = (s.name || "").trim();
+
+        // Exact match first
+        if (existingName === normalizedName) return true;
+
+        // For Feature suites, check if the Feature ID matches
+        // This handles cases where the title might be slightly different
+        const featureIdMatch = normalizedName.match(/Feature\s*(\d+)/i);
+        if (featureIdMatch) {
+          const featureId = featureIdMatch[1];
+          // Check if existing suite contains the same Feature ID
+          const existingFeatureMatch = existingName.match(/Feature\s*(\d+)/i);
+          if (existingFeatureMatch && existingFeatureMatch[1] === featureId) {
+            logger.info("Found existing Feature suite by ID match", {
+              featureId,
+              existingName,
+              searchedName: normalizedName,
+            });
+            return true;
+          }
+        }
+
+        return false;
+      });
 
       if (existingSuite) {
         logger.info("Found existing static suite", {
           planId,
           suiteId: existingSuite.id,
-          name: suiteName,
+          existingName: existingSuite.name,
+          searchedName: normalizedName,
         });
         return existingSuite;
       }
 
       // Create new static suite - parentSuite goes in body, not URL
       const body: any = {
-        name: suiteName,
+        name: normalizedName,
         suiteType: "StaticTestSuite",
       };
 
@@ -917,10 +1039,10 @@ export class ADOService {
         `/testplan/plans/${planId}/suites?api-version=${this.config.apiVersion}`,
         body,
       );
-      logger.info("Created static suite", {
+      logger.info("Created NEW static suite", {
         planId,
         suiteId: response.data.id,
-        name: suiteName,
+        name: normalizedName,
         parentSuiteId,
       });
       return response.data;
@@ -956,6 +1078,21 @@ export class ADOService {
         `/testplan/plans/${planId}/suites?api-version=${this.config.apiVersion}`,
       );
       const suites = suitesResponse.data.value || [];
+
+      // Log all requirement suites for debugging
+      const requirementSuites = suites.filter(
+        (s) => s.suiteType === "RequirementTestSuite",
+      );
+      logger.info("Looking for requirement suite", {
+        planId,
+        searchingForWorkItemId: workItemId,
+        existingRequirementSuites: requirementSuites.map((s) => ({
+          id: s.id,
+          name: s.name,
+          requirementId: s.requirementId,
+        })),
+      });
+
       const existingSuite = suites.find(
         (s) =>
           s.suiteType === "RequirementTestSuite" &&
@@ -987,7 +1124,7 @@ export class ADOService {
         `/testplan/plans/${planId}/suites?api-version=${this.config.apiVersion}`,
         body,
       );
-      logger.info("Created requirement suite", {
+      logger.info("Created NEW requirement suite", {
         planId,
         suiteId: response.data.id,
         workItemId,

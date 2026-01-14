@@ -280,16 +280,26 @@ router.post("/risk/analyze-ac", async (req, res) => {
   }
 });
 
-// Helper: Parse acceptance criteria from HTML
+// Helper: Parse acceptance criteria from HTML with hierarchical structure awareness
+// Recognizes: Headers (bold/title case) → Bullets (steps) → Sub-bullets (details)
 function parseAcceptanceCriteriaHtml(html) {
   const acs = [];
-  // Match numbered items like "1. ...", "AC1:", "- AC1:", bullet points, etc.
-  const patterns = [
-    /<li[^>]*>(.*?)<\/li>/gi,
-    /(?:^|\n)\s*(?:AC)?(\d+)[.:]\s*(.+?)(?=\n|$)/gi,
-    /(?:^|\n)\s*[-•*]\s*(.+?)(?=\n|$)/gi,
-  ];
 
+  logger.info(`Parsing AC HTML (${html.length} chars)`);
+  logger.info(`HTML preview: ${html.substring(0, 500)}...`);
+
+  // FIRST: Try hierarchical parsing - detect headers with nested bullets
+  const hierarchicalACs = parseHierarchicalACs(html);
+  if (hierarchicalACs.length > 0) {
+    logger.info(`SUCCESS: Parsed ${hierarchicalACs.length} hierarchical ACs`);
+    return hierarchicalACs;
+  }
+
+  logger.info(
+    "Hierarchical parsing found no ACs, falling back to flat parsing",
+  );
+
+  // FALLBACK: Flat parsing for simple AC formats
   let acNumber = 1;
 
   // Try ordered list items first
@@ -301,6 +311,7 @@ function parseAcceptanceCriteriaHtml(html) {
         id: `AC${acNumber}`,
         number: acNumber,
         text,
+        steps: [],
       });
       acNumber++;
     }
@@ -319,12 +330,14 @@ function parseAcceptanceCriteriaHtml(html) {
             id: `AC${numbered[1]}`,
             number: parseInt(numbered[1]),
             text: numbered[2].trim(),
+            steps: [],
           });
         } else if (trimmed.match(/^[-•*]\s*/)) {
           acs.push({
             id: `AC${acNumber}`,
             number: acNumber,
             text: trimmed.replace(/^[-•*]\s*/, "").trim(),
+            steps: [],
           });
           acNumber++;
         }
@@ -333,6 +346,250 @@ function parseAcceptanceCriteriaHtml(html) {
   }
 
   return acs;
+}
+
+// Parse ACs with hierarchical structure: Header → Steps → Details
+function parseHierarchicalACs(html) {
+  const hierarchicalACs = [];
+
+  logger.info("Attempting hierarchical AC parsing...");
+
+  // Pattern 1: Find headers - could be <b>, <strong>, or short <p> tags before lists
+  const headers = [];
+
+  // Try bold/strong tags first
+  const boldPattern = /<(?:b|strong)[^>]*>([^<]+)<\/(?:b|strong)>/gi;
+  let boldMatch;
+  while ((boldMatch = boldPattern.exec(html)) !== null) {
+    const headerText = boldMatch[1].trim();
+    if (headerText.length >= 3 && !/^\d+$/.test(headerText)) {
+      headers.push({
+        text: headerText,
+        index: boldMatch.index,
+        endIndex: boldMatch.index + boldMatch[0].length,
+      });
+    }
+  }
+
+  // Also look for <p> tags followed by <ul> or <ol> (common ADO pattern)
+  // Pattern: <p>Short Header Text</p> <ul>...
+  const pBeforeListPattern = /<p[^>]*>([^<]{3,50})<\/p>\s*<(?:ul|ol)/gi;
+  let pMatch;
+  while ((pMatch = pBeforeListPattern.exec(html)) !== null) {
+    const headerText = pMatch[1].trim();
+    // Only if it looks like a header (short, title-case or ends with nothing special)
+    if (
+      headerText.length >= 3 &&
+      headerText.length <= 50 &&
+      !headerText.includes(".") &&
+      !/^\d+$/.test(headerText)
+    ) {
+      // Check if we already have this header from bold pattern
+      const alreadyExists = headers.some((h) => h.text === headerText);
+      if (!alreadyExists) {
+        headers.push({
+          text: headerText,
+          index: pMatch.index,
+          endIndex: pMatch.index + pMatch[0].length - 4, // exclude the <ul part
+        });
+      }
+    }
+  }
+
+  // Sort headers by their position in the HTML
+  headers.sort((a, b) => a.index - b.index);
+
+  logger.info(
+    `Found ${headers.length} potential headers: ${headers.map((h) => h.text).join(", ")}`,
+  );
+
+  // For each header, find the next <ul> or <ol> after it
+  let acNumber = 1;
+  for (let i = 0; i < headers.length; i++) {
+    const header = headers[i];
+    const nextHeader = headers[i + 1];
+
+    // Get content between this header and the next (or end of HTML)
+    const searchStart = header.endIndex;
+    const searchEnd = nextHeader ? nextHeader.index : html.length;
+    const sectionHtml = html.substring(searchStart, searchEnd);
+
+    // Find the first <ul> or <ol> in this section
+    const listMatch = sectionHtml.match(
+      /<(?:ul|ol)[^>]*>([\s\S]*?)<\/(?:ul|ol)>/i,
+    );
+
+    if (listMatch) {
+      const steps = parseBulletsWithSubItems(listMatch[1]);
+
+      if (steps.length > 0) {
+        const ac = {
+          number: acNumber,
+          id: `AC${acNumber}`,
+          title: header.text,
+          text: `${header.text}: ${steps.map((s) => s.action).join("; ")}`,
+          steps: steps,
+        };
+        hierarchicalACs.push(ac);
+        acNumber++;
+        logger.info(
+          `Created AC${ac.number}: "${header.text}" with ${steps.length} steps`,
+        );
+      }
+    }
+  }
+
+  // Pattern 2: If no bold sections with lists found, try Title Case headers
+  if (hierarchicalACs.length === 0) {
+    const textContent = html
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/(?:p|div|li)>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .trim();
+    const lines = textContent.split("\n").filter((l) => l.trim());
+
+    let currentAC = null;
+    let currentStep = null;
+    acNumber = 1;
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+
+      const indentLevel = (line.match(/^\s*/) || [""])[0].length;
+      const cleanLine = trimmed.replace(/^[\s•*\d.-]+/, "").trim();
+
+      if (!cleanLine || cleanLine.length < 3) continue;
+
+      // Detect header: Title Case or ends with colon
+      const isHeader =
+        isTitleCase(cleanLine) ||
+        (cleanLine.endsWith(":") && cleanLine.length < 60) ||
+        (cleanLine.includes("&") &&
+          isTitleCase(cleanLine.replace(/&/g, "and")));
+
+      const isBullet = /^[•*-]/.test(trimmed) || /^\d+\./.test(trimmed);
+      const isSubBullet = indentLevel > 4;
+
+      if (isHeader && !isBullet) {
+        // Save previous AC if it has steps
+        if (currentAC && currentAC.steps.length > 0) {
+          hierarchicalACs.push(currentAC);
+        }
+
+        // Start new AC
+        currentAC = {
+          number: acNumber,
+          id: `AC${acNumber}`,
+          title: cleanLine.replace(/:$/, ""),
+          text: cleanLine.replace(/:$/, ""),
+          steps: [],
+        };
+        acNumber++;
+        currentStep = null;
+      } else if (isBullet && currentAC) {
+        if (isSubBullet && currentStep) {
+          // Sub-bullet → detail under current step
+          currentStep.details.push(cleanLine);
+        } else {
+          // Main bullet → new step
+          currentStep = {
+            stepNumber: currentAC.steps.length + 1,
+            action: cleanLine,
+            details: [],
+          };
+          currentAC.steps.push(currentStep);
+        }
+      } else if (currentAC && currentStep && indentLevel > 2) {
+        // Continuation or sub-item
+        currentStep.details.push(cleanLine);
+      }
+    }
+
+    // Don't forget the last AC
+    if (currentAC && currentAC.steps.length > 0) {
+      hierarchicalACs.push(currentAC);
+    }
+  }
+
+  // Update text field to include full context
+  hierarchicalACs.forEach((ac) => {
+    if (ac.steps.length > 0) {
+      const stepsText = ac.steps
+        .map((s) => {
+          let stepText = s.action;
+          if (s.details && s.details.length > 0) {
+            stepText += ` [${s.details.join(", ")}]`;
+          }
+          return stepText;
+        })
+        .join(" | ");
+      ac.text = `${ac.title}: ${stepsText}`;
+    }
+  });
+
+  return hierarchicalACs;
+}
+
+// Parse bullet list HTML into steps with sub-items as details
+function parseBulletsWithSubItems(listHtml) {
+  const steps = [];
+  const liPattern = /<li[^>]*>([\s\S]*?)<\/li>/gi;
+  let liMatch;
+  let stepNumber = 1;
+
+  while ((liMatch = liPattern.exec(listHtml)) !== null) {
+    const liContent = liMatch[1];
+
+    // Check if this li contains a nested list
+    const nestedListMatch = liContent.match(
+      /<(?:ul|ol)[^>]*>([\s\S]*?)<\/(?:ul|ol)>/i,
+    );
+
+    let action = liContent;
+    const details = [];
+
+    if (nestedListMatch) {
+      // Extract the main action (text before nested list)
+      action = liContent.substring(0, liContent.indexOf(nestedListMatch[0]));
+
+      // Extract nested items as details
+      const nestedLiPattern = /<li[^>]*>([^<]+)<\/li>/gi;
+      let nestedMatch;
+      while (
+        (nestedMatch = nestedLiPattern.exec(nestedListMatch[1])) !== null
+      ) {
+        const detail = nestedMatch[1].replace(/<[^>]+>/g, "").trim();
+        if (detail) details.push(detail);
+      }
+    }
+
+    // Clean up the action text
+    action = action.replace(/<[^>]+>/g, "").trim();
+
+    if (action.length > 3) {
+      steps.push({
+        stepNumber: stepNumber,
+        action: action,
+        details: details,
+      });
+      stepNumber++;
+    }
+  }
+
+  return steps;
+}
+
+// Check if text is Title Case (e.g., "API Integration & Record Creation")
+function isTitleCase(text) {
+  if (!text || text.length < 5) return false;
+  const words = text
+    .replace(/[&-]/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2);
+  if (words.length < 2) return false;
+  const capitalizedWords = words.filter((w) => /^[A-Z]/.test(w));
+  return capitalizedWords.length >= words.length * 0.6;
 }
 
 // Helper: Build summary risk matrix table
