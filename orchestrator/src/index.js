@@ -15,6 +15,7 @@ import swaggerRouter from "./routes/swagger.js";
 import playwrightRouter from "./routes/playwright.js";
 import infrastructureRouter from "./routes/infrastructure.js";
 import docsRouter from "./routes/docs.js";
+import proxyRouter from "./routes/proxy.js";
 import { logger } from "./utils/logger.js";
 import { MCPManager } from "./services/mcpManager.js";
 import { fileWatcher } from "./services/fileWatcher.js";
@@ -92,6 +93,7 @@ app.use("/api/dashboard", dashboardRouter);
 app.use("/api/swagger", swaggerRouter);
 app.use("/api/playwright", playwrightRouter);
 app.use("/api/infrastructure", infrastructureRouter);
+app.use("/api/proxy", proxyRouter);
 app.use("/docs", docsRouter);
 
 // Aggregated Swagger UI

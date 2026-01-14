@@ -744,3 +744,150 @@ Dashboards → Orchestrator → MCPs → Real Data! 🎉
 ```
 
 **No more dummy data! Everything connected! Complete QE stack operational! 🚀**
+
+---
+
+## 🌐 PROXY ROUTES
+
+### Purpose
+
+The proxy routes enable the Infrastructure Dashboard to fetch Swagger/OpenAPI specs and execute API calls against CarePayment services while bypassing CORS restrictions.
+
+### File Location
+
+`/qe-mcp-stack/orchestrator/src/routes/proxy.js`
+
+### Available Endpoints
+
+#### 1. `GET /api/proxy/swagger`
+
+Proxies swagger spec fetches to bypass CORS restrictions.
+
+**Query Parameters:**
+
+- `url` (required): The swagger spec URL to fetch
+
+**Request:**
+
+```bash
+curl "http://localhost:3000/api/proxy/swagger?url=https://servicelayer-dev.carepayment.com/swagger/v1/swagger.json"
+```
+
+**Response:**
+Returns the swagger JSON spec directly, or an error object:
+
+```json
+{
+  "success": false,
+  "error": "Failed to fetch swagger: 404 Not Found",
+  "url": "https://..."
+}
+```
+
+#### 2. `POST /api/proxy/execute`
+
+Proxies API calls to CarePayment services for the Infrastructure Dashboard's API execution feature.
+
+**Request Body:**
+
+```json
+{
+  "url": "https://servicelayer-dev.carepayment.com/api/health",
+  "method": "GET",
+  "headers": {
+    "Authorization": "Bearer token",
+    "X-Custom-Header": "value"
+  },
+  "body": { "key": "value" }
+}
+```
+
+**Fields:**
+
+- `url` (required): Full URL to call
+- `method`: HTTP method (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS) - defaults to GET
+- `headers`: Optional headers object
+- `body`: Optional request body (ignored for GET/HEAD)
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "status": 200,
+  "statusText": "OK",
+  "headers": {
+    "content-type": "application/json",
+    "date": "Tue, 14 Jan 2026 12:00:00 GMT"
+  },
+  "body": { "data": "response data" },
+  "duration": 145,
+  "url": "https://...",
+  "method": "GET"
+}
+```
+
+### Usage in Infrastructure Dashboard
+
+The Infrastructure Dashboard's SwaggerPanel uses these proxy endpoints:
+
+```typescript
+// Fetch swagger spec through proxy
+const proxyUrl = `${ORCHESTRATOR_URL}/api/proxy/swagger?url=${encodeURIComponent(swaggerUrl)}`;
+const response = await fetch(proxyUrl);
+
+// Execute API call through proxy
+const response = await fetch(`${ORCHESTRATOR_URL}/api/proxy/execute`, {
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({
+    url: fullRequestUrl,
+    method: "POST",
+    headers: customHeaders,
+    body: requestBody,
+  }),
+});
+```
+
+---
+
+## 🏗️ INFRASTRUCTURE DASHBOARD INTEGRATION
+
+The Infrastructure Dashboard (port 8082) provides visualization and testing capabilities for CarePayment microservices:
+
+### Environment Support
+
+The dashboard supports multiple environments with different base URLs:
+
+- **Local**: Development on localhost
+- **Dev**: Development environment
+- **Staging**: Pre-production testing
+- **Prod**: Production environment
+
+### Features Using Proxy Routes
+
+1. **API Documentation Panel** (`/api/proxy/swagger`)
+   - Fetches OpenAPI specs from each CarePayment service
+   - Displays endpoints grouped by tags
+   - Shows parameter types, request/response schemas
+
+2. **API Execution Feature** (`/api/proxy/execute`)
+   - Execute any endpoint directly from the dashboard
+   - Input path/query parameters
+   - Edit request body for POST/PUT/PATCH
+   - Add custom headers (Authorization, etc.)
+   - View response status, headers, and body
+   - Timing information for performance analysis
+
+### CarePayment Applications Supported
+
+| Application         | Repository  | Swagger Path               |
+| ------------------- | ----------- | -------------------------- |
+| ServiceLayer API    | Core        | `/swagger/v1/swagger.json` |
+| Integration API     | Core        | `/swagger/v1/swagger.json` |
+| Core.Common API     | Core.Common | `/swagger/v1/swagger.json` |
+| Payments API        | Payments    | `/swagger/v1/swagger.json` |
+| PreCare API         | PreCare     | `/swagger/v1/swagger.json` |
+| CareLink API        | Core        | `/swagger/v1/swagger.json` |
+| Member Portal API   | Core        | `/swagger/v1/swagger.json` |
+| Provider Portal API | Core        | `/swagger/v1/swagger.json` |

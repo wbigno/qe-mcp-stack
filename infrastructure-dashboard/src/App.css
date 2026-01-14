@@ -232,3 +232,222 @@ button .font-medium,
 button .text-tertiary {
   color: #ffffff !important;
 }
+
+/* ==================== NEW PANEL STYLES ==================== */
+
+/* React Flow overrides for dark theme */
+.react-flow {
+  background: var(--bg-primary) !important;
+}
+
+.react-flow__node {
+  font-family: inherit;
+}
+
+.react-flow__edge-path {
+  stroke: var(--border-secondary);
+  stroke-width: 2;
+}
+
+.react-flow__edge.animated path {
+  stroke-dasharray: 5;
+  animation: dashdraw 0.5s linear infinite;
+}
+
+@keyframes dashdraw {
+  from {
+    stroke-dashoffset: 10;
+  }
+}
+
+.react-flow__controls {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-primary) !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-md) !important;
+}
+
+.react-flow__controls-button {
+  background: var(--bg-secondary) !important;
+  border-bottom: 1px solid var(--border-primary) !important;
+  fill: var(--text-secondary) !important;
+}
+
+.react-flow__controls-button:hover {
+  background: var(--bg-tertiary) !important;
+}
+
+.react-flow__minimap {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-primary) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.react-flow__minimap-mask {
+  fill: rgba(0, 0, 0, 0.8) !important;
+}
+
+.react-flow__handle {
+  width: 8px;
+  height: 8px;
+}
+
+/* Auth Test Panel */
+.auth-success {
+  color: var(--accent-success);
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.auth-failure {
+  color: var(--accent-error);
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+/* Swagger Panel Tree View */
+.tree-item {
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background var(--transition-base);
+}
+
+.tree-item:hover {
+  background: var(--bg-tertiary);
+}
+
+.tree-item-expanded {
+  background: var(--bg-tertiary);
+}
+
+/* Database Panel */
+.db-connection-line {
+  stroke: var(--border-secondary);
+  stroke-width: 2;
+  fill: none;
+}
+
+/* Flow Legend */
+.flow-legend {
+  position: absolute;
+  bottom: 1rem;
+  left: 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-primary);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+}
+
+/* Truncate utility */
+.truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Min width utility */
+.min-w-0 {
+  min-width: 0;
+}
+
+/* Additional width utilities */
+.w-2 { width: 0.5rem; }
+.w-8 { width: 2rem; }
+.w-12 { width: 3rem; }
+.h-2 { height: 0.5rem; }
+.h-3 { height: 0.75rem; }
+.h-4 { height: 1rem; }
+.h-5 { height: 1.25rem; }
+.h-6 { height: 1.5rem; }
+.h-8 { height: 2rem; }
+.h-12 { height: 3rem; }
+.h-full { height: 100%; }
+
+/* Ring utilities for focus states */
+.ring-2 {
+  box-shadow: 0 0 0 2px var(--accent-primary);
+}
+
+.ring-offset-2 {
+  --ring-offset-width: 2px;
+}
+
+.ring-offset-black {
+  --ring-offset-color: black;
+}
+
+/* Additional positioning */
+.top-4 { top: 1rem; }
+.right-4 { right: 1rem; }
+.bottom-4 { bottom: 1rem; }
+.left-4 { left: 1rem; }
+.-top-1 { top: -0.25rem; }
+.-right-1 { right: -0.25rem; }
+
+/* Flex wrap */
+.flex-wrap {
+  flex-wrap: wrap;
+}
+
+/* Additional margin utilities */
+.ml-2 { margin-left: 0.5rem; }
+.ml-6 { margin-left: 1.5rem; }
+.ml-auto { margin-left: auto; }
+.mr-2 { margin-right: 0.5rem; }
+.mt-2 { margin-top: 0.5rem; }
+.pt-4 { padding-top: 1rem; }
+.pt-6 { padding-top: 1.5rem; }
+.pt-8 { padding-top: 2rem; }
+.pb-2 { padding-bottom: 0.5rem; }
+.py-12 { padding-top: 3rem; padding-bottom: 3rem; }
+
+/* Additional gap utilities */
+.gap-x-4 { column-gap: 1rem; }
+.gap-y-1 { row-gap: 0.25rem; }
+
+/* Border utilities */
+.border { border-width: 1px; }
+.border-2 { border-width: 2px; }
+.border-b { border-bottom-width: 1px; }
+.border-t-transparent { border-top-color: transparent; }
+.last\:border-0:last-child { border-width: 0; }
+
+/* Rounded utilities */
+.rounded { border-radius: var(--radius-sm); }
+.rounded-full { border-radius: 9999px; }
+.rounded-xl { border-radius: 0.75rem; }
+
+/* Opacity */
+.opacity-50 { opacity: 0.5; }
+
+/* Animation utilities */
+.animate-pulse {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* Column span */
+.col-span-2 {
+  grid-column: span 2 / span 2;
+}
+
+/* Large breakpoint */
+@media (min-width: 1024px) {
+  .lg\:grid-cols-2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Font mono */
+.font-mono {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Monaco, Consolas, monospace;
+}
