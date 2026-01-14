@@ -102,6 +102,63 @@ Test Plan
 
 See the [Azure DevOps MCP README](/mcps/integration/azure-devops/README.md) for full documentation.
 
+### AI Query Assistant (Orchestrator)
+
+The Orchestrator provides AI-powered SQL query generation endpoints:
+
+**Endpoints:**
+
+- `POST /api/ai/generate-query` - Generate SQL from natural language
+- `GET /api/ai/schema-summary` - Get database schema summary
+- `POST /api/ai/explain-query` - Explain an existing SQL query
+
+**Generate Query Request:**
+
+```json
+{
+  "database": "CarePayment",
+  "environment": "PROD",
+  "prompt": "Show patients with balance over $1000 who haven't paid in 60 days",
+  "options": {
+    "includeExplanation": true,
+    "includeWarnings": true
+  }
+}
+```
+
+**Generate Query Response:**
+
+```json
+{
+  "success": true,
+  "query": {
+    "sql": "SELECT pa.PAAcctID, pa.PatientName...",
+    "formatted": true
+  },
+  "explanation": {
+    "summary": "Finds patients with high balances and no recent payments",
+    "steps": ["Filter patients by balance", "Join with payment history"],
+    "tablesUsed": [
+      {
+        "schema": "CarePayment",
+        "table": "SitePatientAccount",
+        "purpose": "Patient data"
+      }
+    ]
+  },
+  "warnings": [
+    { "type": "performance", "message": "Consider adding date range filter" }
+  ]
+}
+```
+
+**Features:**
+
+- Generates only SELECT statements (read-only)
+- Uses Claude AI with full database schema context
+- Supports CarePayment database with 1,200+ tables across 56 schemas
+- Environment-aware (PROD vs QA schema differences)
+
 ## Exporting OpenAPI Specs
 
 Download specs for local use:

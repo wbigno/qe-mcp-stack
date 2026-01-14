@@ -117,6 +117,9 @@ export const SwaggerPanel: React.FC<SwaggerPanelProps> = ({
   );
   const [copiedPath, setCopiedPath] = useState<string | null>(null);
   const [activeAppKey, setActiveAppKey] = useState<string>(selectedAppKey);
+  const [selectedDefinition, setSelectedDefinition] = useState<string | null>(
+    null,
+  );
 
   // Filter apps that have swagger enabled
   const swaggerApps = useMemo(() => {
@@ -125,9 +128,36 @@ export const SwaggerPanel: React.FC<SwaggerPanelProps> = ({
 
   const activeApp = apps[activeAppKey];
 
-  // Get the swagger URL for the current environment
+  // Get available definitions for the active app
+  const definitions = useMemo(() => {
+    if (
+      !activeApp?.swagger?.definitions ||
+      activeApp.swagger.definitions.length === 0
+    ) {
+      // Return default definition from main url
+      return [
+        {
+          name: activeApp?.swagger?.version || "Default",
+          url: activeApp?.swagger?.url || "",
+          urls: activeApp?.swagger?.urls,
+        },
+      ];
+    }
+    return activeApp.swagger.definitions;
+  }, [activeApp]);
+
+  // Get the swagger URL for the current environment and selected definition
   const getSwaggerUrl = () => {
     if (!activeApp?.swagger) return null;
+
+    // If we have multiple definitions, use the selected one
+    if (definitions.length > 1 && selectedDefinition) {
+      const def = definitions.find((d) => d.name === selectedDefinition);
+      if (def) {
+        return def.urls?.[environment] || def.url;
+      }
+    }
+
     return activeApp.swagger.urls?.[environment] || activeApp.swagger.url;
   };
 
@@ -185,7 +215,7 @@ export const SwaggerPanel: React.FC<SwaggerPanelProps> = ({
     };
 
     fetchSwagger();
-  }, [activeAppKey, activeApp, environment, swaggerUrl]);
+  }, [activeAppKey, activeApp, environment, swaggerUrl, selectedDefinition]);
 
   const groupedEndpoints = useMemo(() => groupEndpointsByTag(spec), [spec]);
 
@@ -280,7 +310,10 @@ export const SwaggerPanel: React.FC<SwaggerPanelProps> = ({
         {swaggerApps.map(([appKey, app]) => (
           <button
             key={appKey}
-            onClick={() => setActiveAppKey(appKey)}
+            onClick={() => {
+              setActiveAppKey(appKey);
+              setSelectedDefinition(null); // Reset definition when switching apps
+            }}
             className={`btn ${activeAppKey === appKey ? "btn-primary" : "btn-ghost"}`}
           >
             <div className={`w-3 h-3 rounded-full ${app.color}`} />
@@ -288,6 +321,24 @@ export const SwaggerPanel: React.FC<SwaggerPanelProps> = ({
           </button>
         ))}
       </div>
+
+      {/* Definition Selector - shown when multiple definitions are available */}
+      {definitions.length > 1 && (
+        <div className="mb-4 flex items-center gap-3">
+          <span className="text-sm text-secondary">Select Definition:</span>
+          <select
+            value={selectedDefinition || definitions[0]?.name || ""}
+            onChange={(e) => setSelectedDefinition(e.target.value)}
+            className="px-3 py-1.5 bg-tertiary border border-primary rounded-lg text-sm focus:outline-none focus:border-accent-primary"
+          >
+            {definitions.map((def) => (
+              <option key={def.name} value={def.name}>
+                {def.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {/* Active App Info */}
       {activeApp && (
@@ -432,6 +483,7 @@ export const SwaggerPanel: React.FC<SwaggerPanelProps> = ({
                 baseUrl={baseUrl}
                 onCopyPath={copyPath}
                 copiedPath={copiedPath}
+                securitySchemes={spec?.components?.securitySchemes}
               />
             ) : (
               <div className="card h-full flex items-center justify-center">
@@ -448,11 +500,24 @@ export const SwaggerPanel: React.FC<SwaggerPanelProps> = ({
   );
 };
 
+interface SecurityParamInfo {
+  name: string;
+  type: "apiKey" | "http" | "oauth2" | "openIdConnect";
+  in?: "header" | "query" | "cookie";
+  schemeName: string;
+  scheme?: string;
+  bearerFormat?: string;
+}
+
 interface EndpointDetailProps {
   endpoint: EndpointInfo;
   baseUrl: string;
   onCopyPath: (path: string) => void;
   copiedPath: string | null;
+  securitySchemes?: Record<
+    string,
+    import("../../types/swagger").SecurityScheme
+  >;
 }
 
 const EndpointDetail: React.FC<EndpointDetailProps> = ({
@@ -460,18 +525,46 @@ const EndpointDetail: React.FC<EndpointDetailProps> = ({
   baseUrl,
   onCopyPath,
   copiedPath,
+  securitySchemes,
 }) => {
   const { operation } = endpoint;
   const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [securityValues, setSecurityValues] = useState<Record<string, string>>(
+    {},
+  );
   const [requestBody, setRequestBody] = useState<string>("");
   const [headers, setHeaders] = useState<string>("");
   const [executing, setExecuting] = useState(false);
   const [result, setResult] = useState<ExecutionResult | null>(null);
   const [showResponse, setShowResponse] = useState(false);
 
+  // Extract security parameters from the operation's security requirements
+  const securityParams = useMemo<SecurityParamInfo[]>(() => {
+    if (!operation.security || !securitySchemes) return [];
+
+    const params: SecurityParamInfo[] = [];
+    operation.security.forEach((secReq) => {
+      Object.keys(secReq).forEach((schemeName) => {
+        const scheme = securitySchemes[schemeName];
+        if (scheme) {
+          params.push({
+            name: scheme.name || schemeName,
+            type: scheme.type,
+            in: scheme.in,
+            schemeName,
+            scheme: scheme.scheme,
+            bearerFormat: scheme.bearerFormat,
+          });
+        }
+      });
+    });
+    return params;
+  }, [operation.security, securitySchemes]);
+
   // Reset state when endpoint changes
   useEffect(() => {
     setParamValues({});
+    setSecurityValues({});
     setRequestBody("");
     setResult(null);
     setShowResponse(false);
@@ -534,6 +627,20 @@ const EndpointDetail: React.FC<EndpointDetailProps> = ({
         }
       }
 
+      // Add security headers (API key, Bearer token, etc.)
+      securityParams.forEach((param) => {
+        const value = securityValues[param.schemeName];
+        if (value) {
+          if (param.type === "apiKey" && param.in === "header" && param.name) {
+            customHeaders[param.name] = value;
+          } else if (param.type === "http" && param.scheme === "bearer") {
+            customHeaders["Authorization"] = `Bearer ${value}`;
+          } else if (param.type === "http" && param.scheme === "basic") {
+            customHeaders["Authorization"] = `Basic ${value}`;
+          }
+        }
+      });
+
       // Parse request body
       let body = undefined;
       if (requestBody.trim() && !["GET", "HEAD"].includes(endpoint.method)) {
@@ -572,6 +679,7 @@ const EndpointDetail: React.FC<EndpointDetailProps> = ({
   const hasPathParams = operation.parameters?.some((p) => p.in === "path");
   const hasQueryParams = operation.parameters?.some((p) => p.in === "query");
   const hasBody = ["POST", "PUT", "PATCH"].includes(endpoint.method);
+  const hasSecurityParams = securityParams.length > 0;
 
   return (
     <div className="card h-full overflow-auto">
@@ -671,6 +779,60 @@ const EndpointDetail: React.FC<EndpointDetailProps> = ({
         </div>
       )}
 
+      {/* Security Parameters (API Keys, Bearer Tokens, etc.) */}
+      {hasSecurityParams && (
+        <div className="mb-4">
+          <h4 className="font-semibold text-sm mb-2">Authentication</h4>
+          <div className="space-y-2">
+            {securityParams.map((param, idx) => (
+              <div key={idx} className="bg-tertiary rounded-lg p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <code className="text-xs font-semibold text-primary">
+                    {param.name}
+                  </code>
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-yellow-500/20 text-yellow-400">
+                    {param.type === "apiKey" ? `header` : param.type}
+                  </span>
+                  <span className="text-xs text-red-400">required</span>
+                  {param.type === "http" && param.scheme && (
+                    <span className="text-xs text-tertiary">
+                      ({param.scheme})
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-tertiary mb-2">
+                  {param.type === "apiKey" && param.in === "header"
+                    ? `API key passed in the "${param.name}" header`
+                    : param.type === "http" && param.scheme === "bearer"
+                      ? `Bearer token for Authorization header${param.bearerFormat ? ` (${param.bearerFormat})` : ""}`
+                      : param.type === "http" && param.scheme === "basic"
+                        ? "Basic authentication (base64 encoded username:password)"
+                        : `Security scheme: ${param.schemeName}`}
+                </p>
+                <input
+                  type={param.type === "apiKey" ? "text" : "password"}
+                  value={securityValues[param.schemeName] || ""}
+                  onChange={(e) =>
+                    setSecurityValues((prev) => ({
+                      ...prev,
+                      [param.schemeName]: e.target.value,
+                    }))
+                  }
+                  placeholder={
+                    param.type === "apiKey"
+                      ? `Enter ${param.name}...`
+                      : param.type === "http" && param.scheme === "bearer"
+                        ? "Enter bearer token..."
+                        : "Enter value..."
+                  }
+                  className="w-full px-3 py-2 bg-primary border border-primary rounded-lg text-sm focus:outline-none focus:border-accent-primary"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Request Body */}
       {hasBody && (
         <div className="mb-4">
@@ -685,19 +847,19 @@ const EndpointDetail: React.FC<EndpointDetailProps> = ({
         </div>
       )}
 
-      {/* Custom Headers */}
-      <div className="mb-4">
-        <h4 className="font-semibold text-sm mb-2">
-          Custom Headers (Optional)
-        </h4>
+      {/* Custom Headers (collapsed by default since security params cover most cases) */}
+      <details className="mb-4">
+        <summary className="font-semibold text-sm mb-2 cursor-pointer text-secondary hover:text-primary">
+          Additional Headers (Optional)
+        </summary>
         <textarea
           value={headers}
           onChange={(e) => setHeaders(e.target.value)}
-          placeholder='{"Authorization": "Bearer token", "X-Custom": "value"}'
+          placeholder='{"X-Custom": "value"}'
           rows={3}
-          className="w-full px-3 py-2 bg-tertiary border border-primary rounded-lg text-sm font-mono focus:outline-none focus:border-accent-primary resize-y"
+          className="w-full px-3 py-2 bg-tertiary border border-primary rounded-lg text-sm font-mono focus:outline-none focus:border-accent-primary resize-y mt-2"
         />
-      </div>
+      </details>
 
       {/* Response */}
       {showResponse && (

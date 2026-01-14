@@ -92,6 +92,12 @@ export interface Application {
     url: string;
     urls?: EnvironmentUrls;
     version?: string;
+    // Multiple API definitions (like V1.0, V2.0, or different services)
+    definitions?: Array<{
+      name: string;
+      url: string;
+      urls?: EnvironmentUrls;
+    }>;
   };
   hangfire?: {
     enabled: boolean;
@@ -121,8 +127,7 @@ export type Environment =
   | "qa2"
   | "staging"
   | "preprod"
-  | "prod"
-  | "demo";
+  | "prod";
 
 export interface EnvironmentUrls {
   local?: string;
@@ -132,7 +137,6 @@ export interface EnvironmentUrls {
   staging?: string;
   preprod?: string;
   prod?: string;
-  demo?: string;
 }
 
 export type AuthMethod =

@@ -45,7 +45,33 @@ Browse and execute OpenAPI/Swagger endpoints:
 
 #### Database View
 
-Database schema visualization showing tables and relationships.
+Enhanced database schema visualization with three sub-tabs:
+
+**Overview Tab**
+
+- Database schema visualization showing tables and relationships
+- Connected applications display
+- Schema statistics summary (schemas, tables, columns counts)
+- Application-database connection diagram
+- Environment toggle (PROD/QA)
+
+**Schema Explorer Tab**
+
+- Full schema browser for 1,200+ tables across 56 schemas
+- Search by table name or column name
+- Filter by schema (CarePayment, Epic, FiServ, Accounting, etc.)
+- Expandable table details showing all columns with data types
+- Primary key and foreign key indicators
+- Nullable column indicators
+
+**Query Assistant Tab**
+
+- AI-powered SQL query generation from natural language
+- Pre-built common queries library (14 queries across 6 categories)
+- Query categories: Patient, Settlement, Epic, FiServ, Accounting, Reporting
+- Generated SQL with explanations and warnings
+- Copy-to-clipboard functionality
+- Query execution safety (SELECT only)
 
 ### 3. Authentication Testing
 
@@ -96,19 +122,27 @@ infrastructure-dashboard/
 │   │   ├── layout/
 │   │   │   ├── Header.tsx      # App header with environment selector
 │   │   │   └── Sidebar.tsx     # Application navigation sidebar
+│   │   ├── database/
+│   │   │   ├── QueryAssistant.tsx    # AI query generation component
+│   │   │   └── SchemaExplorer.tsx    # Schema browser component
 │   │   ├── panels/
 │   │   │   ├── AuthTestSection.tsx   # Auth testing component
-│   │   │   ├── DatabasePanel.tsx     # Database schema view
+│   │   │   ├── DatabasePanel.tsx     # Database schema view with sub-tabs
 │   │   │   ├── EventFlowPanel.tsx    # React Flow diagram
 │   │   │   └── SwaggerPanel.tsx      # API documentation & execution
 │   │   └── views/
 │   │       ├── DetailsView.tsx       # Integration details
 │   │       ├── IntegrationView.tsx   # Single integration detail
 │   │       └── VisualView.tsx        # Visual diagram view
+│   ├── data/
+│   │   └── commonQueries.ts    # Pre-built SQL queries library
+│   ├── hooks/
+│   │   └── useSchemaData.ts    # Schema loading and search hook
 │   ├── services/
 │   │   └── api.ts              # API client for orchestrator
 │   └── types/
 │       ├── infrastructure.ts   # Core types including Environment
+│       ├── schema.ts           # Database schema types
 │       └── swagger.ts          # OpenAPI/Swagger types
 ├── package.json
 ├── tsconfig.json
@@ -158,6 +192,19 @@ The dashboard requires the QE Orchestrator for:
 ### Infrastructure Data
 
 - `GET /api/infrastructure/status` - Get application configurations
+
+### AI Query Assistant
+
+- `POST /api/ai/generate-query` - Generate SQL from natural language
+- `GET /api/ai/schema-summary` - Get schema summary for a database
+- `POST /api/ai/explain-query` - Explain an existing SQL query
+
+### Schema Data
+
+Schema JSON files are served from `/schemas/` directory:
+
+- `CarePayment_PROD.json` - Production database schema
+- `CarePayment_QA.json` - QA database schema
 
 ## Type Definitions
 
@@ -217,6 +264,14 @@ const ORCHESTRATOR_URL = "http://localhost:3000";
 ```
 
 ## Recent Changes (January 2026)
+
+### Database Panel Enhancements (Latest)
+
+- **Schema Explorer**: Browse 1,200+ tables across 56 schemas with search
+- **Query Assistant**: AI-powered SQL generation from natural language using Claude
+- **Common Queries Library**: 14 pre-built queries across 6 categories
+- **Environment Toggle**: Switch between PROD and QA database schemas
+- **Schema Statistics**: Visual summary of database structure
 
 ### Environment Selector Feature
 

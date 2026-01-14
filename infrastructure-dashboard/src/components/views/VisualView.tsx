@@ -29,7 +29,6 @@ const environmentLabels: Record<Environment, string> = {
   staging: "Staging",
   preprod: "PreProd",
   prod: "Prod",
-  demo: "Demo",
 };
 
 const environmentColors: Record<Environment, string> = {
@@ -40,7 +39,6 @@ const environmentColors: Record<Environment, string> = {
   staging: "bg-yellow-600",
   preprod: "bg-orange-600",
   prod: "bg-green-600",
-  demo: "bg-pink-600",
 };
 
 interface VisualViewProps {
@@ -157,7 +155,8 @@ export const VisualView: React.FC<VisualViewProps> = ({
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {Object.entries(app.environmentLinks || app.baseUrls || {}).map(
               ([env, url]) => {
-                if (!url) return null;
+                // Skip local environment links - they don't work externally
+                if (!url || env === "local") return null;
                 const envKey = env as Environment;
                 return (
                   <a
@@ -165,14 +164,18 @@ export const VisualView: React.FC<VisualViewProps> = ({
                     href={url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex flex-col items-center gap-2 p-4 card hover:scale-105 transition-transform cursor-pointer group"
+                    className="flex flex-col items-center gap-2 p-4 card hover:scale-105 transition-transform cursor-pointer group no-underline"
+                    style={{ textDecoration: "none" }}
                   >
                     <div
                       className={`${environmentColors[envKey] || "bg-gray-600"} text-white px-3 py-1 rounded-full text-xs font-bold`}
                     >
                       {environmentLabels[envKey] || env.toUpperCase()}
                     </div>
-                    <div className="text-xs text-tertiary text-center truncate max-w-full group-hover:text-accent transition-colors">
+                    <div
+                      className="text-tertiary text-center group-hover:text-accent transition-colors break-all"
+                      style={{ fontSize: "20px", lineHeight: "1.3" }}
+                    >
                       {new URL(url).hostname}
                     </div>
                     <ExternalLink className="w-4 h-4 text-tertiary group-hover:text-accent transition-colors" />

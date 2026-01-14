@@ -24,22 +24,21 @@ import HangfirePanel from "./components/panels/HangfirePanel";
 
 import "./App.css";
 
+// Valid environments list
+const VALID_ENVIRONMENTS = [
+  "local",
+  "dev",
+  "qa",
+  "qa2",
+  "staging",
+  "preprod",
+  "prod",
+];
+
 // Load environment from localStorage or default to 'local'
 const getInitialEnvironment = (): Environment => {
   const saved = localStorage.getItem("carepayment_environment");
-  if (
-    saved &&
-    [
-      "local",
-      "dev",
-      "qa",
-      "qa2",
-      "staging",
-      "preprod",
-      "prod",
-      "demo",
-    ].includes(saved)
-  ) {
+  if (saved && VALID_ENVIRONMENTS.includes(saved)) {
     return saved as Environment;
   }
   return "local";
@@ -246,6 +245,7 @@ const App: React.FC = () => {
           viewMode={viewMode}
           isRefreshing={isRefreshing}
           environment={environment}
+          isViewingIntegration={selectedIntegration !== null}
           onViewModeChange={setViewMode}
           onRefresh={handleRefresh}
           onEnvironmentChange={handleEnvironmentChange}

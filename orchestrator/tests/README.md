@@ -22,6 +22,7 @@ Comprehensive unit and integration test suite for the QE MCP Stack Orchestrator 
 | playwright.js     | TBD        | TBD      | TBD       | TBD    | ✅ 35 tests         |
 | dashboard.js      | TBD        | TBD      | TBD       | TBD    | ✅ 34 tests         |
 | ado.js            | TBD        | TBD      | TBD       | TBD    | ✅ 30 tests         |
+| ai.js             | TBD        | TBD      | TBD       | TBD    | ✅ 18 tests         |
 
 **Targets:** 60% global, 80% for services/utils, 35% for routes
 **Current:** Phase 3 complete - All 9 route files have comprehensive API tests (196 route tests)
@@ -123,6 +124,14 @@ Comprehensive unit and integration test suite for the QE MCP Stack Orchestrator 
 - ✅ GET /api/dashboard/overview - Combined .NET and JS overview
 - ✅ GET /api/dashboard/aod-summary - ADO summary data
 - ✅ GET /api/dashboard/config/apps - Applications configuration
+
+**ai.test.js (18 tests)**
+
+- ✅ POST /api/ai/generate-query - Generate SQL from natural language
+- ✅ GET /api/ai/schema-summary - Get database schema summary
+- ✅ POST /api/ai/explain-query - Explain existing SQL query
+- ✅ Error handling (missing params, AI service errors, malformed responses)
+- ✅ Security (SELECT-only query generation)
 
 **ado.test.js (30 tests)**
 

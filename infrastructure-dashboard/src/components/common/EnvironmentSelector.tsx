@@ -17,7 +17,6 @@ const ENVIRONMENTS: {
   { key: "staging", label: "Staging" },
   { key: "preprod", label: "PreProd" },
   { key: "prod", label: "Prod" },
-  { key: "demo", label: "Demo" },
 ];
 
 export const EnvironmentSelector: React.FC<EnvironmentSelectorProps> = ({

@@ -1,12 +1,5 @@
 import React from "react";
-import {
-  Clock,
-  ExternalLink,
-  Server,
-  Activity,
-  RefreshCw,
-  AlertCircle,
-} from "lucide-react";
+import { ExternalLink, Server, Activity, RefreshCw } from "lucide-react";
 import type {
   Application,
   InfrastructureData,
@@ -27,18 +20,6 @@ const environmentLabels: Record<Environment, string> = {
   staging: "Staging",
   preprod: "PreProd",
   prod: "Prod",
-  demo: "Demo",
-};
-
-const environmentColors: Record<Environment, string> = {
-  local: "bg-gray-600",
-  dev: "bg-blue-600",
-  qa: "bg-purple-600",
-  qa2: "bg-indigo-600",
-  staging: "bg-yellow-600",
-  preprod: "bg-orange-600",
-  prod: "bg-green-600",
-  demo: "bg-pink-600",
 };
 
 export const HangfirePanel: React.FC<HangfirePanelProps> = ({
@@ -59,86 +40,12 @@ export const HangfirePanel: React.FC<HangfirePanelProps> = ({
     return appData.hangfire?.urls?.[env] || null;
   };
 
-  // Get current app's hangfire URL
-  const currentHangfireUrl = getHangfireUrl(app, environment);
-
   // Get jobs from integrations
   const hangfireIntegration = app.integrations?.hangfire;
   const jobs = hangfireIntegration?.jobs || [];
 
   return (
     <div className="p-6">
-      {/* Current App Hangfire */}
-      <div className="card mb-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Clock className="w-5 h-5" /> {app.name} - Hangfire Dashboard
-        </h3>
-
-        {currentHangfireUrl ? (
-          <div className="space-y-4">
-            {/* Quick Access */}
-            <div className="flex items-center gap-4">
-              <a
-                href={currentHangfireUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="btn btn-primary flex items-center gap-2"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Open Hangfire ({environmentLabels[environment]})
-              </a>
-              <span className="text-sm text-secondary">
-                {currentHangfireUrl}
-              </span>
-            </div>
-
-            {/* All Environments for Current App */}
-            {app.hangfire?.urls && (
-              <div className="mt-4">
-                <h4 className="text-sm font-medium mb-3 text-secondary">
-                  All Environments:
-                </h4>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {Object.entries(app.hangfire.urls).map(([env, url]) => {
-                    if (!url) return null;
-                    const envKey = env as Environment;
-                    const isActive = env === environment;
-                    return (
-                      <a
-                        key={env}
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`flex flex-col items-center gap-2 p-3 rounded-lg border transition-all ${
-                          isActive
-                            ? "border-accent bg-tertiary"
-                            : "border-primary hover:border-accent"
-                        }`}
-                      >
-                        <div
-                          className={`${environmentColors[envKey] || "bg-gray-600"} text-white px-3 py-1 rounded-full text-xs font-bold`}
-                        >
-                          {environmentLabels[envKey] || env.toUpperCase()}
-                        </div>
-                        <ExternalLink className="w-4 h-4 text-tertiary" />
-                      </a>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="flex items-center gap-3 text-secondary">
-            <AlertCircle className="w-5 h-5 text-yellow-500" />
-            <span>
-              Hangfire dashboard not configured for {app.name} in{" "}
-              {environmentLabels[environment]} environment
-            </span>
-          </div>
-        )}
-      </div>
-
       {/* Background Jobs */}
       {jobs.length > 0 && (
         <div className="card mb-6">

@@ -20,6 +20,7 @@ interface HeaderProps {
   viewMode: ViewMode;
   isRefreshing: boolean;
   environment: Environment;
+  isViewingIntegration?: boolean;
   onViewModeChange: (mode: ViewMode) => void;
   onRefresh: () => void;
   onEnvironmentChange: (env: Environment) => void;
@@ -30,6 +31,7 @@ export const Header: React.FC<HeaderProps> = ({
   viewMode,
   isRefreshing,
   environment,
+  isViewingIntegration = false,
   onViewModeChange,
   onRefresh,
   onEnvironmentChange,
@@ -67,47 +69,91 @@ export const Header: React.FC<HeaderProps> = ({
         <div className="flex gap-2">
           <button
             onClick={onRefresh}
-            disabled={isRefreshing}
+            disabled={isRefreshing || isViewingIntegration}
             className="btn btn-ghost btn-sm"
-            title="Scan repositories for changes"
+            title={
+              isViewingIntegration
+                ? "Go back to architecture first"
+                : "Scan repositories for changes"
+            }
           >
             <RefreshCw
               className={`w-4 h-4 ${isRefreshing ? "animate-spin" : ""}`}
             />
           </button>
           <button
-            onClick={() => onViewModeChange("visual")}
-            className={`btn btn-sm ${viewMode === "visual" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => !isViewingIntegration && onViewModeChange("visual")}
+            disabled={isViewingIntegration}
+            className={`btn btn-sm ${viewMode === "visual" ? "btn-primary" : "btn-ghost"} ${isViewingIntegration ? "opacity-50 cursor-not-allowed" : ""}`}
+            title={
+              isViewingIntegration
+                ? "Go back to architecture first"
+                : "Visual view"
+            }
           >
             <Layers className="w-4 h-4" /> Visual
           </button>
           <button
-            onClick={() => onViewModeChange("details")}
-            className={`btn btn-sm ${viewMode === "details" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => !isViewingIntegration && onViewModeChange("details")}
+            disabled={isViewingIntegration}
+            className={`btn btn-sm ${viewMode === "details" ? "btn-primary" : "btn-ghost"} ${isViewingIntegration ? "opacity-50 cursor-not-allowed" : ""}`}
+            title={
+              isViewingIntegration
+                ? "Go back to architecture first"
+                : "Details view"
+            }
           >
             <Settings className="w-4 h-4" /> Details
           </button>
           <button
-            onClick={() => onViewModeChange("flow")}
-            className={`btn btn-sm ${viewMode === "flow" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => !isViewingIntegration && onViewModeChange("flow")}
+            disabled={isViewingIntegration}
+            className={`btn btn-sm ${viewMode === "flow" ? "btn-primary" : "btn-ghost"} ${isViewingIntegration ? "opacity-50 cursor-not-allowed" : ""}`}
+            title={
+              isViewingIntegration
+                ? "Go back to architecture first"
+                : "Flow view"
+            }
           >
             <GitBranch className="w-4 h-4" /> Flow
           </button>
           <button
-            onClick={() => onViewModeChange("swagger")}
-            className={`btn btn-sm ${viewMode === "swagger" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() => !isViewingIntegration && onViewModeChange("swagger")}
+            disabled={isViewingIntegration}
+            className={`btn btn-sm ${viewMode === "swagger" ? "btn-primary" : "btn-ghost"} ${isViewingIntegration ? "opacity-50 cursor-not-allowed" : ""}`}
+            title={
+              isViewingIntegration
+                ? "Go back to architecture first"
+                : "API view"
+            }
           >
             <FileJson className="w-4 h-4" /> API
           </button>
           <button
-            onClick={() => onViewModeChange("database")}
-            className={`btn btn-sm ${viewMode === "database" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() =>
+              !isViewingIntegration && onViewModeChange("database")
+            }
+            disabled={isViewingIntegration}
+            className={`btn btn-sm ${viewMode === "database" ? "btn-primary" : "btn-ghost"} ${isViewingIntegration ? "opacity-50 cursor-not-allowed" : ""}`}
+            title={
+              isViewingIntegration
+                ? "Go back to architecture first"
+                : "Database view"
+            }
           >
             <Database className="w-4 h-4" /> Database
           </button>
           <button
-            onClick={() => onViewModeChange("hangfire")}
-            className={`btn btn-sm ${viewMode === "hangfire" ? "btn-primary" : "btn-ghost"}`}
+            onClick={() =>
+              !isViewingIntegration && onViewModeChange("hangfire")
+            }
+            disabled={isViewingIntegration}
+            className={`btn btn-sm ${viewMode === "hangfire" ? "btn-primary" : "btn-ghost"} ${isViewingIntegration ? "opacity-50 cursor-not-allowed" : ""}`}
+            title={
+              isViewingIntegration
+                ? "Go back to architecture first"
+                : "Hangfire view"
+            }
           >
             <Clock className="w-4 h-4" /> Hangfire
           </button>
