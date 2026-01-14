@@ -2174,6 +2174,10 @@ export class AnalysisPanel {
     );
     if (!resultsContainer || !this.generatedTestCases) return;
 
+    // Store acceptanceCriteria for use in event handlers that need to re-render
+    this.currentAcceptanceCriteria =
+      acceptanceCriteria || this.currentAcceptanceCriteria || [];
+
     const testCases = this.generatedTestCases;
 
     // Prefer ACs from Risk Analysis for complete descriptions
@@ -2281,7 +2285,7 @@ export class AnalysisPanel {
                   ? data.testCases
                       .map(
                         (tc, index) => `
-                <div class="test-case-item priority-${tc.priority || "medium"}" data-type="${tc.type}" data-tc-index="${index}" data-ac-ref="${acId}">
+                <div class="test-case-item priority-${tc.priority || "medium"}" data-type="${tc.type}" data-tc-index="${index}" data-ac-ref="${acId}" data-tc-name="${tc.name}">
                   <div class="test-case-header">
                     <span class="test-type type-${tc.type}">[${tc.type.toUpperCase()}]</span>
                     <span class="test-name">${tc.name}</span>
@@ -2290,26 +2294,42 @@ export class AnalysisPanel {
                       <button class="btn-delete-test" data-tc-name="${tc.name}" title="Remove test case">✕</button>
                     </div>
                   </div>
-                  ${
-                    tc.steps && tc.steps.length > 0
-                      ? `
-                    <div class="test-steps">
-                      <ol>
-                        ${tc.steps.map((step) => `<li>${step.action || step}</li>`).join("")}
-                      </ol>
+                  <div class="test-steps-editable">
+                    <div class="steps-header">
+                      <strong>Steps:</strong>
+                      <button class="btn-add-step" data-tc-name="${tc.name}" title="Add step">+ Add Step</button>
                     </div>
-                  `
-                      : ""
-                  }
-                  ${
-                    tc.expectedResult
-                      ? `
-                    <div class="expected-result">
-                      <strong>Expected:</strong> ${tc.expectedResult}
-                    </div>
-                  `
-                      : ""
-                  }
+                    <ol class="editable-steps-list" data-tc-name="${tc.name}">
+                      ${
+                        tc.steps && tc.steps.length > 0
+                          ? tc.steps
+                              .map(
+                                (step, stepIdx) => `
+                        <li class="editable-step-item" data-step-index="${stepIdx}">
+                          <div class="step-row">
+                            <span class="step-number">${stepIdx + 1}.</span>
+                            <input type="text" class="step-action-input"
+                              value="${(step.action || step || "").replace(/"/g, "&quot;")}"
+                              data-tc-name="${tc.name}"
+                              data-step-index="${stepIdx}"
+                              placeholder="Step action..." />
+                            <button class="btn-delete-step" data-tc-name="${tc.name}" data-step-index="${stepIdx}" title="Remove step">✕</button>
+                          </div>
+                        </li>
+                      `,
+                              )
+                              .join("")
+                          : `<li class="no-steps-placeholder">No steps defined. Click "Add Step" to add one.</li>`
+                      }
+                    </ol>
+                  </div>
+                  <div class="expected-result-editable">
+                    <strong>Expected Result:</strong>
+                    <textarea class="expected-result-input"
+                      data-tc-name="${tc.name}"
+                      placeholder="Enter expected result..."
+                      rows="2">${tc.expectedResult || ""}</textarea>
+                  </div>
                 </div>
               `,
                       )
@@ -2475,6 +2495,42 @@ export class AnalysisPanel {
         this.deleteTestCase(tcName, acceptanceCriteria);
       });
     });
+
+    // Step action input change handlers
+    document.querySelectorAll(".step-action-input").forEach((input) => {
+      input.addEventListener("change", (e) => {
+        const tcName = input.dataset.tcName;
+        const stepIndex = parseInt(input.dataset.stepIndex);
+        this.updateStepAction(tcName, stepIndex, input.value);
+      });
+    });
+
+    // Add step buttons
+    document.querySelectorAll(".btn-add-step").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const tcName = btn.dataset.tcName;
+        this.addStepToTestCase(tcName);
+      });
+    });
+
+    // Delete step buttons
+    document.querySelectorAll(".btn-delete-step").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const tcName = btn.dataset.tcName;
+        const stepIndex = parseInt(btn.dataset.stepIndex);
+        this.deleteStepFromTestCase(tcName, stepIndex);
+      });
+    });
+
+    // Expected result textarea change handlers
+    document.querySelectorAll(".expected-result-input").forEach((textarea) => {
+      textarea.addEventListener("change", (e) => {
+        const tcName = textarea.dataset.tcName;
+        this.updateExpectedResult(tcName, textarea.value);
+      });
+    });
   }
 
   /**
@@ -2518,6 +2574,74 @@ export class AnalysisPanel {
 
     // Re-render the test cases
     this.renderGeneratedTestCases(acceptanceCriteria);
+  }
+
+  /**
+   * Update a step's action text
+   */
+  updateStepAction(tcName, stepIndex, newValue) {
+    const tc = this.generatedTestCases.find((tc) => tc.name === tcName);
+    if (tc && tc.steps && tc.steps[stepIndex] !== undefined) {
+      // Steps can be either strings or objects with action/expectedResult
+      if (typeof tc.steps[stepIndex] === "string") {
+        tc.steps[stepIndex] = newValue;
+      } else {
+        tc.steps[stepIndex].action = newValue;
+      }
+      console.log(`Updated step ${stepIndex + 1} for "${tcName}"`);
+    }
+  }
+
+  /**
+   * Add a new step to a test case
+   */
+  addStepToTestCase(tcName) {
+    const tc = this.generatedTestCases.find((tc) => tc.name === tcName);
+    if (tc) {
+      if (!tc.steps) {
+        tc.steps = [];
+      }
+      // Add a new step with empty action
+      const newStepNumber = tc.steps.length + 1;
+      tc.steps.push({
+        action: `Step ${newStepNumber}`,
+        expectedResult: tc.expectedResult || "Verify expected behavior",
+        stepNumber: newStepNumber,
+      });
+      console.log(`Added new step ${newStepNumber} to "${tcName}"`);
+      // Re-render to show the new step
+      this.renderGeneratedTestCases(this.currentAcceptanceCriteria);
+    }
+  }
+
+  /**
+   * Delete a step from a test case
+   */
+  deleteStepFromTestCase(tcName, stepIndex) {
+    const tc = this.generatedTestCases.find((tc) => tc.name === tcName);
+    if (tc && tc.steps && tc.steps.length > stepIndex) {
+      tc.steps.splice(stepIndex, 1);
+      // Update step numbers
+      tc.steps.forEach((step, idx) => {
+        if (typeof step === "object") {
+          step.stepNumber = idx + 1;
+        }
+      });
+      console.log(`Deleted step ${stepIndex + 1} from "${tcName}"`);
+      // Re-render to update the steps list
+      this.renderGeneratedTestCases(this.currentAcceptanceCriteria);
+    }
+  }
+
+  /**
+   * Update a test case's expected result
+   */
+  updateExpectedResult(tcName, newValue) {
+    const tc = this.generatedTestCases.find((tc) => tc.name === tcName);
+    if (tc) {
+      tc.expectedResult = newValue;
+      console.log(`Updated expected result for "${tcName}"`);
+    }
   }
 
   /**

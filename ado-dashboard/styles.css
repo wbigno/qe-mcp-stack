@@ -4632,6 +4632,139 @@ button:disabled:hover {
     border-radius: 4px;
 }
 
+/* Editable Steps Styles */
+.test-steps-editable {
+    margin-top: 12px;
+    padding: 12px;
+    background: var(--bg-tertiary);
+    border-radius: 6px;
+}
+
+.steps-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.steps-header strong {
+    font-size: 13px;
+    color: var(--text-primary);
+}
+
+.btn-add-step {
+    padding: 4px 10px;
+    font-size: 12px;
+    background: var(--accent-blue);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.btn-add-step:hover {
+    background: var(--accent-blue-hover, #2563eb);
+}
+
+.editable-steps-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.editable-step-item {
+    margin-bottom: 6px;
+}
+
+.step-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.step-number {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-muted);
+    min-width: 20px;
+}
+
+.step-action-input {
+    flex: 1;
+    padding: 6px 10px;
+    font-size: 13px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.step-action-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.btn-delete-step {
+    padding: 4px 8px;
+    font-size: 12px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: all 0.2s;
+}
+
+.btn-delete-step:hover {
+    opacity: 1;
+    background: var(--error-bg, #fee2e2);
+    color: var(--error-color, #dc2626);
+    border-color: var(--error-color, #dc2626);
+}
+
+.no-steps-placeholder {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-style: italic;
+    padding: 8px 0;
+}
+
+/* Editable Expected Result Styles */
+.expected-result-editable {
+    margin-top: 12px;
+}
+
+.expected-result-editable strong {
+    display: block;
+    font-size: 13px;
+    color: var(--text-primary);
+    margin-bottom: 6px;
+}
+
+.expected-result-input {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    resize: vertical;
+    min-height: 50px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.expected-result-input:focus {
+    outline: none;
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
 .no-tests {
     color: var(--text-muted);
     font-style: italic;
