@@ -45,12 +45,6 @@ const getInitialEnvironment = (): Environment => {
   return "local";
 };
 
-// Load theme from localStorage or default to dark
-const getInitialTheme = (): boolean => {
-  const saved = localStorage.getItem("carepayment_theme");
-  return saved !== "light"; // Default to dark mode
-};
-
 const App: React.FC = () => {
   const [data, setData] = useState<InfrastructureData | null>(null);
   const [selectedApp, setSelectedApp] = useState<string>("servicelayer");
@@ -65,22 +59,6 @@ const App: React.FC = () => {
   const [environment, setEnvironment] = useState<Environment>(
     getInitialEnvironment,
   );
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(getInitialTheme);
-
-  // Apply theme to document
-  useEffect(() => {
-    document.documentElement.setAttribute(
-      "data-theme",
-      isDarkMode ? "dark" : "light",
-    );
-  }, [isDarkMode]);
-
-  // Toggle theme
-  const handleThemeToggle = () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    localStorage.setItem("carepayment_theme", newTheme ? "dark" : "light");
-  };
 
   // Save environment to localStorage when it changes
   const handleEnvironmentChange = (env: Environment) => {
@@ -268,11 +246,9 @@ const App: React.FC = () => {
           viewMode={viewMode}
           isRefreshing={isRefreshing}
           environment={environment}
-          isDarkMode={isDarkMode}
           onViewModeChange={setViewMode}
           onRefresh={handleRefresh}
           onEnvironmentChange={handleEnvironmentChange}
-          onThemeToggle={handleThemeToggle}
         />
 
         {/* Content Area */}
