@@ -411,9 +411,9 @@ export const SwaggerPanel: React.FC<SwaggerPanelProps> = ({
                             }`}
                           >
                             <MethodBadge method={endpoint.method} />
-                            <code className="text-xs truncate flex-1">
+                            <span className="text-xs text-white truncate flex-1 font-mono">
                               {endpoint.path}
-                            </code>
+                            </span>
                           </button>
                         ))}
                       </div>

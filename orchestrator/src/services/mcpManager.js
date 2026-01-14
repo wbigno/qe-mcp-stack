@@ -131,8 +131,14 @@ export class MCPManager {
   async initialize() {
     logger.info("Initializing MCP Manager...");
 
-    // Wait for API MCPs to be ready
-    await this.waitForDockerMcps();
+    // Wait for API MCPs to be ready (optional - continue if timeout)
+    try {
+      await this.waitForDockerMcps();
+    } catch (error) {
+      logger.warn(
+        "Docker MCPs not available, continuing without them: " + error.message,
+      );
+    }
 
     // Check dashboard availability
     await this.checkDashboards();

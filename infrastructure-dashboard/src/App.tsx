@@ -20,16 +20,35 @@ import IntegrationView from "./components/views/IntegrationView";
 import EventFlowPanel from "./components/panels/EventFlowPanel";
 import SwaggerPanel from "./components/panels/SwaggerPanel";
 import DatabasePanel from "./components/panels/DatabasePanel";
+import HangfirePanel from "./components/panels/HangfirePanel";
 
 import "./App.css";
 
 // Load environment from localStorage or default to 'local'
 const getInitialEnvironment = (): Environment => {
   const saved = localStorage.getItem("carepayment_environment");
-  if (saved && ["local", "dev", "staging", "prod"].includes(saved)) {
+  if (
+    saved &&
+    [
+      "local",
+      "dev",
+      "qa",
+      "qa2",
+      "staging",
+      "preprod",
+      "prod",
+      "demo",
+    ].includes(saved)
+  ) {
     return saved as Environment;
   }
   return "local";
+};
+
+// Load theme from localStorage or default to dark
+const getInitialTheme = (): boolean => {
+  const saved = localStorage.getItem("carepayment_theme");
+  return saved !== "light"; // Default to dark mode
 };
 
 const App: React.FC = () => {
@@ -46,6 +65,22 @@ const App: React.FC = () => {
   const [environment, setEnvironment] = useState<Environment>(
     getInitialEnvironment,
   );
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(getInitialTheme);
+
+  // Apply theme to document
+  useEffect(() => {
+    document.documentElement.setAttribute(
+      "data-theme",
+      isDarkMode ? "dark" : "light",
+    );
+  }, [isDarkMode]);
+
+  // Toggle theme
+  const handleThemeToggle = () => {
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    localStorage.setItem("carepayment_theme", newTheme ? "dark" : "light");
+  };
 
   // Save environment to localStorage when it changes
   const handleEnvironmentChange = (env: Environment) => {
@@ -205,6 +240,11 @@ const App: React.FC = () => {
       case "database":
         return <DatabasePanel app={app} allApps={data} />;
 
+      case "hangfire":
+        return (
+          <HangfirePanel app={app} allApps={data} environment={environment} />
+        );
+
       default:
         return null;
     }
@@ -228,9 +268,11 @@ const App: React.FC = () => {
           viewMode={viewMode}
           isRefreshing={isRefreshing}
           environment={environment}
+          isDarkMode={isDarkMode}
           onViewModeChange={setViewMode}
           onRefresh={handleRefresh}
           onEnvironmentChange={handleEnvironmentChange}
+          onThemeToggle={handleThemeToggle}
         />
 
         {/* Content Area */}

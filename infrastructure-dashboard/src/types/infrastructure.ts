@@ -93,6 +93,11 @@ export interface Application {
     urls?: EnvironmentUrls;
     version?: string;
   };
+  hangfire?: {
+    enabled: boolean;
+    urls?: EnvironmentUrls;
+  };
+  environmentLinks?: EnvironmentUrls;
   repository?: string;
 }
 
@@ -101,15 +106,33 @@ export interface InfrastructureData {
   lastUpdated?: string;
 }
 
-export type ViewMode = "visual" | "details" | "flow" | "swagger" | "database";
+export type ViewMode =
+  | "visual"
+  | "details"
+  | "flow"
+  | "swagger"
+  | "database"
+  | "hangfire";
 
-export type Environment = "local" | "dev" | "staging" | "prod";
+export type Environment =
+  | "local"
+  | "dev"
+  | "qa"
+  | "qa2"
+  | "staging"
+  | "preprod"
+  | "prod"
+  | "demo";
 
 export interface EnvironmentUrls {
   local?: string;
   dev?: string;
+  qa?: string;
+  qa2?: string;
   staging?: string;
+  preprod?: string;
   prod?: string;
+  demo?: string;
 }
 
 export type AuthMethod =

@@ -11,9 +11,37 @@ import {
   Activity,
   Zap,
   ChevronRight,
+  ExternalLink,
+  Globe,
 } from "lucide-react";
-import type { Application, IntegrationType } from "../../types/infrastructure";
+import type {
+  Application,
+  IntegrationType,
+  Environment,
+} from "../../types/infrastructure";
 import { getIntegrationColorClass } from "../../utils/integrationHelpers";
+
+const environmentLabels: Record<Environment, string> = {
+  local: "Local",
+  dev: "DEV",
+  qa: "QA",
+  qa2: "QA2",
+  staging: "Staging",
+  preprod: "PreProd",
+  prod: "Prod",
+  demo: "Demo",
+};
+
+const environmentColors: Record<Environment, string> = {
+  local: "bg-gray-600",
+  dev: "bg-blue-600",
+  qa: "bg-purple-600",
+  qa2: "bg-indigo-600",
+  staging: "bg-yellow-600",
+  preprod: "bg-orange-600",
+  prod: "bg-green-600",
+  demo: "bg-pink-600",
+};
 
 interface VisualViewProps {
   app: Application;
@@ -104,7 +132,7 @@ export const VisualView: React.FC<VisualViewProps> = ({
       </div>
 
       {/* Features Card */}
-      <div className="card">
+      <div className="card mb-6">
         <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
           <Activity className="w-5 h-5" /> Key Features
         </h3>
@@ -119,6 +147,42 @@ export const VisualView: React.FC<VisualViewProps> = ({
           ))}
         </div>
       </div>
+
+      {/* Environment Links */}
+      {(app.environmentLinks || app.baseUrls) && (
+        <div className="card">
+          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Globe className="w-5 h-5" /> Environment Links
+          </h3>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {Object.entries(app.environmentLinks || app.baseUrls || {}).map(
+              ([env, url]) => {
+                if (!url) return null;
+                const envKey = env as Environment;
+                return (
+                  <a
+                    key={env}
+                    href={url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col items-center gap-2 p-4 card hover:scale-105 transition-transform cursor-pointer group"
+                  >
+                    <div
+                      className={`${environmentColors[envKey] || "bg-gray-600"} text-white px-3 py-1 rounded-full text-xs font-bold`}
+                    >
+                      {environmentLabels[envKey] || env.toUpperCase()}
+                    </div>
+                    <div className="text-xs text-tertiary text-center truncate max-w-full group-hover:text-accent transition-colors">
+                      {new URL(url).hostname}
+                    </div>
+                    <ExternalLink className="w-4 h-4 text-tertiary group-hover:text-accent transition-colors" />
+                  </a>
+                );
+              },
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

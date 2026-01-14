@@ -22,9 +22,14 @@ export const infrastructureData = {
       baseUrl: "http://localhost:15155/",
       baseUrls: {
         local: "http://localhost:15155/",
-        dev: "https://servicelayer-dev.carepayment.com/",
-        staging: "https://servicelayer-staging.carepayment.com/",
-        prod: "https://servicelayer.carepayment.com/",
+        dev: "https://servicelayerapi-dev-usw-appservice.azurewebsites.net/",
+        qa: "https://servicelayerapi-qa-usw-appservice.azurewebsites.net/",
+        qa2: "https://servicelayerapi-qa2-usw-appservice.azurewebsites.net/",
+        staging:
+          "https://servicelayerapi-staging-usw-appservice.azurewebsites.net/",
+        preprod:
+          "https://servicelayerapi-preprod-usw-appservice.azurewebsites.net/",
+        prod: "https://servicelayerapi-prod-usw-appservice.azurewebsites.net/",
       },
       authentication: "API Key (ServiceLayerAccessKey)",
       features: [
@@ -587,15 +592,32 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       },
       swagger: {
         enabled: true,
-        url: "http://localhost:15155/swagger/v1/swagger.json",
+        url: "http://localhost:15155/swagger/docs/v1",
         urls: {
-          local: "http://localhost:15155/swagger/v1/swagger.json",
-          dev: "https://servicelayer-dev.carepayment.com/swagger/v1/swagger.json",
+          local: "http://localhost:15155/swagger/docs/v1",
+          dev: "https://servicelayerapi-dev-usw-appservice.azurewebsites.net/swagger/docs/v1",
+          qa: "https://servicelayerapi-qa-usw-appservice.azurewebsites.net/swagger/docs/v1",
+          qa2: "https://servicelayerapi-qa2-usw-appservice.azurewebsites.net/swagger/docs/v1",
           staging:
-            "https://servicelayer-staging.carepayment.com/swagger/v1/swagger.json",
-          prod: "https://servicelayer.carepayment.com/swagger/v1/swagger.json",
+            "https://servicelayerapi-staging-usw-appservice.azurewebsites.net/swagger/docs/v1",
+          preprod:
+            "https://servicelayerapi-preprod-usw-appservice.azurewebsites.net/swagger/docs/v1",
+          prod: "https://servicelayerapi-prod-usw-appservice.azurewebsites.net/swagger/docs/v1",
         },
         version: "v1",
+      },
+      hangfire: {
+        enabled: true,
+        urls: {
+          dev: "https://servicelayerapi-dev-usw-appservice.azurewebsites.net/hangfire",
+          qa: "https://servicelayerapi-qa-usw-appservice.azurewebsites.net/hangfire",
+          qa2: "https://servicelayerapi-qa2-usw-appservice.azurewebsites.net/hangfire",
+          staging:
+            "https://servicelayerapi-staging-usw-appservice.azurewebsites.net/hangfire",
+          preprod:
+            "https://servicelayerapi-preprod-usw-appservice.azurewebsites.net/hangfire",
+          prod: "https://servicelayerapi-prod-usw-appservice.azurewebsites.net/hangfire",
+        },
       },
       dependencies: {
         core: [
@@ -631,9 +653,22 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       baseUrl: "https://carelink.carepayment.com",
       baseUrls: {
         local: "http://localhost:54879/",
-        dev: "https://carelink-dev.carepayment.com/",
-        staging: "https://carelink-staging.carepayment.com/",
+        dev: "https://carelink-dev-usw-appservice.azurewebsites.net/",
+        qa: "https://carelink-qa-usw-appservice.azurewebsites.net/",
+        qa2: "https://carelink-qa2-usw-appservice.azurewebsites.net/",
+        staging: "https://carelink-staging-usw-appservice.azurewebsites.net/",
+        preprod: "https://carelink-preprod-usw-appservice.azurewebsites.net/",
         prod: "https://carelink.carepayment.com/",
+        demo: "https://carelink-demo-usw-appservice.azurewebsites.net/",
+      },
+      environmentLinks: {
+        dev: "https://carelink-dev-usw-appservice.azurewebsites.net/",
+        qa: "https://carelink-qa-usw-appservice.azurewebsites.net/",
+        qa2: "https://carelink-qa2-usw-appservice.azurewebsites.net/",
+        staging: "https://carelink-staging-usw-appservice.azurewebsites.net/",
+        preprod: "https://carelink-preprod-usw-appservice.azurewebsites.net/",
+        prod: "https://carelink.carepayment.com/",
+        demo: "https://carelink-demo-usw-appservice.azurewebsites.net/",
       },
       authentication: "Forms Authentication with SQL Membership",
       features: [
@@ -718,9 +753,26 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       baseUrl: "https://member.carepayment.com",
       baseUrls: {
         local: "http://localhost:52763/",
-        dev: "https://member-dev.carepayment.com/",
-        staging: "https://member-staging.carepayment.com/",
+        dev: "https://memberportal-dev-usw-appservice.azurewebsites.net/",
+        qa: "https://memberportal-qa-usw-appservice.azurewebsites.net/",
+        qa2: "https://memberportal-qa2-usw-appservice.azurewebsites.net/",
+        staging:
+          "https://memberportal-staging-usw-appservice.azurewebsites.net/",
+        preprod:
+          "https://memberportal-preprod-usw-appservice.azurewebsites.net/",
         prod: "https://member.carepayment.com/",
+        demo: "https://memberportal-demo-usw-appservice.azurewebsites.net/",
+      },
+      environmentLinks: {
+        dev: "https://memberportal-dev-usw-appservice.azurewebsites.net/",
+        qa: "https://memberportal-qa-usw-appservice.azurewebsites.net/",
+        qa2: "https://memberportal-qa2-usw-appservice.azurewebsites.net/",
+        staging:
+          "https://memberportal-staging-usw-appservice.azurewebsites.net/",
+        preprod:
+          "https://memberportal-preprod-usw-appservice.azurewebsites.net/",
+        prod: "https://member.carepayment.com/",
+        demo: "https://memberportal-demo-usw-appservice.azurewebsites.net/",
       },
       authentication: "Azure AD B2C (OAuth 2.0 / OpenID Connect)",
       features: [
@@ -816,9 +868,26 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       baseUrl: "https://provider.carepayment.com",
       baseUrls: {
         local: "http://localhost:50001/",
-        dev: "https://provider-dev.carepayment.com/",
-        staging: "https://provider-staging.carepayment.com/",
+        dev: "https://providerportal-dev-usw-appservice.azurewebsites.net/",
+        qa: "https://providerportal-qa-usw-appservice.azurewebsites.net/",
+        qa2: "https://providerportal-qa2-usw-appservice.azurewebsites.net/",
+        staging:
+          "https://providerportal-staging-usw-appservice.azurewebsites.net/",
+        preprod:
+          "https://providerportal-preprod-usw-appservice.azurewebsites.net/",
         prod: "https://provider.carepayment.com/",
+        demo: "https://providerportal-demo-usw-appservice.azurewebsites.net/",
+      },
+      environmentLinks: {
+        dev: "https://providerportal-dev-usw-appservice.azurewebsites.net/",
+        qa: "https://providerportal-qa-usw-appservice.azurewebsites.net/",
+        qa2: "https://providerportal-qa2-usw-appservice.azurewebsites.net/",
+        staging:
+          "https://providerportal-staging-usw-appservice.azurewebsites.net/",
+        preprod:
+          "https://providerportal-preprod-usw-appservice.azurewebsites.net/",
+        prod: "https://provider.carepayment.com/",
+        demo: "https://providerportal-demo-usw-appservice.azurewebsites.net/",
       },
       authentication: "Forms Authentication with SQL Membership",
       features: [
@@ -909,9 +978,14 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       baseUrl: "http://localhost:50708/services/",
       baseUrls: {
         local: "http://localhost:50708/services/",
-        dev: "https://integration-dev.carepayment.com/services/",
-        staging: "https://integration-staging.carepayment.com/services/",
-        prod: "https://integration.carepayment.com/services/",
+        dev: "https://integrationapi-dev-usw-appservice.azurewebsites.net/services/",
+        qa: "https://integrationapi-qa-usw-appservice.azurewebsites.net/services/",
+        qa2: "https://integrationapi-qa2-usw-appservice.azurewebsites.net/services/",
+        staging:
+          "https://integrationapi-staging-usw-appservice.azurewebsites.net/services/",
+        preprod:
+          "https://integrationapi-preprod-usw-appservice.azurewebsites.net/services/",
+        prod: "https://integrationapi-prod-usw-appservice.azurewebsites.net/services/",
       },
       authentication: "OAuth 2.0, API Keys, IP Whitelisting",
       features: [
@@ -998,15 +1072,32 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       },
       swagger: {
         enabled: true,
-        url: "http://localhost:50708/swagger/v1/swagger.json",
+        url: "http://localhost:50708/swagger/docs/v1",
         urls: {
-          local: "http://localhost:50708/swagger/v1/swagger.json",
-          dev: "https://integration-dev.carepayment.com/swagger/v1/swagger.json",
+          local: "http://localhost:50708/swagger/docs/v1",
+          dev: "https://integrationapi-dev-usw-appservice.azurewebsites.net/swagger/docs/v1",
+          qa: "https://integrationapi-qa-usw-appservice.azurewebsites.net/swagger/docs/v1",
+          qa2: "https://integrationapi-qa2-usw-appservice.azurewebsites.net/swagger/docs/v1",
           staging:
-            "https://integration-staging.carepayment.com/swagger/v1/swagger.json",
-          prod: "https://integration.carepayment.com/swagger/v1/swagger.json",
+            "https://integrationapi-staging-usw-appservice.azurewebsites.net/swagger/docs/v1",
+          preprod:
+            "https://integrationapi-preprod-usw-appservice.azurewebsites.net/swagger/docs/v1",
+          prod: "https://integrationapi-prod-usw-appservice.azurewebsites.net/swagger/docs/v1",
         },
         version: "v1",
+      },
+      hangfire: {
+        enabled: true,
+        urls: {
+          dev: "https://integrationapi-dev-usw-appservice.azurewebsites.net/hangfire",
+          qa: "https://integrationapi-qa-usw-appservice.azurewebsites.net/hangfire",
+          qa2: "https://integrationapi-qa2-usw-appservice.azurewebsites.net/hangfire",
+          staging:
+            "https://integrationapi-staging-usw-appservice.azurewebsites.net/hangfire",
+          preprod:
+            "https://integrationapi-preprod-usw-appservice.azurewebsites.net/hangfire",
+          prod: "https://integrationapi-prod-usw-appservice.azurewebsites.net/hangfire",
+        },
       },
       dependencies: {
         core: [
@@ -1029,12 +1120,16 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       color: "bg-cyan-500",
       framework: "ASP.NET Core Web API",
       deployment: "IIS / Azure App Service",
-      baseUrl: "https://api.carepayment.com",
+      baseUrl: "https://corecommonapi.carepayment.com",
       baseUrls: {
         local: "http://localhost:5000/",
-        dev: "https://api-dev.carepayment.com/",
-        staging: "https://api-staging.carepayment.com/",
-        prod: "https://api.carepayment.com/",
+        dev: "https://devcorecommonapi.carepayment.com/",
+        qa: "https://qacorecommonapi.carepayment.com/",
+        qa2: "https://qa2corecommonapi.carepayment.com/",
+        staging:
+          "https://core-common-api-dev-usw-appservice-staging.azurewebsites.net/",
+        preprod: "https://preprodcorecommonapi.carepayment.com/",
+        prod: "https://corecommonapi.carepayment.com/",
       },
       authentication: "JWT Bearer Tokens, API Keys",
       features: [
@@ -1117,15 +1212,32 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       },
       swagger: {
         enabled: true,
-        url: "https://api.carepayment.com/swagger/v1/swagger.json",
+        note: "Swagger requires VPN access",
+        url: "https://corecommonapi.carepayment.com/swagger/v1/swagger.json",
         urls: {
           local: "http://localhost:5000/swagger/v1/swagger.json",
-          dev: "https://api-dev.carepayment.com/swagger/v1/swagger.json",
+          dev: "https://devcorecommonapi.carepayment.com/swagger/v1/swagger.json",
+          qa: "https://qacorecommonapi.carepayment.com/swagger/v1/swagger.json",
+          qa2: "https://qa2corecommonapi.carepayment.com/swagger/v1/swagger.json",
           staging:
-            "https://api-staging.carepayment.com/swagger/v1/swagger.json",
-          prod: "https://api.carepayment.com/swagger/v1/swagger.json",
+            "https://core-common-api-dev-usw-appservice-staging.azurewebsites.net/swagger/v1/swagger.json",
+          preprod:
+            "https://preprodcorecommonapi.carepayment.com/swagger/v1/swagger.json",
+          prod: "https://corecommonapi.carepayment.com/swagger/v1/swagger.json",
         },
         version: "v1",
+      },
+      hangfire: {
+        enabled: true,
+        urls: {
+          dev: "https://devcorecommonapi.carepayment.com/hangfire",
+          qa: "https://qacorecommonapi.carepayment.com/hangfire",
+          qa2: "https://qa2corecommonapi.carepayment.com/hangfire",
+          staging:
+            "https://core-common-api-dev-usw-appservice-staging.azurewebsites.net/hangfire",
+          preprod: "https://preprodcorecommonapi.carepayment.com/hangfire",
+          prod: "https://corecommonapi.carepayment.com/hangfire",
+        },
       },
       dependencies: {
         core: [
@@ -1153,9 +1265,12 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       baseUrl: "https://localhost:44391/",
       baseUrls: {
         local: "https://localhost:44391/",
-        dev: "https://payments-dev.carepayment.com/",
-        staging: "https://payments-staging.carepayment.com/",
-        prod: "https://payments.carepayment.com/",
+        dev: "https://devpaymentsapi.carepayment.com/",
+        qa: "https://qapaymentsapi.carepayment.com/",
+        qa2: "https://qa2paymentsapi.carepayment.com/",
+        staging: "https://stagingpaymentsapi.carepayment.com/",
+        preprod: "https://preprodpaymentsapi.carepayment.com/",
+        prod: "https://paymentsapi.carepayment.com/",
       },
       authentication: "API Key from Azure Key Vault",
       features: [
@@ -1223,13 +1338,18 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       },
       swagger: {
         enabled: true,
+        note: "Swagger requires VPN access",
         url: "https://localhost:44391/swagger/v1/swagger.json",
         urls: {
           local: "https://localhost:44391/swagger/v1/swagger.json",
-          dev: "https://payments-dev.carepayment.com/swagger/v1/swagger.json",
+          dev: "https://devpaymentsapi.carepayment.com/swagger/v1/swagger.json",
+          qa: "https://qapaymentsapi.carepayment.com/swagger/v1/swagger.json",
+          qa2: "https://qa2paymentsapi.carepayment.com/swagger/v1/swagger.json",
           staging:
-            "https://payments-staging.carepayment.com/swagger/v1/swagger.json",
-          prod: "https://payments.carepayment.com/swagger/v1/swagger.json",
+            "https://stagingpaymentsapi.carepayment.com/swagger/v1/swagger.json",
+          preprod:
+            "https://preprodpaymentsapi.carepayment.com/swagger/v1/swagger.json",
+          prod: "https://paymentsapi.carepayment.com/swagger/v1/swagger.json",
         },
         version: "v1",
       },
@@ -1258,9 +1378,12 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       baseUrl: "https://precare.carepayment.com",
       baseUrls: {
         local: "http://localhost:5001/",
-        dev: "https://precare-dev.carepayment.com/",
-        staging: "https://precare-staging.carepayment.com/",
-        prod: "https://precare.carepayment.com/",
+        dev: "https://devprecareapi.carepayment.com/",
+        qa: "https://qaprecareapi.carepayment.com/",
+        qa2: "https://qa2precareapi.carepayment.com/",
+        staging: "https://stagingprecareapi.carepayment.com/",
+        preprod: "https://preprodprecareapi.carepayment.com/",
+        prod: "https://precareapi.carepayment.com/",
       },
       authentication: "API Key (via ServiceLayer)",
       features: [
@@ -1347,19 +1470,100 @@ await client.SendEventAsync(new EventGridEvent("PaymentProcessed", "CarePayment"
       },
       swagger: {
         enabled: true,
-        url: "https://precare.carepayment.com/swagger/v1/swagger.json",
+        note: "Swagger requires VPN access",
+        url: "https://precareapi.carepayment.com/swagger/v1/swagger.json",
         urls: {
           local: "http://localhost:5001/swagger/v1/swagger.json",
-          dev: "https://precare-dev.carepayment.com/swagger/v1/swagger.json",
+          dev: "https://devprecareapi.carepayment.com/swagger/v1/swagger.json",
+          qa: "https://qaprecareapi.carepayment.com/swagger/v1/swagger.json",
+          qa2: "https://qa2precareapi.carepayment.com/swagger/v1/swagger.json",
           staging:
-            "https://precare-staging.carepayment.com/swagger/v1/swagger.json",
-          prod: "https://precare.carepayment.com/swagger/v1/swagger.json",
+            "https://stagingprecareapi.carepayment.com/swagger/v1/swagger.json",
+          preprod:
+            "https://preprodprecareapi.carepayment.com/swagger/v1/swagger.json",
+          prod: "https://precareapi.carepayment.com/swagger/v1/swagger.json",
         },
         version: "v1",
       },
       dependencies: {
         core: ["ServiceLayer API Client", "Document Service", "Health Service"],
         nuget: ["ASP.NET Core", "Azure.Storage.Blobs", "Application Insights"],
+      },
+    },
+    thirdpartyintegrations: {
+      name: "Third Party Integrations API",
+      repository: "ThirdPartyIntegrations",
+      tech: ".NET 8.0",
+      color: "bg-amber-500",
+      framework: "ASP.NET Core Web API",
+      deployment: "Azure App Service",
+      baseUrl: "https://thirdpartyintegrationsapi.carepayment.com",
+      baseUrls: {
+        local: "http://localhost:5002/",
+        dev: "https://devthirdpartyintegrationsapi.carepayment.com/",
+        qa: "https://qathirdpartyintegrationsapi.carepayment.com/",
+        qa2: "https://qa2thirdpartyintegrationsapi.carepayment.com/",
+        staging: "https://stagingthirdpartyintegrationsapi.carepayment.com/",
+        preprod: "https://preprodthirdpartyintegrationsapi.carepayment.com/",
+        prod: "https://thirdpartyintegrationsapi.carepayment.com/",
+      },
+      authentication: "API Key, OAuth 2.0",
+      features: [
+        "External API Integrations",
+        "Third Party Webhooks",
+        "Data Synchronization",
+        "Partner Integrations",
+      ],
+      swagger: {
+        enabled: true,
+        note: "Swagger requires VPN access",
+        url: "https://thirdpartyintegrationsapi.carepayment.com/swagger/v1/swagger.json",
+        urls: {
+          local: "http://localhost:5002/swagger/v1/swagger.json",
+          dev: "https://devthirdpartyintegrationsapi.carepayment.com/swagger/v1/swagger.json",
+          qa: "https://qathirdpartyintegrationsapi.carepayment.com/swagger/v1/swagger.json",
+          qa2: "https://qa2thirdpartyintegrationsapi.carepayment.com/swagger/v1/swagger.json",
+          staging:
+            "https://stagingthirdpartyintegrationsapi.carepayment.com/swagger/v1/swagger.json",
+          preprod:
+            "https://preprodthirdpartyintegrationsapi.carepayment.com/swagger/v1/swagger.json",
+          prod: "https://thirdpartyintegrationsapi.carepayment.com/swagger/v1/swagger.json",
+        },
+        version: "v1",
+      },
+      hangfire: {
+        enabled: true,
+        urls: {
+          dev: "https://devthirdpartyintegrationsapi.carepayment.com/hangfire",
+          qa: "https://qathirdpartyintegrationsapi.carepayment.com/hangfire",
+          qa2: "https://qa2thirdpartyintegrationsapi.carepayment.com/hangfire",
+          staging:
+            "https://stagingthirdpartyintegrationsapi.carepayment.com/hangfire",
+          preprod:
+            "https://preprodthirdpartyintegrationsapi.carepayment.com/hangfire",
+          prod: "https://thirdpartyintegrationsapi.carepayment.com/hangfire",
+        },
+      },
+      integrations: {
+        azure: {
+          name: "Azure Services",
+          type: "cloud",
+          color: "text-blue-600",
+          purpose: "Cloud infrastructure",
+        },
+        sqlserver: {
+          name: "SQL Server",
+          type: "database",
+          color: "text-gray-600",
+          purpose: "Data storage",
+        },
+      },
+      dependencies: {
+        core: [
+          "ThirdPartyIntegrations.Services",
+          "ThirdPartyIntegrations.Data",
+        ],
+        nuget: ["ASP.NET Core", "Entity Framework Core", "Hangfire"],
       },
     },
   },

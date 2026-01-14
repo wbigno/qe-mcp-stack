@@ -6,6 +6,9 @@ import {
   GitBranch,
   FileJson,
   Database,
+  Clock,
+  Sun,
+  Moon,
 } from "lucide-react";
 import type {
   Application,
@@ -19,9 +22,11 @@ interface HeaderProps {
   viewMode: ViewMode;
   isRefreshing: boolean;
   environment: Environment;
+  isDarkMode: boolean;
   onViewModeChange: (mode: ViewMode) => void;
   onRefresh: () => void;
   onEnvironmentChange: (env: Environment) => void;
+  onThemeToggle: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -29,9 +34,11 @@ export const Header: React.FC<HeaderProps> = ({
   viewMode,
   isRefreshing,
   environment,
+  isDarkMode,
   onViewModeChange,
   onRefresh,
   onEnvironmentChange,
+  onThemeToggle,
 }) => {
   // Get the base URL for the current environment
   const currentBaseUrl = app.baseUrls?.[environment] || app.baseUrl;
@@ -75,6 +82,17 @@ export const Header: React.FC<HeaderProps> = ({
             />
           </button>
           <button
+            onClick={onThemeToggle}
+            className="btn btn-ghost btn-sm"
+            title={isDarkMode ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {isDarkMode ? (
+              <Sun className="w-4 h-4" />
+            ) : (
+              <Moon className="w-4 h-4" />
+            )}
+          </button>
+          <button
             onClick={() => onViewModeChange("visual")}
             className={`btn btn-sm ${viewMode === "visual" ? "btn-primary" : "btn-ghost"}`}
           >
@@ -103,6 +121,12 @@ export const Header: React.FC<HeaderProps> = ({
             className={`btn btn-sm ${viewMode === "database" ? "btn-primary" : "btn-ghost"}`}
           >
             <Database className="w-4 h-4" /> Database
+          </button>
+          <button
+            onClick={() => onViewModeChange("hangfire")}
+            className={`btn btn-sm ${viewMode === "hangfire" ? "btn-primary" : "btn-ghost"}`}
+          >
+            <Clock className="w-4 h-4" /> Hangfire
           </button>
         </div>
       </div>
