@@ -465,6 +465,92 @@ function detectIntegrationType(call) {
 }
 
 // ============================================
+// SAVE TEST TO CODEBASE
+// ============================================
+
+/**
+ * Save generated test code to a file in the codebase
+ * POST /api/tests/save-to-file
+ */
+router.post("/save-to-file", async (req, res) => {
+  try {
+    const { app, testCode, destinationPath, overwrite = false } = req.body;
+
+    if (!app || !testCode || !destinationPath) {
+      return res.status(400).json({
+        error: "App, testCode, and destinationPath are required",
+      });
+    }
+
+    logger.info(`[Save Test] Saving test to ${destinationPath}`);
+
+    // Get app config to validate path
+    const config = await loadAppsConfig();
+    const appConfig = config.applications?.find((a) => a.name === app);
+
+    if (!appConfig) {
+      return res.status(400).json({
+        error: `Unknown application: ${app}`,
+      });
+    }
+
+    const localPath = appConfig.localPath;
+
+    // Security: Validate that destinationPath is within the app's localPath
+    const normalizedDest = path.normalize(destinationPath);
+    const normalizedLocal = path.normalize(localPath);
+
+    if (!normalizedDest.startsWith(normalizedLocal)) {
+      logger.warn(
+        `[Save Test] ⚠️ Security violation: Path ${normalizedDest} is outside app directory ${normalizedLocal}`,
+      );
+      return res.status(403).json({
+        error: "Destination path must be within the application directory",
+        destinationPath: normalizedDest,
+        allowedPath: normalizedLocal,
+      });
+    }
+
+    // Check if file exists
+    const { existsSync, mkdirSync, writeFileSync } = await import("fs");
+    const { dirname } = await import("path");
+
+    if (existsSync(normalizedDest) && !overwrite) {
+      return res.status(409).json({
+        error: "File already exists",
+        message: `${normalizedDest} already exists. Set overwrite=true to replace it.`,
+        destinationPath: normalizedDest,
+      });
+    }
+
+    // Create directory if it doesn't exist
+    const dirPath = dirname(normalizedDest);
+    if (!existsSync(dirPath)) {
+      logger.info(`[Save Test] Creating directory: ${dirPath}`);
+      mkdirSync(dirPath, { recursive: true });
+    }
+
+    // Write the file
+    writeFileSync(normalizedDest, testCode, "utf-8");
+
+    logger.info(`[Save Test] ✅ Successfully saved test to ${normalizedDest}`);
+
+    res.json({
+      success: true,
+      message: `Test saved successfully`,
+      destinationPath: normalizedDest,
+      bytesWritten: testCode.length,
+    });
+  } catch (error) {
+    logger.error("[Save Test] ❌ Error:", error);
+    res.status(500).json({
+      error: "Failed to save test file",
+      message: error.message,
+    });
+  }
+});
+
+// ============================================
 // LEGACY ENDPOINTS REMOVED - 2026-01-07
 // ============================================
 //

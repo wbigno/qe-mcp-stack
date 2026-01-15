@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Generated test reports (jest-html-reporters, etc.)
+**/test-reports/
+**/coverage/
+**/*.min.js
+
+# Turbo cache
+.turbo/
+
+# IDE
+.idea/
+.vscode/
+
+# OS files
+.DS_Store
+
+# Package manager
+package-lock.json
+pnpm-lock.yaml
+yarn.lock

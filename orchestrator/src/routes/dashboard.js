@@ -533,10 +533,19 @@ router.get("/aod-summary", async (req, res) => {
       environment,
     });
 
+    // Build custom WIQL query using IterationPath UNDER (avoids TeamProject filter mismatch)
+    const wiqlQuery = sprint
+      ? `SELECT [System.Id], [System.Title], [System.State], [System.IterationPath], [System.WorkItemType], [System.AssignedTo], [System.Tags]
+         FROM WorkItems
+         WHERE [System.IterationPath] UNDER '${sprint}'
+         ORDER BY [System.Id] DESC`
+      : null;
+
     // Fetch work items from Azure DevOps MCP (includes relations now)
     const workItemsResponse = await req.mcpManager
       .callDockerMcp("azureDevOps", "/work-items/query", {
         sprint,
+        query: wiqlQuery,
       })
       .catch((err) => {
         logger.warn("[Dashboard] Failed to fetch work items:", err.message);
