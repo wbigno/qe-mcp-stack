@@ -18,7 +18,7 @@ let currentData = {
 };
 
 let currentFilters = {
-  app: "",
+  apps: [],
   sprint: "",
   environment: "",
   state: "",
@@ -182,12 +182,12 @@ function initializeFilters() {
   // Enables/disables Apply button based on required fields
   // ============================================
   function validateFilters() {
-    const selectedApp = appSelector?.getSelectedApp();
+    const selectedApps = appSelector?.getSelectedApps() || [];
     const selectedSprint = sprintSelector?.getSelectedSprintPath();
 
-    console.log("[Filters] Validating:", { selectedApp, selectedSprint });
+    console.log("[Filters] Validating:", { selectedApps, selectedSprint });
 
-    const isValid = selectedApp && selectedSprint;
+    const isValid = selectedApps.length > 0 && selectedSprint;
 
     if (applyBtn) {
       applyBtn.disabled = !isValid;
@@ -195,7 +195,7 @@ function initializeFilters() {
         applyBtn.title = "Click to load data";
       } else {
         const missing = [];
-        if (!selectedApp) missing.push("Application");
+        if (selectedApps.length === 0) missing.push("Application(s)");
         if (!selectedSprint) missing.push("Sprint");
         applyBtn.title = `Please select: ${missing.join(", ")}`;
       }
@@ -203,7 +203,7 @@ function initializeFilters() {
 
     // Add/remove invalid class for visual feedback
     if (appSelect) {
-      if (selectedApp) {
+      if (selectedApps.length > 0) {
         appSelect.classList.remove("invalid");
       } else {
         appSelect.classList.add("invalid");
@@ -211,9 +211,9 @@ function initializeFilters() {
     }
   }
 
-  // Initialize app selector with validation callback
-  appSelector = new AppSelector("appSelect", (appName) => {
-    currentFilters.app = appName || "";
+  // Initialize app selector with validation callback (now receives array)
+  appSelector = new AppSelector("appSelect", (apps) => {
+    currentFilters.apps = apps || [];
     validateFilters();
   });
 
@@ -238,14 +238,14 @@ function initializeFilters() {
 
   applyBtn.addEventListener("click", () => {
     console.log("[Filters] Apply button clicked");
-    const selectedApp = appSelector.getSelectedApp();
+    const selectedApps = appSelector.getSelectedApps();
     const selectedSprint = sprintSelector.getSelectedSprintPath();
 
-    console.log("[Filters] Selected values:", { selectedApp, selectedSprint });
+    console.log("[Filters] Selected values:", { selectedApps, selectedSprint });
 
-    if (!selectedApp) {
-      console.warn("[Filters] No app selected");
-      showStatusMessage("Please select an application", "error");
+    if (!selectedApps || selectedApps.length === 0) {
+      console.warn("[Filters] No apps selected");
+      showStatusMessage("Please select at least one application", "error");
       return;
     }
 
@@ -258,7 +258,7 @@ function initializeFilters() {
       return;
     }
 
-    currentFilters.app = selectedApp;
+    currentFilters.apps = selectedApps;
     currentFilters.sprint = selectedSprint;
     currentFilters.environment = envFilter.value;
     currentFilters.state = stateFilter.value;
@@ -269,9 +269,9 @@ function initializeFilters() {
 
   clearBtn.addEventListener("click", () => {
     console.log("[Filters] Clear button clicked");
-    // Reset app selector
-    if (appSelector && appSelector.select) {
-      appSelector.select.value = "";
+    // Reset app selector (use clearAll for multi-select)
+    if (appSelector && appSelector.clearAll) {
+      appSelector.clearAll();
     }
 
     // Reset sprint selector by reinitializing
@@ -285,7 +285,7 @@ function initializeFilters() {
 
     envFilter.value = "";
     stateFilter.value = "";
-    currentFilters = { app: "", sprint: "", environment: "", state: "" };
+    currentFilters = { apps: [], sprint: "", environment: "", state: "" };
 
     validateFilters(); // Revalidate after clearing
     showStatusMessage("Filters cleared", "info");
@@ -1220,13 +1220,13 @@ async function viewStoryAnalysis(story) {
     "[View Story Analysis] Opening story analysis panel for story:",
     story.id,
   );
-  if (!currentFilters.app) {
-    console.warn("[View Story Analysis] No app selected");
-    showStatusMessage("Please select an application first", "error");
+  if (!currentFilters.apps || currentFilters.apps.length === 0) {
+    console.warn("[View Story Analysis] No apps selected");
+    showStatusMessage("Please select at least one application first", "error");
     return;
   }
 
-  console.log("[View Story Analysis] Current app:", currentFilters.app);
+  console.log("[View Story Analysis] Current apps:", currentFilters.apps);
 
   // Switch to story analysis tab
   console.log("[View Story Analysis] Switching to story-analysis tab");
@@ -1306,9 +1306,9 @@ async function viewStoryAnalysis(story) {
     }
   }
 
-  // Show analysis in panel
+  // Show analysis in panel (pass apps array for multi-app analysis)
   console.log("[View Story Analysis] Showing analysis in panel");
-  analysisPanel.showAnalysis(fullStory, currentFilters.app);
+  analysisPanel.showAnalysis(fullStory, currentFilters.apps);
   console.log("[View Story Analysis] ✅ Complete");
 }
 

@@ -6,7 +6,7 @@ export class AnalysisPanel {
   constructor(containerId) {
     this.container = document.getElementById(containerId);
     this.currentStory = null;
-    this.currentApp = null;
+    this.currentApps = []; // Now supports multiple apps
     this.availableApps = [];
     // Store extracted data from Technical Details
     this.extractedData = {
@@ -134,9 +134,10 @@ export class AnalysisPanel {
     return null;
   }
 
-  async showAnalysis(story, app) {
+  async showAnalysis(story, apps) {
     this.currentStory = story;
-    this.currentApp = app;
+    // Support both single app (backwards compat) and array of apps
+    this.currentApps = Array.isArray(apps) ? apps : apps ? [apps] : [];
     // Parse Technical Details when story is loaded
     if (story) {
       this.parseAndExtractDetails(story);
@@ -671,10 +672,10 @@ export class AnalysisPanel {
               <span class="collapse-icon">▼</span>
               <h3>🔗 Integration Impact</h3>
             </div>
-            <button id="runIntegrationBtn" class="btn-secondary" ${!this.currentApp ? "disabled title='Select an app first'" : ""}>Run Analysis</button>
+            <button id="runIntegrationBtn" class="btn-secondary" ${this.currentApps.length === 0 ? "disabled title='Select app(s) first'" : ""}>Run Analysis</button>
           </div>
           <div id="integrationAnalysisContent" class="analysis-content section-collapsible-content" data-section="integration-impact">
-            <p class="placeholder">${this.currentApp ? 'Click "Run Analysis" to discover integration points.' : "⚠️ Application selection required for integration analysis."}</p>
+            <p class="placeholder">${this.currentApps.length > 0 ? 'Click "Run Analysis" to discover integration points.' : "⚠️ Application selection required for integration analysis."}</p>
           </div>
         </div>
       </div>
@@ -864,7 +865,7 @@ export class AnalysisPanel {
     if (clearStoryBtn) {
       clearStoryBtn.addEventListener("click", () => {
         this.currentStory = null;
-        this.currentApp = null;
+        this.currentApps = [];
         this.extractedData = {
           filePaths: [],
           priorStoryIds: [],
@@ -1021,7 +1022,7 @@ export class AnalysisPanel {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            app: this.currentApp,
+            apps: this.currentApps,
             changedFiles,
             analysisDepth: "moderate",
           }),
@@ -1124,7 +1125,7 @@ export class AnalysisPanel {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            app: this.currentApp,
+            apps: this.currentApps,
             story: {
               id: this.currentStory.id,
               title: this.currentStory.fields["System.Title"],
@@ -1349,9 +1350,9 @@ export class AnalysisPanel {
   async loadIntegrationAnalysis() {
     const container = document.getElementById("integrationAnalysisContent");
 
-    if (!this.currentApp) {
+    if (!this.currentApps || this.currentApps.length === 0) {
       container.innerHTML =
-        '<div class="warning">Please select an application to run integration analysis.</div>';
+        '<div class="warning">Please select at least one application to run integration analysis.</div>';
       return;
     }
 
@@ -1364,7 +1365,7 @@ export class AnalysisPanel {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            app: this.currentApp,
+            apps: this.currentApps,
             integrationType: "all",
             includeDiagram: false,
             changedFiles: this.extractedData.filePaths,
@@ -2098,7 +2099,7 @@ export class AnalysisPanel {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            app: this.currentApp,
+            apps: this.currentApps,
             storyId: this.currentStory.id,
             story: {
               id: this.currentStory.id,

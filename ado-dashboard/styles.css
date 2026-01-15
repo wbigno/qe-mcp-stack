@@ -5371,3 +5371,219 @@ button:disabled:hover {
     opacity: 0.5;
     cursor: not-allowed;
 }
+
+/* ============================================
+   Multi-Select Application Dropdown
+   ============================================ */
+
+.app-filter-group {
+    min-width: 220px;
+}
+
+.app-selector-container {
+    position: relative;
+}
+
+.app-multi-select {
+    position: relative;
+    width: 100%;
+}
+
+.app-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: var(--bg-primary, #0f172a);
+    border: 1px solid var(--border, #334155);
+    border-radius: 6px;
+    cursor: pointer;
+    min-height: 38px;
+    transition: all 0.2s ease;
+}
+
+.app-select-trigger:hover {
+    border-color: var(--primary, #6366f1);
+}
+
+.app-select-trigger.open {
+    border-color: var(--primary, #6366f1);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+}
+
+.app-select-text {
+    color: var(--text-secondary, #94a3b8);
+    font-size: 14px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.app-select-text.has-selection {
+    color: var(--text-primary, #f1f5f9);
+}
+
+.app-select-arrow {
+    color: var(--text-secondary, #94a3b8);
+    font-size: 10px;
+    transition: transform 0.2s ease;
+}
+
+.app-select-trigger.open .app-select-arrow {
+    transform: rotate(180deg);
+}
+
+.app-select-dropdown {
+    position: fixed;
+    background: var(--bg-secondary, #1e293b);
+    border: 1px solid var(--border, #334155);
+    border-radius: 8px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+    z-index: 9999;
+    display: none;
+    max-height: 320px;
+    overflow: hidden;
+    min-width: 220px;
+}
+
+.app-select-dropdown.open {
+    display: block;
+}
+
+.app-select-search {
+    padding: 8px;
+    border-bottom: 1px solid var(--border, #334155);
+}
+
+.app-search-input {
+    width: 100%;
+    padding: 8px 12px;
+    background: var(--bg-primary, #0f172a);
+    border: 1px solid var(--border, #334155);
+    border-radius: 4px;
+    color: var(--text-primary, #f1f5f9);
+    font-size: 13px;
+}
+
+.app-search-input:focus {
+    outline: none;
+    border-color: var(--primary, #6366f1);
+}
+
+.app-search-input::placeholder {
+    color: var(--text-secondary, #94a3b8);
+}
+
+.app-select-actions {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    border-bottom: 1px solid var(--border, #334155);
+}
+
+.app-action-btn {
+    flex: 1;
+    padding: 6px 12px;
+    background: var(--bg-primary, #0f172a);
+    border: 1px solid var(--border, #334155);
+    border-radius: 4px;
+    color: var(--text-secondary, #94a3b8);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.app-action-btn:hover {
+    background: var(--primary, #6366f1);
+    border-color: var(--primary, #6366f1);
+    color: white;
+}
+
+.app-select-options {
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 4px 0;
+}
+
+.app-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.app-option:hover {
+    background: var(--bg-primary, #0f172a);
+}
+
+.app-option input[type="checkbox"] {
+    display: none;
+}
+
+.app-checkbox {
+    width: 18px;
+    height: 18px;
+    border: 2px solid var(--border, #334155);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.app-option input[type="checkbox"]:checked + .app-checkbox {
+    background: var(--primary, #6366f1);
+    border-color: var(--primary, #6366f1);
+}
+
+.app-option input[type="checkbox"]:checked + .app-checkbox::after {
+    content: "✓";
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+}
+
+.app-name {
+    color: var(--text-primary, #f1f5f9);
+    font-size: 14px;
+}
+
+.app-desc {
+    color: var(--text-secondary, #94a3b8);
+    font-size: 12px;
+    margin-left: 4px;
+}
+
+.app-loading,
+.app-no-results,
+.app-error {
+    padding: 16px;
+    text-align: center;
+    color: var(--text-secondary, #94a3b8);
+    font-size: 13px;
+}
+
+.app-error {
+    color: var(--danger, #ef4444);
+}
+
+/* Scrollbar styling for dropdown */
+.app-select-options::-webkit-scrollbar {
+    width: 6px;
+}
+
+.app-select-options::-webkit-scrollbar-track {
+    background: var(--bg-primary, #0f172a);
+}
+
+.app-select-options::-webkit-scrollbar-thumb {
+    background: var(--border, #334155);
+    border-radius: 3px;
+}
+
+.app-select-options::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary, #94a3b8);
+}

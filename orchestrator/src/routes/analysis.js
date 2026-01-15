@@ -179,28 +179,49 @@ router.post("/test-gaps", async (req, res) => {
 // RISK ANALYSIS
 // ============================================
 
-// Analyze risk for a story
+// Analyze risk for a story (supports multiple apps)
 router.post("/risk/analyze-story", async (req, res) => {
   try {
-    const { app, story } = req.body;
+    const { app, apps, story } = req.body;
+    // Support both single app and array of apps
+    const appList = apps || (app ? [app] : []);
 
-    if (!app) {
-      return res.status(400).json({ error: "app parameter required" });
+    if (appList.length === 0) {
+      return res.status(400).json({ error: "app or apps parameter required" });
     }
 
     if (!story) {
       return res.status(400).json({ error: "story parameter required" });
     }
 
-    logger.info(`Analyzing risk for story ${story.id} in app ${app}`);
-
-    const result = await req.mcpManager.callDockerMcp(
-      "riskAnalyzer",
-      "/analyze-risk",
-      { app, story },
+    logger.info(
+      `Analyzing risk for story ${story.id} in apps: ${appList.join(", ")}`,
     );
 
-    res.json(result);
+    // Analyze risk for each app and aggregate results
+    const results = await Promise.all(
+      appList.map((appName) =>
+        req.mcpManager.callDockerMcp("riskAnalyzer", "/analyze-risk", {
+          app: appName,
+          story,
+        }),
+      ),
+    );
+
+    // Aggregate results - take highest risk scores
+    const aggregated = {
+      success: true,
+      apps: appList,
+      riskScore: Math.max(...results.map((r) => r.riskScore || 0)),
+      riskLevel: results.reduce((highest, r) => {
+        const levels = { low: 1, medium: 2, high: 3, critical: 4 };
+        return levels[r.riskLevel] > levels[highest] ? r.riskLevel : highest;
+      }, "low"),
+      findings: results.flatMap((r) => r.findings || []),
+      byApp: results.map((r, i) => ({ app: appList[i], ...r })),
+    };
+
+    res.json(aggregated);
   } catch (error) {
     logger.error("Risk analysis error:", error);
     res.status(500).json({
@@ -211,20 +232,24 @@ router.post("/risk/analyze-story", async (req, res) => {
   }
 });
 
-// Enhanced risk analysis with per-AC Likelihood × Impact scoring
+// Enhanced risk analysis with per-AC Likelihood × Impact scoring (supports multiple apps)
 router.post("/risk/analyze-ac", async (req, res) => {
   try {
-    const { app, story, acceptanceCriteria, extractedData } = req.body;
+    const { app, apps, story, acceptanceCriteria, extractedData } = req.body;
+    // Support both single app and array of apps
+    const appList = apps || (app ? [app] : []);
 
-    if (!app) {
-      return res.status(400).json({ error: "app parameter required" });
+    if (appList.length === 0) {
+      return res.status(400).json({ error: "app or apps parameter required" });
     }
 
     if (!story) {
       return res.status(400).json({ error: "story parameter required" });
     }
 
-    logger.info(`Analyzing per-AC risk for story ${story.id} in app ${app}`);
+    logger.info(
+      `Analyzing per-AC risk for story ${story.id} in apps: ${appList.join(", ")}`,
+    );
 
     // Parse acceptance criteria if provided as HTML string
     let parsedACs = acceptanceCriteria || [];
@@ -232,15 +257,29 @@ router.post("/risk/analyze-ac", async (req, res) => {
       parsedACs = parseAcceptanceCriteriaHtml(parsedACs);
     }
 
-    const result = await req.mcpManager.callDockerMcp(
-      "riskAnalyzer",
-      "/risk-matrix",
-      {
-        app,
-        story,
-        acceptanceCriteria: parsedACs,
-      },
+    // Analyze for each app and aggregate
+    const results = await Promise.all(
+      appList.map((appName) =>
+        req.mcpManager.callDockerMcp("riskAnalyzer", "/risk-matrix", {
+          app: appName,
+          story,
+          acceptanceCriteria: parsedACs,
+        }),
+      ),
     );
+
+    // Aggregate - merge findings, take highest risk levels
+    const result = results[0] || {}; // Use first result as base
+    if (results.length > 1) {
+      result.apps = appList;
+      result.acRiskMapping = (result.acRiskMapping || []).map((ac, idx) => {
+        // Merge risk factors from all apps
+        const allFactors = results.flatMap(
+          (r) => r.acRiskMapping?.[idx]?.riskFactors || [],
+        );
+        return { ...ac, riskFactors: allFactors };
+      });
+    }
 
     // Enhance response with formatted output for frontend
     if (result.success) {
@@ -732,27 +771,59 @@ function generateEdgeCases(ac) {
 // INTEGRATION MAPPING
 // ============================================
 
-// Map integrations for an application
+// Map integrations for an application (supports multiple apps)
 router.post("/integrations/map", async (req, res) => {
   try {
-    const { app, integrationType, includeDiagram, changedFiles } = req.body;
+    const { app, apps, integrationType, includeDiagram, changedFiles } =
+      req.body;
+    // Support both single app and array of apps
+    const appList = apps || (app ? [app] : []);
 
-    if (!app) {
-      return res.status(400).json({ error: "app parameter required" });
+    if (appList.length === 0) {
+      return res.status(400).json({ error: "app or apps parameter required" });
     }
 
     logger.info(
-      `Mapping integrations for app ${app}, type: ${integrationType || "all"}`,
+      `Mapping integrations for apps: ${appList.join(", ")}, type: ${integrationType || "all"}`,
     );
     if (changedFiles && changedFiles.length > 0) {
       logger.info(`Filtering by ${changedFiles.length} changed files`);
     }
 
-    const result = await req.mcpManager.callDockerMcp(
-      "integrationMapper",
-      "/map-integrations",
-      { app, integrationType, includeDiagram },
+    // Map integrations for each app and merge results
+    const results = await Promise.all(
+      appList.map((appName) =>
+        req.mcpManager.callDockerMcp("integrationMapper", "/map-integrations", {
+          app: appName,
+          integrationType,
+          includeDiagram,
+        }),
+      ),
     );
+
+    // Merge results from all apps
+    const result = results[0] || {
+      success: true,
+      result: { integrations: [], integrationsByType: {} },
+    };
+    if (results.length > 1 && result.success && result.result) {
+      result.apps = appList;
+      // Merge all integrations
+      result.result.integrations = results.flatMap((r) =>
+        (r.result?.integrations || []).map((i) => ({ ...i, app: r.app })),
+      );
+      // Merge integrationsByType
+      const mergedByType = {};
+      for (const r of results) {
+        for (const [type, items] of Object.entries(
+          r.result?.integrationsByType || {},
+        )) {
+          if (!mergedByType[type]) mergedByType[type] = [];
+          mergedByType[type].push(...items);
+        }
+      }
+      result.result.integrationsByType = mergedByType;
+    }
 
     // Filter integrations by changed files if provided
     if (
@@ -830,13 +901,15 @@ router.post("/integrations/map", async (req, res) => {
 // BLAST RADIUS ANALYSIS
 // ============================================
 
-// Analyze blast radius for changed files
+// Analyze blast radius for changed files (supports multiple apps)
 router.post("/blast-radius/analyze", async (req, res) => {
   try {
-    const { app, changedFiles, depth } = req.body;
+    const { app, apps, changedFiles, depth } = req.body;
+    // Support both single app and array of apps
+    const appList = apps || (app ? [app] : []);
 
-    if (!app) {
-      return res.status(400).json({ error: "app parameter required" });
+    if (appList.length === 0) {
+      return res.status(400).json({ error: "app or apps parameter required" });
     }
 
     if (!changedFiles || changedFiles.length === 0) {
@@ -844,22 +917,33 @@ router.post("/blast-radius/analyze", async (req, res) => {
     }
 
     logger.info(
-      `Analyzing blast radius for ${changedFiles.length} files in app ${app}`,
+      `Analyzing blast radius for ${changedFiles.length} files in apps: ${appList.join(", ")}`,
     );
 
-    const result = await req.mcpManager.callDockerMcp(
-      "blastRadiusAnalyzer",
-      "/analyze",
-      {
-        app,
-        changedFiles,
-        depth: depth || 2,
-      },
+    // Analyze blast radius for each app and aggregate
+    const results = await Promise.all(
+      appList.map((appName) =>
+        req.mcpManager.callDockerMcp("blastRadiusAnalyzer", "/analyze", {
+          app: appName,
+          changedFiles,
+          depth: depth || 2,
+        }),
+      ),
     );
+
+    // Aggregate results - merge impacted files, take highest impact scores
+    const aggregated = {
+      apps: appList,
+      impactedFiles: [
+        ...new Set(results.flatMap((r) => r.impactedFiles || [])),
+      ],
+      impactScore: Math.max(...results.map((r) => r.impactScore || 0)),
+      byApp: results.map((r, i) => ({ app: appList[i], ...r })),
+    };
 
     res.json({
       success: true,
-      result: result,
+      result: aggregated,
     });
   } catch (error) {
     logger.error("Blast radius analysis error:", error);
