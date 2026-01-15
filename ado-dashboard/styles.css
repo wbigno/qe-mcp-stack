@@ -5502,16 +5502,18 @@ button:disabled:hover {
 .app-select-options {
     max-height: 200px;
     overflow-y: auto;
+    overflow-x: hidden;
     padding: 4px 0;
 }
 
 .app-option {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 12px;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 8px 12px;
     cursor: pointer;
     transition: background 0.15s ease;
+    flex-wrap: wrap;
 }
 
 .app-option:hover {
@@ -5548,13 +5550,17 @@ button:disabled:hover {
 
 .app-name {
     color: var(--text-primary, #f1f5f9);
-    font-size: 14px;
+    font-size: 12px;
+    word-break: break-word;
 }
 
 .app-desc {
     color: var(--text-secondary, #94a3b8);
-    font-size: 12px;
-    margin-left: 4px;
+    font-size: 11px;
+    margin-left: 0;
+    flex-basis: 100%;
+    padding-left: 26px;
+    word-break: break-word;
 }
 
 .app-loading,
