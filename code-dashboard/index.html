@@ -299,10 +299,33 @@
 
                 <div class="panel mt-20">
                     <h3>Untested Methods & Functions</h3>
+
+                    <!-- Selection Toolbar -->
+                    <div class="selection-toolbar" id="selectionToolbar">
+                        <div class="toolbar-left">
+                            <button class="btn btn-primary" id="generateSelectedBtn" onclick="window.generateBatchTests && window.generateBatchTests()" disabled>
+                                🧪 Generate Tests for Selected (<span id="selectedCount">0</span>)
+                            </button>
+                            <button class="btn btn-secondary" id="selectAllBtn" onclick="window.selectAllVisible && window.selectAllVisible()">Select All</button>
+                            <button class="btn btn-secondary" id="clearSelectionBtn" onclick="window.clearSelection && window.clearSelection()">Clear Selection</button>
+                        </div>
+                        <div class="toolbar-right">
+                            <label class="filter-label">Filter:</label>
+                            <select id="typeFilter" class="filter-select" onchange="window.handleTypeFilterChange && window.handleTypeFilterChange(this.value)">
+                                <option value="all">All Types</option>
+                                <option value="Backend">Backend Only</option>
+                                <option value="Frontend">Frontend Only</option>
+                            </select>
+                        </div>
+                    </div>
+
                     <div class="table-container">
                         <table class="data-table" id="gaps-untested-table">
                             <thead>
                                 <tr>
+                                    <th class="checkbox-col">
+                                        <input type="checkbox" id="selectAllCheckbox" title="Select all visible" onchange="this.checked ? window.selectAllVisible && window.selectAllVisible() : window.clearSelection && window.clearSelection()">
+                                    </th>
                                     <th>Name</th>
                                     <th>File</th>
                                     <th>Type</th>
@@ -311,9 +334,37 @@
                                 </tr>
                             </thead>
                             <tbody id="gaps-untested-tbody">
-                                <tr><td colspan="5" class="no-data">No data available</td></tr>
+                                <tr><td colspan="6" class="no-data">No data available</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+
+                <!-- Review Queue Panel -->
+                <div class="panel mt-20" id="reviewQueuePanel" style="display: none;">
+                    <div class="review-queue-header">
+                        <h3>📋 Review Queue <span class="queue-badge" id="queueCount">0</span></h3>
+                        <div class="queue-actions">
+                            <button class="btn btn-secondary" id="approveAllBtn" onclick="window.approveAllTests && window.approveAllTests()">✓ Approve All</button>
+                            <button class="btn btn-primary" id="saveAllApprovedBtn" onclick="window.saveAllApprovedTests && window.saveAllApprovedTests()">💾 Save All Approved</button>
+                            <button class="btn btn-secondary" id="clearQueueBtn" onclick="window.clearReviewQueue && window.clearReviewQueue()">Clear Queue</button>
+                        </div>
+                    </div>
+                    <div class="review-queue-list" id="reviewQueueList">
+                        <!-- Review queue items will be rendered here -->
+                    </div>
+                </div>
+
+                <!-- Progress Modal -->
+                <div class="progress-modal" id="progressModal" style="display: none;">
+                    <div class="modal-overlay"></div>
+                    <div class="progress-modal-content">
+                        <h3 id="progressTitle">Generating Tests...</h3>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar-fill" id="progressBarFill" style="width: 0%"></div>
+                        </div>
+                        <p class="progress-text" id="progressText">Preparing...</p>
+                        <p class="progress-detail" id="progressDetail"></p>
                     </div>
                 </div>
             </div>

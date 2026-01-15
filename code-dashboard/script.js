@@ -13,6 +13,12 @@ let state = {
     testGaps: null,
   },
   isLoading: false,
+  // Multi-select state
+  selectedFiles: new Set(),
+  typeFilter: "all",
+  // Review queue state
+  reviewQueue: [],
+  reviewQueueIdCounter: 0,
 };
 
 // ============================================
@@ -25,6 +31,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   initializeTabs();
   initializeFilterBar();
   initializeFilters();
+  initializeTestGapsControls();
+  loadReviewQueueFromStorage();
 
   await loadApplications();
 
@@ -411,21 +419,48 @@ function renderTestGapsTab() {
   const tbody = document.getElementById("gaps-untested-tbody");
   tbody.innerHTML = "";
 
-  const untestedMethods = data.gaps?.untestedMethods || [];
+  let untestedMethods = data.gaps?.untestedMethods || [];
+
+  // Apply type filter
+  if (state.typeFilter !== "all") {
+    untestedMethods = untestedMethods.filter(
+      (m) => m.fileType === state.typeFilter,
+    );
+  }
 
   if (untestedMethods.length > 0) {
-    untestedMethods.slice(0, 100).forEach((method) => {
+    untestedMethods.slice(0, 100).forEach((method, index) => {
       const row = document.createElement("tr");
       const fileName = method.file ? method.file.split("/").pop() : "Unknown";
       const methodType = method.fileType || "Unknown";
+      const fileKey = `${method.file}::${method.name}`;
+      const isSelected = state.selectedFiles.has(fileKey);
+
+      if (isSelected) {
+        row.classList.add("selected");
+      }
+
+      // Escape values for HTML attributes
+      const escapedFile = escapeHtmlAttr(method.file || "");
+      const escapedMethod = escapeHtmlAttr(method.name || "");
+      const escapedKey = escapeHtmlAttr(fileKey);
 
       row.innerHTML = `
-                <td>${method.name}</td>
-                <td class="truncate" title="${method.file}">${fileName}</td>
-                <td><span class="badge badge-purple">${methodType}</span></td>
+                <td class="checkbox-col">
+                    <input type="checkbox"
+                           data-file="${escapedFile}"
+                           data-method="${escapedMethod}"
+                           data-key="${escapedKey}"
+                           data-index="${index}"
+                           ${isSelected ? "checked" : ""}
+                           onchange="toggleFileSelection(this)">
+                </td>
+                <td>${escapeHtml(method.name)}</td>
+                <td class="truncate" title="${escapedFile}">${escapeHtml(fileName)}</td>
+                <td><span class="badge badge-purple">${escapeHtml(methodType)}</span></td>
                 <td>${method.complexity || 1}</td>
                 <td>
-                    <button class="action-btn small" onclick="generateTest('${method.name}', '${method.file}')">
+                    <button class="action-btn small" data-method="${escapedMethod}" data-file="${escapedFile}" onclick="handleGenerateTest(this)">
                         Generate Test
                     </button>
                 </td>
@@ -435,13 +470,19 @@ function renderTestGapsTab() {
 
     if (untestedMethods.length > 100) {
       const row = document.createElement("tr");
-      row.innerHTML = `<td colspan="5" class="text-center muted">Showing 100 of ${untestedMethods.length} untested methods</td>`;
+      row.innerHTML = `<td colspan="6" class="text-center muted">Showing 100 of ${untestedMethods.length} untested methods</td>`;
       tbody.appendChild(row);
     }
   } else {
     tbody.innerHTML =
-      '<tr><td colspan="5" class="no-data">No untested methods found - Great job! 🎉</td></tr>';
+      '<tr><td colspan="6" class="no-data">No untested methods found - Great job! 🎉</td></tr>';
   }
+
+  // Update selection UI
+  updateSelectionUI();
+
+  // Render review queue
+  renderReviewQueue();
 
   console.log("✅ Test gaps tab rendered");
 }
@@ -681,9 +722,726 @@ function showStatus(message, type = "info") {
   }, 5000);
 }
 
-// Make functions available globally
+// ============================================
+// MULTI-SELECT & BATCH GENERATION
+// ============================================
+
+/**
+ * Escape HTML attribute values for safe insertion
+ */
+function escapeHtmlAttr(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+/**
+ * Initialize test gaps controls and event listeners
+ */
+function initializeTestGapsControls() {
+  console.log("🔧 Initializing test gaps controls");
+  // Event listeners are attached via onclick in HTML
+  // This function ensures state is properly initialized
+  state.selectedFiles = new Set();
+  state.typeFilter = "all";
+  updateSelectionUI();
+}
+
+/**
+ * Toggle selection of a single file
+ */
+function toggleFileSelection(checkbox) {
+  const key = checkbox.dataset.key;
+  console.log("Toggle selection:", key, "checked:", checkbox.checked);
+
+  if (checkbox.checked) {
+    state.selectedFiles.add(key);
+    checkbox.closest("tr")?.classList.add("selected");
+  } else {
+    state.selectedFiles.delete(key);
+    checkbox.closest("tr")?.classList.remove("selected");
+  }
+
+  updateSelectionUI();
+}
+
+/**
+ * Select all visible (filtered) items
+ */
+function selectAllVisible() {
+  console.log("Select all visible");
+  const checkboxes = document.querySelectorAll(
+    '#gaps-untested-tbody input[type="checkbox"]',
+  );
+
+  checkboxes.forEach((cb) => {
+    cb.checked = true;
+    const key = cb.dataset.key;
+    if (key) {
+      state.selectedFiles.add(key);
+      cb.closest("tr")?.classList.add("selected");
+    }
+  });
+
+  // Update header checkbox
+  const selectAllCheckbox = document.getElementById("selectAllCheckbox");
+  if (selectAllCheckbox) selectAllCheckbox.checked = true;
+
+  updateSelectionUI();
+}
+
+/**
+ * Clear all selections
+ */
+function clearSelection() {
+  console.log("Clear selection");
+  state.selectedFiles.clear();
+
+  const checkboxes = document.querySelectorAll(
+    '#gaps-untested-tbody input[type="checkbox"]',
+  );
+  checkboxes.forEach((cb) => {
+    cb.checked = false;
+    cb.closest("tr")?.classList.remove("selected");
+  });
+
+  // Update header checkbox
+  const selectAllCheckbox = document.getElementById("selectAllCheckbox");
+  if (selectAllCheckbox) selectAllCheckbox.checked = false;
+
+  updateSelectionUI();
+}
+
+/**
+ * Update selection UI elements (count, button state)
+ */
+function updateSelectionUI() {
+  const count = state.selectedFiles.size;
+  console.log("Update selection UI, count:", count);
+
+  const countEl = document.getElementById("selectedCount");
+  const generateBtn = document.getElementById("generateSelectedBtn");
+
+  if (countEl) countEl.textContent = count;
+  if (generateBtn) generateBtn.disabled = count === 0;
+}
+
+/**
+ * Handle type filter change
+ */
+function handleTypeFilterChange(value) {
+  console.log("Type filter changed:", value);
+  state.typeFilter = value;
+  clearSelection();
+  renderTestGapsTab();
+}
+
+/**
+ * Handle single test generation from button click
+ */
+function handleGenerateTest(button) {
+  const methodName = button.dataset.method;
+  const file = button.dataset.file;
+  console.log("Generate single test:", methodName, file);
+  generateTest(methodName, file);
+}
+
+/**
+ * Generate tests for all selected files (batch)
+ */
+async function generateBatchTests() {
+  console.log("🚀 Starting batch test generation");
+  console.log("Selected files:", Array.from(state.selectedFiles));
+
+  if (state.selectedFiles.size === 0) {
+    showStatus("No files selected", "warning");
+    return;
+  }
+
+  // Confirm if large selection
+  if (state.selectedFiles.size > 10) {
+    if (
+      !confirm(
+        `Generate tests for ${state.selectedFiles.size} files? This may take a while.`,
+      )
+    ) {
+      return;
+    }
+  }
+
+  const selectedItems = [];
+  state.selectedFiles.forEach((key) => {
+    const [file, methodName] = key.split("::");
+    const fileName = file.split("/").pop().replace(/\.cs$/, "");
+    selectedItems.push({
+      file,
+      methodName,
+      className: fileName,
+    });
+  });
+
+  console.log("Processing items:", selectedItems);
+
+  showProgressModal(selectedItems.length);
+
+  const results = [];
+  let completed = 0;
+
+  for (const item of selectedItems) {
+    updateProgressModal(
+      completed,
+      selectedItems.length,
+      `Generating test for ${item.methodName}...`,
+    );
+
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/tests/generate-for-file`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            app: state.currentApp,
+            file: item.file,
+            className: item.className,
+            includeNegativeTests: true,
+            includeMocks: true,
+            onlyNegativeTests: false,
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (data.success) {
+        results.push({
+          ...item,
+          success: true,
+          testCode: data.result.completeTestFile || data.result.testCode,
+          testFramework: data.result.testFramework,
+        });
+        console.log(`✅ Generated test for ${item.methodName}`);
+      } else {
+        results.push({
+          ...item,
+          success: false,
+          error: data.error || data.message || "Unknown error",
+        });
+        console.error(`❌ Failed for ${item.methodName}:`, data.error);
+      }
+    } catch (error) {
+      results.push({
+        ...item,
+        success: false,
+        error: error.message,
+      });
+      console.error(`❌ Error for ${item.methodName}:`, error);
+    }
+
+    completed++;
+    updateProgressModal(completed, selectedItems.length);
+  }
+
+  hideProgressModal();
+
+  // Add results to review queue
+  const successCount = results.filter((r) => r.success).length;
+  addToReviewQueue(results.filter((r) => r.success));
+
+  clearSelection();
+
+  showStatus(
+    `Generated ${successCount}/${results.length} tests. Check review queue.`,
+    successCount === results.length ? "success" : "warning",
+  );
+
+  console.log(
+    `✅ Batch complete: ${successCount}/${results.length} successful`,
+  );
+}
+
+// ============================================
+// PROGRESS MODAL
+// ============================================
+
+function showProgressModal(total) {
+  console.log("Show progress modal, total:", total);
+  const modal = document.getElementById("progressModal");
+  if (modal) {
+    modal.style.display = "flex";
+    updateProgressModal(0, total, "Starting...");
+  }
+}
+
+function updateProgressModal(current, total, detail = "") {
+  const percent = total > 0 ? Math.round((current / total) * 100) : 0;
+
+  const fill = document.getElementById("progressBarFill");
+  const text = document.getElementById("progressText");
+  const detailEl = document.getElementById("progressDetail");
+
+  if (fill) fill.style.width = `${percent}%`;
+  if (text) text.textContent = `${current} of ${total} complete (${percent}%)`;
+  if (detailEl) detailEl.textContent = detail;
+}
+
+function hideProgressModal() {
+  console.log("Hide progress modal");
+  const modal = document.getElementById("progressModal");
+  if (modal) {
+    modal.style.display = "none";
+  }
+}
+
+// ============================================
+// REVIEW QUEUE
+// ============================================
+
+/**
+ * Add batch results to review queue
+ */
+function addToReviewQueue(results) {
+  console.log("Adding to review queue:", results.length, "items");
+
+  results.forEach((result) => {
+    const id = `review-${++state.reviewQueueIdCounter}`;
+    const defaultPath = generateDefaultTestPath(result.file, result.className);
+
+    state.reviewQueue.push({
+      id,
+      methodName: result.methodName,
+      className: result.className,
+      sourceFile: result.file,
+      testCode: result.testCode,
+      testFramework: result.testFramework,
+      destinationPath: defaultPath,
+      status: "pending",
+      error: null,
+    });
+  });
+
+  console.log("Review queue now has", state.reviewQueue.length, "items");
+
+  saveReviewQueueToStorage();
+  renderReviewQueue();
+}
+
+/**
+ * Generate default test file path based on source file
+ */
+function generateDefaultTestPath(sourceFile, className) {
+  if (!sourceFile) return "";
+
+  // Find current app config
+  const app = state.applications.find((a) => a.name === state.currentApp);
+  const localPath = app?.localPath || "";
+
+  // Extract relative path from source file
+  const fileName = sourceFile.split("/").pop();
+  const testFileName = fileName.replace(".cs", "Tests.cs");
+
+  // Simple default: put tests in Tests folder
+  return `${localPath}/Tests/${className}Tests.cs`;
+}
+
+/**
+ * Render the review queue panel
+ */
+function renderReviewQueue() {
+  console.log("Rendering review queue, items:", state.reviewQueue.length);
+
+  const panel = document.getElementById("reviewQueuePanel");
+  const list = document.getElementById("reviewQueueList");
+  const countBadge = document.getElementById("queueCount");
+
+  if (!panel || !list) {
+    console.warn("Review queue elements not found");
+    return;
+  }
+
+  // Show/hide panel based on queue
+  if (state.reviewQueue.length === 0) {
+    panel.style.display = "none";
+    return;
+  }
+
+  panel.style.display = "block";
+  if (countBadge) countBadge.textContent = state.reviewQueue.length;
+
+  // Render queue items
+  list.innerHTML = state.reviewQueue
+    .map(
+      (item) => `
+    <div class="review-queue-item ${item.status}" data-id="${item.id}">
+      <div class="queue-item-header" onclick="toggleReviewItem('${item.id}')">
+        <div class="queue-item-info">
+          <span class="queue-item-name">${escapeHtml(item.methodName)}</span>
+          <span class="queue-item-class">${escapeHtml(item.className)}</span>
+          <span class="queue-item-status badge badge-${getStatusBadgeClass(item.status)}">${item.status}</span>
+        </div>
+        <span class="queue-item-toggle">▼</span>
+      </div>
+      <div class="queue-item-content" id="content-${item.id}" style="display: none;">
+        <div class="queue-item-path">
+          <label>Destination Path:</label>
+          <input type="text"
+                 value="${escapeHtmlAttr(item.destinationPath)}"
+                 onchange="updateDestinationPath('${item.id}', this.value)"
+                 class="path-input">
+        </div>
+        <div class="queue-item-code">
+          <pre><code>${escapeHtml(item.testCode || "")}</code></pre>
+        </div>
+        <div class="queue-item-actions">
+          <button class="btn btn-sm btn-secondary" onclick="editTest('${item.id}')">✏️ Edit</button>
+          <button class="btn btn-sm btn-secondary" onclick="copyQueueTestToClipboard('${item.id}')">📋 Copy</button>
+          ${item.status !== "approved" ? `<button class="btn btn-sm btn-primary" onclick="approveTest('${item.id}')">✓ Approve</button>` : ""}
+          ${item.status === "approved" ? `<button class="btn btn-sm btn-success" onclick="saveTestToCodebase('${item.id}')">💾 Save to Codebase</button>` : ""}
+          <button class="btn btn-sm btn-danger" onclick="removeFromQueue('${item.id}')">✕ Remove</button>
+        </div>
+      </div>
+    </div>
+  `,
+    )
+    .join("");
+}
+
+function getStatusBadgeClass(status) {
+  switch (status) {
+    case "pending":
+      return "yellow";
+    case "approved":
+      return "green";
+    case "saved":
+      return "blue";
+    case "error":
+      return "red";
+    default:
+      return "gray";
+  }
+}
+
+/**
+ * Toggle review item expand/collapse
+ */
+function toggleReviewItem(id) {
+  const content = document.getElementById(`content-${id}`);
+  if (content) {
+    const isVisible = content.style.display !== "none";
+    content.style.display = isVisible ? "none" : "block";
+
+    const header = content.previousElementSibling;
+    const toggle = header?.querySelector(".queue-item-toggle");
+    if (toggle) toggle.textContent = isVisible ? "▼" : "▲";
+  }
+}
+
+/**
+ * Update destination path for a queue item
+ */
+function updateDestinationPath(id, newPath) {
+  const item = state.reviewQueue.find((i) => i.id === id);
+  if (item) {
+    item.destinationPath = newPath;
+    saveReviewQueueToStorage();
+  }
+}
+
+/**
+ * Approve a single test
+ */
+function approveTest(id) {
+  const item = state.reviewQueue.find((i) => i.id === id);
+  if (item) {
+    item.status = "approved";
+    saveReviewQueueToStorage();
+    renderReviewQueue();
+    showStatus(`Approved test for ${item.methodName}`, "success");
+  }
+}
+
+/**
+ * Approve all pending tests
+ */
+function approveAllTests() {
+  state.reviewQueue.forEach((item) => {
+    if (item.status === "pending") {
+      item.status = "approved";
+    }
+  });
+  saveReviewQueueToStorage();
+  renderReviewQueue();
+  showStatus("All pending tests approved", "success");
+}
+
+/**
+ * Remove item from queue
+ */
+function removeFromQueue(id) {
+  state.reviewQueue = state.reviewQueue.filter((i) => i.id !== id);
+  saveReviewQueueToStorage();
+  renderReviewQueue();
+}
+
+/**
+ * Clear entire review queue
+ */
+function clearReviewQueue() {
+  if (confirm("Clear all items from the review queue?")) {
+    state.reviewQueue = [];
+    saveReviewQueueToStorage();
+    renderReviewQueue();
+    showStatus("Review queue cleared", "info");
+  }
+}
+
+/**
+ * Copy test code from queue item to clipboard
+ */
+function copyQueueTestToClipboard(id) {
+  const item = state.reviewQueue.find((i) => i.id === id);
+  if (item && item.testCode) {
+    navigator.clipboard
+      .writeText(item.testCode)
+      .then(() => showStatus("Test code copied to clipboard", "success"))
+      .catch(() => showStatus("Failed to copy to clipboard", "error"));
+  }
+}
+
+// ============================================
+// EDIT TEST MODAL
+// ============================================
+
+function editTest(id) {
+  const item = state.reviewQueue.find((i) => i.id === id);
+  if (!item) return;
+
+  // Create edit modal
+  const modal = document.createElement("div");
+  modal.className = "edit-test-modal";
+  modal.id = "editTestModal";
+  modal.innerHTML = `
+    <div class="modal-overlay" onclick="closeEditModal()"></div>
+    <div class="modal-content edit-modal-content">
+      <div class="modal-header">
+        <h2>Edit Test: ${escapeHtml(item.methodName)}</h2>
+        <button class="btn-close" onclick="closeEditModal()">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="edit-path-row">
+          <label>Destination Path:</label>
+          <input type="text" id="editDestPath" value="${escapeHtmlAttr(item.destinationPath)}" class="edit-path-input">
+        </div>
+        <div class="edit-code-row">
+          <label>Test Code:</label>
+          <textarea id="editTestCode" class="edit-code-textarea">${escapeHtml(item.testCode || "")}</textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeEditModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveTestEdit('${item.id}')">Save Changes</button>
+      </div>
+    </div>
+  `;
+
+  document.body.appendChild(modal);
+}
+
+function closeEditModal() {
+  const modal = document.getElementById("editTestModal");
+  if (modal) modal.remove();
+}
+
+function saveTestEdit(id) {
+  const item = state.reviewQueue.find((i) => i.id === id);
+  if (!item) return;
+
+  const newPath = document.getElementById("editDestPath")?.value;
+  const newCode = document.getElementById("editTestCode")?.value;
+
+  if (newPath) item.destinationPath = newPath;
+  if (newCode) item.testCode = newCode;
+
+  saveReviewQueueToStorage();
+  closeEditModal();
+  renderReviewQueue();
+  showStatus("Test updated", "success");
+}
+
+// ============================================
+// SAVE TO CODEBASE
+// ============================================
+
+async function saveTestToCodebase(id) {
+  const item = state.reviewQueue.find((i) => i.id === id);
+  if (!item) return;
+
+  if (!item.destinationPath) {
+    showStatus("Please set a destination path first", "error");
+    return;
+  }
+
+  showStatus(`Saving test to ${item.destinationPath}...`, "info");
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/tests/save-to-file`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        app: state.currentApp,
+        testCode: item.testCode,
+        destinationPath: item.destinationPath,
+        overwrite: false,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      item.status = "saved";
+      saveReviewQueueToStorage();
+      renderReviewQueue();
+      showStatus(`✅ Test saved to ${item.destinationPath}`, "success");
+    } else {
+      throw new Error(data.error || data.message || "Save failed");
+    }
+  } catch (error) {
+    console.error("Save error:", error);
+    item.status = "error";
+    item.error = error.message;
+    saveReviewQueueToStorage();
+    renderReviewQueue();
+    showStatus(`❌ Save failed: ${error.message}`, "error");
+  }
+}
+
+async function saveAllApprovedTests() {
+  const approved = state.reviewQueue.filter((i) => i.status === "approved");
+
+  if (approved.length === 0) {
+    showStatus("No approved tests to save", "warning");
+    return;
+  }
+
+  showProgressModal(approved.length);
+
+  let saved = 0;
+  let failed = 0;
+
+  for (let i = 0; i < approved.length; i++) {
+    const item = approved[i];
+    updateProgressModal(i, approved.length, `Saving ${item.className}...`);
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/tests/save-to-file`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          app: state.currentApp,
+          testCode: item.testCode,
+          destinationPath: item.destinationPath,
+          overwrite: false,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        item.status = "saved";
+        saved++;
+      } else {
+        item.status = "error";
+        item.error = data.error || "Save failed";
+        failed++;
+      }
+    } catch (error) {
+      item.status = "error";
+      item.error = error.message;
+      failed++;
+    }
+  }
+
+  hideProgressModal();
+  saveReviewQueueToStorage();
+  renderReviewQueue();
+
+  showStatus(
+    `Saved ${saved}/${approved.length} tests${failed > 0 ? ` (${failed} failed)` : ""}`,
+    failed > 0 ? "warning" : "success",
+  );
+}
+
+// ============================================
+// LOCAL STORAGE PERSISTENCE
+// ============================================
+
+function saveReviewQueueToStorage() {
+  try {
+    localStorage.setItem(
+      "codeAnalysis_reviewQueue",
+      JSON.stringify(state.reviewQueue),
+    );
+    localStorage.setItem(
+      "codeAnalysis_queueIdCounter",
+      String(state.reviewQueueIdCounter),
+    );
+  } catch (e) {
+    console.warn("Failed to save review queue to localStorage:", e);
+  }
+}
+
+function loadReviewQueueFromStorage() {
+  try {
+    const saved = localStorage.getItem("codeAnalysis_reviewQueue");
+    const counter = localStorage.getItem("codeAnalysis_queueIdCounter");
+
+    if (saved) {
+      state.reviewQueue = JSON.parse(saved);
+      console.log(
+        "Loaded review queue from storage:",
+        state.reviewQueue.length,
+        "items",
+      );
+    }
+    if (counter) {
+      state.reviewQueueIdCounter = parseInt(counter, 10);
+    }
+  } catch (e) {
+    console.warn("Failed to load review queue from localStorage:", e);
+    state.reviewQueue = [];
+    state.reviewQueueIdCounter = 0;
+  }
+}
+
+// ============================================
+// GLOBAL EXPORTS
+// ============================================
+
+// Make functions available globally for onclick handlers
 window.generateTest = generateTest;
 window.copyTestToClipboard = copyTestToClipboard;
 window.escapeHtml = escapeHtml;
+window.toggleFileSelection = toggleFileSelection;
+window.selectAllVisible = selectAllVisible;
+window.clearSelection = clearSelection;
+window.generateBatchTests = generateBatchTests;
+window.handleGenerateTest = handleGenerateTest;
+window.handleTypeFilterChange = handleTypeFilterChange;
+window.toggleReviewItem = toggleReviewItem;
+window.updateDestinationPath = updateDestinationPath;
+window.approveTest = approveTest;
+window.approveAllTests = approveAllTests;
+window.removeFromQueue = removeFromQueue;
+window.clearReviewQueue = clearReviewQueue;
+window.copyQueueTestToClipboard = copyQueueTestToClipboard;
+window.editTest = editTest;
+window.closeEditModal = closeEditModal;
+window.saveTestEdit = saveTestEdit;
+window.saveTestToCodebase = saveTestToCodebase;
+window.saveAllApprovedTests = saveAllApprovedTests;
 
 console.log("✅ Dashboard script loaded");
