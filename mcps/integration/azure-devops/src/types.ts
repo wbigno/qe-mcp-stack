@@ -18,18 +18,18 @@ export interface WorkItem {
 }
 
 export interface WorkItemFields {
-  'System.Id': number;
-  'System.Title': string;
-  'System.State': string;
-  'System.IterationPath': string;
-  'System.WorkItemType': string;
-  'System.AssignedTo'?: {
+  "System.Id": number;
+  "System.Title": string;
+  "System.State": string;
+  "System.IterationPath": string;
+  "System.WorkItemType": string;
+  "System.AssignedTo"?: {
     displayName: string;
     uniqueName: string;
   };
-  'System.Tags'?: string;
-  'System.Description'?: string;
-  'Microsoft.VSTS.TCM.Steps'?: string;
+  "System.Tags"?: string;
+  "System.Description"?: string;
+  "Microsoft.VSTS.TCM.Steps"?: string;
   [key: string]: any;
 }
 
@@ -58,18 +58,87 @@ export interface WorkItemUpdateRequest {
 
 export interface CreateTestCasesRequest {
   parentId?: number;
+  testPlanId?: number;
+  testSuiteId?: number;
   testCases: TestCase[];
 }
 
 export interface TestCase {
   title: string;
   steps: TestStep[];
+  priority?: number;
+  automationStatus?: string;
 }
 
 export interface TestStep {
   action: string;
   expectedResult: string;
   stepNumber: number;
+}
+
+// Test Plan Management Types
+export interface TestPlan {
+  id: number;
+  name: string;
+  project?: { id: string; name: string };
+  area?: { id: string; name: string };
+  iteration?: string;
+  owner?: { displayName: string; uniqueName: string };
+  state?: string;
+  startDate?: string;
+  endDate?: string;
+  rootSuite?: { id: number; name: string };
+  _links?: { self: { href: string }; web: { href: string } };
+}
+
+export interface TestSuite {
+  id: number;
+  name: string;
+  plan?: { id: number; name: string };
+  parentSuite?: { id: number; name: string };
+  suiteType?: string; // 'StaticTestSuite', 'DynamicTestSuite', 'RequirementTestSuite'
+  requirementId?: number; // For RequirementTestSuite - links to PBI/Feature
+  queryString?: string; // For DynamicTestSuite
+  children?: TestSuite[];
+  testCases?: TestSuiteTestCase[];
+  _links?: { self: { href: string }; web: { href: string } };
+}
+
+export interface TestSuiteTestCase {
+  testCase: { id: number; name: string };
+  pointAssignments?: Array<{
+    configurationId: number;
+    configurationName: string;
+  }>;
+}
+
+export interface CreateTestPlanRequest {
+  name: string;
+  areaPath?: string;
+  iteration?: string;
+  description?: string;
+}
+
+export interface CreateTestSuiteRequest {
+  planId: number;
+  parentSuiteId?: number;
+  name: string;
+  suiteType: "StaticTestSuite" | "DynamicTestSuite" | "RequirementTestSuite";
+  requirementId?: number; // Required for RequirementTestSuite
+  queryString?: string; // Required for DynamicTestSuite
+}
+
+export interface AddTestCasesToSuiteRequest {
+  planId: number;
+  suiteId: number;
+  testCaseIds: number[];
+}
+
+export interface CreateTestCasesInPlanRequest {
+  storyId: number;
+  featureId?: number;
+  testPlanId?: number;
+  testCases: TestCase[];
 }
 
 export interface BulkUpdateRequest {

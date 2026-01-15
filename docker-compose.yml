@@ -8,6 +8,7 @@ volumes:
   azure-devops-data:
   code-analyzer-data:
   coverage-analyzer-data:
+  blast-radius-analyzer-data:
   javascript-code-analyzer-data:
   javascript-coverage-analyzer-data:
   risk-analyzer-data:
@@ -39,6 +40,7 @@ services:
       - BROWSER_CONTROL_MCP_URL=http://browser-control-mcp:8103
       - CODE_ANALYZER_MCP_URL=http://code-analyzer:8200
       - COVERAGE_ANALYZER_MCP_URL=http://coverage-analyzer:8201
+      - BLAST_RADIUS_ANALYZER_MCP_URL=http://blast-radius-analyzer:8202
       - MIGRATION_ANALYZER_MCP_URL=http://migration-analyzer:8203
       - JAVASCRIPT_CODE_ANALYZER_MCP_URL=http://javascript-code-analyzer:8204
       - JAVASCRIPT_COVERAGE_ANALYZER_MCP_URL=http://javascript-coverage-analyzer:8205
@@ -174,6 +176,7 @@ services:
       - TEST_PLAN_MANAGER_URL=http://test-plan-manager:8102
       - CODE_ANALYZER_URL=http://code-analyzer:8200
       - COVERAGE_ANALYZER_URL=http://coverage-analyzer:8201
+      - BLAST_RADIUS_ANALYZER_URL=http://blast-radius-analyzer:8202
       - MIGRATION_ANALYZER_URL=http://migration-analyzer:8203
       - JAVASCRIPT_CODE_ANALYZER_URL=http://javascript-code-analyzer:8204
       - JAVASCRIPT_COVERAGE_ANALYZER_URL=http://javascript-coverage-analyzer:8205
@@ -361,6 +364,34 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:8201/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  blast-radius-analyzer:
+    build:
+      context: .
+      dockerfile: mcps/code-analysis/blast-radius-analyzer/Dockerfile
+    container_name: qe-blast-radius-analyzer
+    ports:
+      - "8202:8202"
+    environment:
+      - NODE_ENV=production
+      - PORT=8202
+    volumes:
+      - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
+      - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
+      - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
+      - /Users/williambigno/dev/git/PreCare:/mnt/apps/PreCare:ro
+      - /Users/williambigno/dev/git/ThirdPartyIntegrations:/mnt/apps/ThirdPartyIntegrations:ro
+      - ./config:/app/config:ro
+      - blast-radius-analyzer-data:/app/data
+    networks:
+      - qe-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8202/health"]
       interval: 30s
       timeout: 10s
       retries: 3

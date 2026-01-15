@@ -31,6 +31,7 @@ LOG_LEVEL=info
 ### Azure DevOps Personal Access Token
 
 Create a PAT with the following scopes:
+
 - Work Items: Read & Write
 - Project and Team: Read
 
@@ -39,11 +40,13 @@ Create a PAT with the following scopes:
 ### Work Items
 
 #### POST /work-items/query
+
 Query work items by sprint, custom WIQL query, or specific IDs.
 
 **Request Body Examples:**
 
 Query by sprint name:
+
 ```json
 {
   "sprint": "25.Q4.07",
@@ -53,6 +56,7 @@ Query by sprint name:
 ```
 
 Query by full iteration path:
+
 ```json
 {
   "sprint": "Core\\Core Team\\2025\\Q4\\25.Q4.07"
@@ -60,6 +64,7 @@ Query by full iteration path:
 ```
 
 Query by work item IDs:
+
 ```json
 {
   "workItemIds": [12345, 12346, 12347]
@@ -67,6 +72,7 @@ Query by work item IDs:
 ```
 
 Custom WIQL query:
+
 ```json
 {
   "query": "SELECT [System.Id] FROM WorkItems WHERE [System.State] = 'Active'"
@@ -74,6 +80,7 @@ Custom WIQL query:
 ```
 
 #### POST /work-items/get
+
 Get specific work items by IDs.
 
 ```json
@@ -83,6 +90,7 @@ Get specific work items by IDs.
 ```
 
 #### POST /work-items/update
+
 Update a work item's fields.
 
 ```json
@@ -96,6 +104,7 @@ Update a work item's fields.
 ```
 
 #### POST /work-items/create-test-cases
+
 Create test cases.
 
 ```json
@@ -117,6 +126,7 @@ Create test cases.
 ```
 
 #### POST /work-items/bulk-update
+
 Bulk update work items with test cases and automation requirements.
 
 ```json
@@ -129,40 +139,238 @@ Bulk update work items with test cases and automation requirements.
 }
 ```
 
+### Test Plan Management
+
+Test Plans in Azure DevOps organize test cases hierarchically. This MCP supports creating and managing test plans with proper hierarchy:
+
+```
+Test Plan
+└── Feature Suite (StaticTestSuite) - Groups related PBIs
+    └── PBI Suite (RequirementTestSuite) - Links to work item
+        └── Test Cases
+```
+
+#### GET /work-items/test-plans
+
+Get all test plans in the project.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1234,
+      "name": "Sprint 42 Test Plan",
+      "state": "Active",
+      "iteration": "Project\\Sprint 42",
+      "rootSuite": { "id": 5678, "name": "Sprint 42 Test Plan" }
+    }
+  ]
+}
+```
+
+#### GET /work-items/test-plans/:planId
+
+Get a specific test plan by ID.
+
+#### POST /work-items/test-plans
+
+Create a new test plan.
+
+```json
+{
+  "name": "Sprint 43 Test Plan",
+  "areaPath": "Project\\Team",
+  "iteration": "Project\\Sprint 43",
+  "description": "Test plan for Sprint 43 features"
+}
+```
+
+#### GET /work-items/test-plans/:planId/suites
+
+Get all test suites for a plan.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 100,
+      "name": "Sprint 42 Test Plan",
+      "suiteType": "StaticTestSuite",
+      "parentSuite": null
+    },
+    {
+      "id": 101,
+      "name": "Feature 123: User Authentication",
+      "suiteType": "StaticTestSuite",
+      "parentSuite": { "id": 100 }
+    },
+    {
+      "id": 102,
+      "name": "456: Login page design",
+      "suiteType": "RequirementTestSuite",
+      "parentSuite": { "id": 101 },
+      "requirementId": 456
+    }
+  ]
+}
+```
+
+#### POST /work-items/test-plans/:planId/suites
+
+Create a test suite under a plan.
+
+**Static Suite (for Feature grouping):**
+
+```json
+{
+  "name": "Feature 123: User Authentication",
+  "suiteType": "StaticTestSuite",
+  "parentSuiteId": 100
+}
+```
+
+**Requirement Suite (links to PBI/Feature):**
+
+```json
+{
+  "name": "456: Login page design",
+  "suiteType": "RequirementTestSuite",
+  "parentSuiteId": 101,
+  "requirementId": 456
+}
+```
+
+**Dynamic Suite (query-based):**
+
+```json
+{
+  "name": "All Active Test Cases",
+  "suiteType": "DynamicTestSuite",
+  "parentSuiteId": 100,
+  "queryString": "SELECT * FROM TestCase WHERE [System.State] = 'Active'"
+}
+```
+
+#### POST /work-items/test-plans/:planId/suites/:suiteId/test-cases
+
+Add existing test cases to a suite.
+
+```json
+{
+  "testCaseIds": [1001, 1002, 1003]
+}
+```
+
+#### POST /work-items/create-test-cases-in-plan
+
+**Primary endpoint for creating test cases with proper hierarchy.**
+
+This endpoint automatically:
+
+1. Finds or creates a Feature suite (if featureId provided)
+2. Finds or creates a PBI suite linked to the story
+3. Creates all test cases as work items
+4. Adds test cases to the PBI suite
+
+```json
+{
+  "testPlanId": 1234,
+  "storyId": 456,
+  "storyTitle": "Login page design",
+  "featureId": 123,
+  "featureTitle": "User Authentication",
+  "testCases": [
+    {
+      "title": "TC01 PBI-456 AC1: [positive] Verify successful login",
+      "steps": [
+        {
+          "stepNumber": 1,
+          "action": "Navigate to login page",
+          "expectedResult": "Login form is displayed"
+        },
+        {
+          "stepNumber": 2,
+          "action": "Enter valid credentials",
+          "expectedResult": "Fields accept input"
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "testCases": [
+      {
+        "id": 1001,
+        "fields": {
+          "System.Title": "TC01 PBI-456 AC1: [positive] Verify successful login"
+        }
+      }
+    ],
+    "suite": {
+      "id": 102,
+      "name": "456: Login page design",
+      "suiteType": "RequirementTestSuite",
+      "requirementId": 456
+    }
+  }
+}
+```
+
 ### Iterations
 
 #### GET /iterations/projects
+
 Get all projects in the organization.
 
 #### GET /iterations/teams?project=ProjectName
+
 Get teams for a specific project.
 
 #### GET /iterations/sprints?project=ProjectName&team=TeamName
+
 Get sprints/iterations for a specific team.
 
 ## Development
 
 ### Install Dependencies
+
 ```bash
 npm install
 ```
 
 ### Run in Development Mode
+
 ```bash
 npm run dev
 ```
 
 ### Build
+
 ```bash
 npm run build
 ```
 
 ### Run Tests
+
 ```bash
 npm test
 ```
 
 ### Run in Production
+
 ```bash
 npm run build
 npm start
@@ -171,11 +379,13 @@ npm start
 ## Docker
 
 ### Build Image
+
 ```bash
 docker build -t azure-devops-mcp -f mcps/integration/azure-devops/Dockerfile .
 ```
 
 ### Run Container
+
 ```bash
 docker run -p 8100:8100 \
   -e AZURE_DEVOPS_PAT=your-pat \
@@ -187,9 +397,11 @@ docker run -p 8100:8100 \
 ## API Documentation
 
 Once the service is running, access the Swagger UI at:
+
 - http://localhost:8100/api-docs
 
 Download OpenAPI JSON specification:
+
 - http://localhost:8100/api-docs.json
 
 ## Health Check
@@ -199,6 +411,7 @@ curl http://localhost:8100/health
 ```
 
 Response:
+
 ```json
 {
   "status": "healthy",
@@ -237,29 +450,31 @@ src/
 ### Using MCPClient
 
 ```typescript
-import { MCPClient } from '@qe-mcp-stack/mcp-sdk';
+import { MCPClient } from "@qe-mcp-stack/mcp-sdk";
 
 const client = new MCPClient({
-  baseURL: 'http://azure-devops:8100',
+  baseURL: "http://azure-devops:8100",
 });
 
 // Query work items
-const workItems = await client.post('/work-items/query', {
-  sprint: '25.Q4.07',
-  project: 'Core',
+const workItems = await client.post("/work-items/query", {
+  sprint: "25.Q4.07",
+  project: "Core",
 });
 
 // Get projects
-const projects = await client.get('/iterations/projects');
+const projects = await client.get("/iterations/projects");
 ```
 
 ## Testing
 
 Tests are organized into:
+
 - `tests/unit/` - Unit tests for services and utilities
 - `tests/integration/` - Integration tests with Azure DevOps API
 
 Run tests:
+
 ```bash
 npm test
 ```

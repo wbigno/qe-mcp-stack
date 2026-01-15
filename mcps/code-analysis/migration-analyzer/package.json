@@ -6,16 +6,27 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"
   },
-  "keywords": ["mcp", "code-analysis", "migration", "core"],
+  "keywords": [
+    "mcp",
+    "code-analysis",
+    "migration",
+    "core"
+  ],
   "author": "QE Team",
   "license": "MIT",
   "dependencies": {
-    "express": "^4.18.2",
-    "axios": "^1.6.2"
+    "axios": "^1.6.2",
+    "express": "^4.18.2"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "nodemon": "^3.0.2",
+    "supertest": "^7.2.2"
   }
 }

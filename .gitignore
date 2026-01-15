@@ -119,6 +119,9 @@ jest-coverage/
 test-reports/
 **/test-reports/
 
+# Test reports
+test-reports/
+
 # Test artifacts
 *.test.js.snap
 __snapshots__/
