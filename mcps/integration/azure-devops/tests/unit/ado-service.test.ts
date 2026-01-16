@@ -1083,4 +1083,475 @@ describe("ADOService", () => {
       expect(result.testCases).toBeDefined();
     });
   });
+
+  // ============================================
+  // ENHANCED WORK ITEMS & PR ANALYSIS TESTS
+  // ============================================
+
+  describe("getEnhancedWorkItems", () => {
+    it("should fetch work items with $expand=all for artifact links", async () => {
+      const mockResponse = {
+        data: {
+          value: [
+            {
+              id: 123,
+              fields: { "System.Title": "Test Story" },
+              relations: [
+                {
+                  rel: "ArtifactLink",
+                  url: "vstfs:///Git/PullRequestId/proj-id%2Frepo-id%2F789",
+                  attributes: { name: "Pull Request" },
+                },
+                {
+                  rel: "AttachedFile",
+                  url: "https://dev.azure.com/attachment/123",
+                  attributes: {
+                    name: "requirements.pdf",
+                    resourceSize: 1024,
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      mockClientInstance.get.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.getEnhancedWorkItems([123]);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe(123);
+      expect(mockClientInstance.get).toHaveBeenCalledWith(
+        expect.stringContaining("$expand=all"),
+      );
+    });
+
+    it("should parse development links from artifact relations", async () => {
+      const mockResponse = {
+        data: {
+          value: [
+            {
+              id: 123,
+              fields: {},
+              relations: [
+                {
+                  rel: "ArtifactLink",
+                  url: "vstfs:///Git/PullRequestId/proj-id%2Frepo-id%2F789",
+                  attributes: { name: "Pull Request" },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      mockClientInstance.get.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.getEnhancedWorkItems([123]);
+
+      expect(result[0].developmentLinks).toBeDefined();
+      expect(result[0].developmentLinks).toHaveLength(1);
+      expect(result[0].developmentLinks?.[0].type).toBe("PullRequest");
+      expect(result[0].developmentLinks?.[0].pullRequestId).toBe(789);
+    });
+
+    it("should parse attachments from relations", async () => {
+      const mockResponse = {
+        data: {
+          value: [
+            {
+              id: 123,
+              fields: {},
+              relations: [
+                {
+                  rel: "AttachedFile",
+                  url: "https://dev.azure.com/attachment/attach-123",
+                  attributes: {
+                    name: "spec.pdf",
+                    resourceSize: 2048,
+                    resourceCreatedDate: "2025-01-15T10:00:00Z",
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      mockClientInstance.get.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.getEnhancedWorkItems([123]);
+
+      expect(result[0].attachments).toBeDefined();
+      expect(result[0].attachments).toHaveLength(1);
+      expect(result[0].attachments?.[0].name).toBe("spec.pdf");
+      expect(result[0].attachments?.[0].size).toBe(2048);
+    });
+
+    it("should parse parent and child work items", async () => {
+      const mockResponse = {
+        data: {
+          value: [
+            {
+              id: 123,
+              fields: {},
+              relations: [
+                {
+                  rel: "System.LinkTypes.Hierarchy-Reverse",
+                  url: "https://dev.azure.com/workitems/100",
+                  attributes: { name: "Parent" },
+                },
+                {
+                  rel: "System.LinkTypes.Hierarchy-Forward",
+                  url: "https://dev.azure.com/workitems/200",
+                  attributes: { name: "Child" },
+                },
+                {
+                  rel: "System.LinkTypes.Hierarchy-Forward",
+                  url: "https://dev.azure.com/workitems/201",
+                  attributes: { name: "Child" },
+                },
+              ],
+            },
+          ],
+        },
+      };
+
+      mockClientInstance.get.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.getEnhancedWorkItems([123]);
+
+      expect(result[0].parentWorkItem).toBeDefined();
+      expect(result[0].parentWorkItem?.id).toBe(100);
+      expect(result[0].childWorkItems).toHaveLength(2);
+    });
+  });
+
+  describe("parseArtifactLink", () => {
+    it("should parse Pull Request artifact URI", () => {
+      const artifactUri =
+        "vstfs:///Git/PullRequestId/project-id%2Frepo-id%2F789";
+      const result = service.parseArtifactLink(artifactUri);
+
+      expect(result.type).toBe("PullRequest");
+      expect(result.pullRequestId).toBe(789);
+      expect(result.repositoryId).toBe("repo-id");
+      expect(result.projectId).toBe("project-id");
+    });
+
+    it("should parse Commit artifact URI", () => {
+      const artifactUri =
+        "vstfs:///Git/Commit/project-id%2Frepo-id%2Fabc123def456";
+      const result = service.parseArtifactLink(artifactUri);
+
+      expect(result.type).toBe("Commit");
+      expect(result.commitId).toBe("abc123def456");
+    });
+
+    it("should parse Build artifact URI", () => {
+      const artifactUri = "vstfs:///Build/Build/12345";
+      const result = service.parseArtifactLink(artifactUri);
+
+      expect(result.type).toBe("Build");
+      expect(result.buildId).toBe(12345);
+    });
+
+    it("should return Unknown for unrecognized URIs", () => {
+      const artifactUri = "vstfs:///Unknown/Type/something";
+      const result = service.parseArtifactLink(artifactUri);
+
+      expect(result.type).toBe("Unknown");
+    });
+  });
+
+  describe("getPullRequest", () => {
+    it("should fetch PR details from Git API", async () => {
+      const mockResponse = {
+        data: {
+          pullRequestId: 789,
+          title: "Implement feature X",
+          status: "completed",
+          sourceRefName: "refs/heads/feature/x",
+          targetRefName: "refs/heads/main",
+          createdBy: {
+            displayName: "John Doe",
+            uniqueName: "john@example.com",
+          },
+          repository: {
+            id: "repo-id",
+            name: "my-repo",
+            project: { id: "proj-id", name: "MyProject" },
+          },
+        },
+      };
+
+      mockClientInstance.get.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.getPullRequest("repo-id", 789);
+
+      expect(result.pullRequestId).toBe(789);
+      expect(result.title).toBe("Implement feature X");
+      expect(mockClientInstance.get).toHaveBeenCalledWith(
+        expect.stringContaining("git/repositories/repo-id/pullrequests/789"),
+      );
+    });
+  });
+
+  describe("getPullRequestChanges", () => {
+    it("should fetch files changed in a PR", async () => {
+      const mockResponse = {
+        data: {
+          changes: [
+            {
+              changeId: 1,
+              item: {
+                path: "/src/services/auth.ts",
+                gitObjectType: "blob",
+              },
+              changeType: "edit",
+            },
+            {
+              changeId: 2,
+              item: {
+                path: "/tests/auth.test.ts",
+                gitObjectType: "blob",
+              },
+              changeType: "add",
+            },
+          ],
+        },
+      };
+
+      mockClientInstance.get.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.getPullRequestChanges("repo-id", 789);
+
+      expect(result).toHaveLength(2);
+      expect(result[0].item.path).toBe("/src/services/auth.ts");
+      expect(result[0].changeType).toBe("edit");
+    });
+  });
+
+  describe("getExistingTestCasesForWorkItem", () => {
+    it("should find test cases linked via TestedBy relation", async () => {
+      // Mock enhanced work item with TestedBy relations
+      mockClientInstance.get.mockResolvedValueOnce({
+        data: {
+          value: [
+            {
+              id: 123,
+              fields: {},
+              relations: [
+                {
+                  rel: "Microsoft.VSTS.Common.TestedBy-Forward",
+                  url: "https://dev.azure.com/workitems/5001",
+                  attributes: {},
+                },
+              ],
+            },
+          ],
+        },
+      });
+
+      // Mock fetching test case details
+      mockClientInstance.get.mockResolvedValueOnce({
+        data: {
+          value: [
+            {
+              id: 5001,
+              fields: {
+                "System.Title": "Test login",
+                "System.State": "Active",
+                "Microsoft.VSTS.TCM.Steps":
+                  '<steps><step id="1"><parameterizedString>Login action</parameterizedString><parameterizedString>User logged in</parameterizedString></step></steps>',
+              },
+            },
+          ],
+        },
+      });
+
+      const result = await service.getExistingTestCasesForWorkItem(123);
+
+      expect(result).toHaveLength(1);
+      expect(result[0].id).toBe(5001);
+      expect(result[0].title).toBe("Test login");
+      expect(result[0].linkedWorkItemId).toBe(123);
+    });
+  });
+
+  describe("compareTestCases", () => {
+    it("should mark test case as NEW when no existing match", async () => {
+      const generatedTestCases = [
+        {
+          title: "TC01: Brand new test",
+          steps: [
+            {
+              action: "Do something",
+              expectedResult: "Something happens",
+              stepNumber: 1,
+            },
+          ],
+        },
+      ];
+
+      const existingTestCases: never[] = [];
+
+      const result = await service.compareTestCases(
+        123,
+        generatedTestCases,
+        existingTestCases,
+      );
+
+      expect(result.comparisons[0].status).toBe("NEW");
+      expect(result.summary.newCount).toBe(1);
+    });
+
+    it("should mark test case as EXISTS when highly similar", async () => {
+      const generatedTestCases = [
+        {
+          title: "TC01: Verify login functionality",
+          steps: [
+            {
+              action: "Navigate to login page",
+              expectedResult: "Login form displayed",
+              stepNumber: 1,
+            },
+          ],
+        },
+      ];
+
+      const existingTestCases = [
+        {
+          id: 5001,
+          title: "TC01: Verify login functionality",
+          state: "Active",
+          steps: [
+            {
+              stepNumber: 1,
+              action: "Navigate to login page",
+              expectedResult: "Login form displayed",
+            },
+          ],
+        },
+      ];
+
+      const result = await service.compareTestCases(
+        123,
+        generatedTestCases,
+        existingTestCases,
+      );
+
+      expect(result.comparisons[0].status).toBe("EXISTS");
+      expect(result.comparisons[0].similarity).toBeGreaterThan(90);
+      expect(result.summary.existsCount).toBe(1);
+    });
+
+    it("should mark test case as UPDATE when partially similar", async () => {
+      const generatedTestCases = [
+        {
+          title: "TC01: Verify login functionality with new features",
+          steps: [
+            {
+              action: "Navigate to login page",
+              expectedResult: "Login form displayed",
+              stepNumber: 1,
+            },
+            {
+              action: "Enter credentials",
+              expectedResult: "Credentials accepted",
+              stepNumber: 2,
+            },
+            {
+              action: "Click submit",
+              expectedResult: "User logged in",
+              stepNumber: 3,
+            },
+          ],
+        },
+      ];
+
+      const existingTestCases = [
+        {
+          id: 5001,
+          title: "TC01: Verify login functionality",
+          state: "Active",
+          steps: [
+            {
+              stepNumber: 1,
+              action: "Navigate to login page",
+              expectedResult: "Login form displayed",
+            },
+          ],
+        },
+      ];
+
+      const result = await service.compareTestCases(
+        123,
+        generatedTestCases,
+        existingTestCases,
+      );
+
+      expect(result.comparisons[0].status).toBe("UPDATE");
+      expect(result.comparisons[0].similarity).toBeGreaterThan(40);
+      expect(result.comparisons[0].similarity).toBeLessThan(90);
+      expect(result.summary.updateCount).toBe(1);
+    });
+  });
+
+  describe("stringSimilarity", () => {
+    it("should return 100 for identical strings", () => {
+      const result = service.stringSimilarity("hello world", "hello world");
+      expect(result).toBe(100);
+    });
+
+    it("should return 0 for completely different strings", () => {
+      const result = service.stringSimilarity("abc xyz", "123 456");
+      expect(result).toBe(0);
+    });
+
+    it("should return partial similarity for overlapping strings", () => {
+      const result = service.stringSimilarity(
+        "navigate to login page",
+        "go to login screen",
+      );
+      expect(result).toBeGreaterThan(0);
+      expect(result).toBeLessThan(100);
+    });
+
+    it("should handle empty strings", () => {
+      const result = service.stringSimilarity("", "");
+      expect(result).toBe(100);
+    });
+  });
+
+  describe("updateTestCase", () => {
+    it("should update test case fields via PATCH", async () => {
+      mockClientInstance.patch.mockResolvedValueOnce({
+        data: {
+          id: 5001,
+          fields: {
+            "System.Title": "Updated title",
+            "Microsoft.VSTS.TCM.Steps": "<steps>...</steps>",
+          },
+        },
+      });
+
+      const result = await service.updateTestCase(5001, {
+        title: "Updated title",
+        steps: [
+          { action: "New step", expectedResult: "New result", stepNumber: 1 },
+        ],
+      });
+
+      expect(result.id).toBe(5001);
+      expect(mockClientInstance.patch).toHaveBeenCalledWith(
+        expect.stringContaining("workitems/5001"),
+        expect.any(Array),
+        expect.objectContaining({
+          headers: { "Content-Type": "application/json-patch+json" },
+        }),
+      );
+    });
+  });
 });

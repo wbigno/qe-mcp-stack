@@ -6,7 +6,10 @@ Azure DevOps integration MCP providing comprehensive work item management and sp
 
 - **Work Item Queries**: Query work items by sprint, custom WIQL, or specific IDs
 - **Work Item Management**: Create, update, and retrieve work items
-- **Test Case Management**: Create and manage test cases
+- **Enhanced Work Items**: Fetch work items with development links (PRs, commits, builds), attachments, and related items
+- **PR File Analysis**: Get files changed in linked Pull Requests for blast radius expansion
+- **Test Case Management**: Create, update, and manage test cases
+- **Smart Test Case Comparison**: Compare generated test cases with existing ones (NEW/UPDATE/EXISTS)
 - **Bulk Operations**: Perform bulk updates on multiple work items
 - **Iteration Management**: Retrieve projects, teams, and sprints
 - **OpenAPI Documentation**: Complete API documentation at `/api-docs`
@@ -138,6 +141,228 @@ Bulk update work items with test cases and automation requirements.
   }
 }
 ```
+
+### Enhanced Work Items (Development Links & PR Analysis)
+
+These endpoints provide enhanced work item data including development links (PRs, commits, builds), attachments, and related work items. They also enable PR file analysis for blast radius expansion and smart test case comparison.
+
+#### POST /work-items/enhanced
+
+Fetch work items with full development link data, attachments, and relations parsed.
+
+```json
+{
+  "workItemIds": [12345, 12346]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 12345,
+      "fields": { ... },
+      "developmentLinks": [
+        {
+          "type": "PullRequest",
+          "artifactUri": "vstfs:///Git/PullRequestId/...",
+          "repositoryId": "repo-guid",
+          "projectId": "project-guid",
+          "pullRequestId": 789
+        },
+        {
+          "type": "Commit",
+          "artifactUri": "vstfs:///Git/Commit/...",
+          "commitId": "abc123..."
+        }
+      ],
+      "attachments": [
+        {
+          "id": "attach-guid",
+          "name": "requirements.pdf",
+          "url": "https://...",
+          "size": 102400,
+          "createdDate": "2025-01-15T10:00:00Z"
+        }
+      ],
+      "relatedWorkItems": [
+        { "id": 456, "relationType": "Related" }
+      ],
+      "parentWorkItem": { "id": 100, "relationType": "Parent" },
+      "childWorkItems": [
+        { "id": 200, "relationType": "Child" }
+      ]
+    }
+  ]
+}
+```
+
+#### GET /work-items/:id/files-changed
+
+Get all files changed in Pull Requests linked to a work item. Used for expanding blast radius analysis beyond the Impact field.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "workItemId": 12345,
+    "files": [
+      "src/services/auth-service.ts",
+      "src/components/LoginForm.tsx",
+      "tests/auth.test.ts"
+    ],
+    "pullRequests": [
+      {
+        "pullRequestId": 789,
+        "title": "Implement login feature",
+        "status": "completed",
+        "fileCount": 3,
+        "changes": [
+          {
+            "path": "src/services/auth-service.ts",
+            "changeType": "edit"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+#### GET /work-items/:id/existing-test-cases
+
+Get existing test cases linked to a work item via "TestedBy" relation.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 5001,
+      "title": "TC01 PBI-12345: Verify login functionality",
+      "state": "Active",
+      "steps": [
+        {
+          "stepNumber": 1,
+          "action": "Navigate to login page",
+          "expectedResult": "Login form displayed"
+        }
+      ],
+      "linkedWorkItemId": 12345
+    }
+  ]
+}
+```
+
+#### POST /work-items/:id/compare-test-cases
+
+Compare generated test cases with existing ones. Returns comparison status for each: NEW (create), UPDATE (modify), or EXISTS (skip).
+
+**Request:**
+
+```json
+{
+  "generatedTestCases": [
+    {
+      "title": "TC01 PBI-12345: Verify login functionality",
+      "steps": [
+        {
+          "action": "Navigate to login page",
+          "expectedResult": "Login form displayed",
+          "stepNumber": 1
+        }
+      ]
+    },
+    {
+      "title": "TC02 PBI-12345: Verify logout functionality",
+      "steps": [...]
+    }
+  ]
+}
+```
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "data": {
+    "workItemId": 12345,
+    "workItemTitle": "Login page design",
+    "existingTestCases": [...],
+    "generatedTestCases": [...],
+    "comparisons": [
+      {
+        "generated": { "title": "TC01...", "steps": [...] },
+        "existing": { "id": 5001, "title": "TC01...", "steps": [...] },
+        "status": "UPDATE",
+        "similarity": 85,
+        "diff": {
+          "titleChanged": false,
+          "stepsAdded": 1,
+          "stepsRemoved": 0,
+          "stepsModified": 0
+        }
+      },
+      {
+        "generated": { "title": "TC02...", "steps": [...] },
+        "existing": null,
+        "status": "NEW",
+        "similarity": 0
+      }
+    ],
+    "summary": {
+      "newCount": 1,
+      "updateCount": 1,
+      "existsCount": 0,
+      "totalGenerated": 2,
+      "totalExisting": 1
+    }
+  }
+}
+```
+
+**Comparison Logic:**
+
+- `NEW`: similarity < 40% - Create as new test case
+- `UPDATE`: similarity 40-90% - Update existing test case
+- `EXISTS`: similarity > 90% - Skip, already exists
+
+#### PATCH /work-items/test-cases/:id
+
+Update an existing test case.
+
+**Request:**
+
+```json
+{
+  "title": "Updated test case title",
+  "steps": [
+    {
+      "action": "Updated step action",
+      "expectedResult": "Updated expected result",
+      "stepNumber": 1
+    }
+  ],
+  "priority": 2,
+  "automationStatus": "Planned"
+}
+```
+
+#### GET /work-items/pull-requests/:repoId/:prId
+
+Get Pull Request details from Azure DevOps Git API.
+
+#### GET /work-items/pull-requests/:repoId/:prId/changes
+
+Get files changed in a specific Pull Request.
 
 ### Test Plan Management
 
