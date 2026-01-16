@@ -19,11 +19,10 @@
             <nav class="tab-nav">
                 <button class="tab-btn active" data-tab="overview">📊 Overview</button>
                 <button class="tab-btn" data-tab="work-items">📋 Work Items</button>
+                <button class="tab-btn" data-tab="story-analyzer">🤖 Story Analyzer</button>
                 <button class="tab-btn" data-tab="story-analysis">🔍 Story Analysis</button>
                 <button class="tab-btn" data-tab="defects">🐛 Defects</button>
-                <button class="tab-btn" data-tab="test-cases">✅ Test Cases</button>
                 <button class="tab-btn" data-tab="test-execution">🔬 Test Execution</button>
-                <button class="tab-btn" data-tab="story-analyzer">🤖 Story Analyzer</button>
                 <button class="tab-btn" data-tab="quality-metrics">📈 Quality Metrics</button>
             </nav>
         </header>
@@ -37,11 +36,9 @@
             
             <div class="filter-bar-content" id="filterBarContent">
                 <div class="filter-controls">
-                    <div class="filter-group">
-                        <label class="required">Application</label>
-                        <select id="appSelect">
-                            <option value="">Select Application...</option>
-                        </select>
+                    <div class="filter-group app-filter-group">
+                        <label class="required">Application(s)</label>
+                        <div id="appSelect" class="app-selector-container"></div>
                     </div>
 
                     <div class="filter-group sprint-selector-group">
@@ -174,54 +171,6 @@
                 </div>
             </div>
 
-            <!-- Test Cases Tab (NEW) -->
-            <div id="test-cases-tab" class="tab-content">
-                <div class="panel analyzer-panel">
-                    <h2>✅ Generate Test Cases</h2>
-                    <p class="panel-description">Generate comprehensive test cases for a user story using AI</p>
-                    
-                    <div class="analyzer-form">
-                        <div class="form-group">
-                            <label for="testCaseStoryIdInput">Story ID</label>
-                            <input type="number" id="testCaseStoryIdInput" placeholder="Enter story ID (e.g., 12345)">
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="includeNegativeTests" checked>
-                                Include Negative Test Cases
-                            </label>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label>
-                                <input type="checkbox" id="includeEdgeCases" checked>
-                                Include Edge Cases
-                            </label>
-                        </div>
-                        
-                        <div class="form-actions">
-                            <button id="generateTestCasesBtn" class="btn btn-success">
-                                <span id="generateTestCasesLoading" style="display:none;" class="loading-spinner"></span>
-                                <span id="generateTestCasesText">✅ Generate Test Cases</span>
-                            </button>
-                            <button id="clearTestCasesBtn" class="btn btn-secondary">Clear Results</button>
-                        </div>
-                    </div>
-
-                    <div id="testCasesResults" style="display:none;">
-                        <!-- Test cases populated by JavaScript -->
-                    </div>
-                </div>
-
-                <div class="panel" id="testCasesByStoryPanel" style="display:none;">
-                    <h2>Test Cases for Story</h2>
-                    <div id="testCasesByStoryList">
-                        <!-- Existing test cases from ADO -->
-                    </div>
-                </div>
-            </div>
-
             <!-- Test Execution Tab -->
             <div id="test-execution-tab" class="tab-content">
                 <div id="testExecutionContent">
@@ -257,6 +206,7 @@
             <div id="story-analyzer-tab" class="tab-content">
                 <div class="panel analyzer-panel">
                     <h2>🤖 Analyze User Story</h2>
+                    <p class="panel-description">Refine and analyze story content before full analysis</p>
                     <div class="analyzer-form">
                         <div class="form-group">
                             <label for="storyIdInput">Story ID</label>
@@ -266,10 +216,6 @@
                             <button id="analyzeStoryBtn" class="btn btn-success">
                                 <span id="analyzeLoading" style="display:none;" class="loading-spinner"></span>
                                 <span id="analyzeText">🔍 Analyze Story</span>
-                            </button>
-                            <button id="generateTestsBtn" class="btn btn-warning">
-                                <span id="generateLoading" style="display:none;" class="loading-spinner"></span>
-                                <span id="generateText">✅ Generate Tests</span>
                             </button>
                         </div>
                     </div>

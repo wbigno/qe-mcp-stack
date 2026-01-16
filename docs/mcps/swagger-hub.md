@@ -2,8 +2,6 @@
 
 Central landing page for all QE MCP Stack API documentation.
 
-<!-- Test comment for pre-commit hook validation -->
-
 ## Features
 
 - **Aggregated API Documentation**: Interactive Swagger UI with all MCP APIs in one place

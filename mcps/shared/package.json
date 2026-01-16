@@ -3,9 +3,19 @@
   "version": "1.0.0",
   "type": "module",
   "main": "dotnet-analyzer.js",
+  "scripts": {
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage",
+    "test:report": "NODE_OPTIONS=--experimental-vm-modules jest && open test-reports/shared-utilities-test-report.html"
+  },
   "dependencies": {
-    "glob": "^10.3.10",
     "@anthropic-ai/sdk": "^0.27.0",
+    "glob": "^10.3.10",
     "openai": "^4.0.0"
+  },
+  "devDependencies": {
+    "@jest/globals": "^30.2.0",
+    "jest": "^30.2.0"
   }
 }

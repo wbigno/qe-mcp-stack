@@ -1,0 +1,319 @@
+/**
+ * Fuzzy File Matcher
+ * Finds similar files when exact paths don't match
+ */
+
+import { glob } from "glob";
+import path from "path";
+
+export class FuzzyMatcher {
+  constructor() {
+    this.fileCache = new Map();
+    this.cacheExpiry = 5 * 60 * 1000; // 5 minute cache
+  }
+
+  /**
+   * Find a file using fuzzy matching strategies
+   */
+  async findSimilarFile(app, searchPath) {
+    // Get available files for the app
+    const availableFiles = await this.getAvailableFiles(app);
+
+    // Normalize search path (convert backslashes to forward slashes for Linux)
+    const normalizedSearchPath = searchPath.replace(/\\/g, "/");
+
+    console.log(
+      `[FuzzyMatcher] Searching for: ${normalizedSearchPath} (original: ${searchPath})`,
+    );
+    console.log(
+      `[FuzzyMatcher] Available files count: ${availableFiles.length}`,
+    );
+
+    // Strategy 1: Exact match (normalized)
+    if (availableFiles.includes(normalizedSearchPath)) {
+      return { path: normalizedSearchPath, exists: true, matchType: "exact" };
+    }
+
+    // Strategy 2: Case-insensitive match (normalized)
+    const ciMatch = availableFiles.find(
+      (f) => f.toLowerCase() === normalizedSearchPath.toLowerCase(),
+    );
+    if (ciMatch) {
+      return {
+        path: ciMatch,
+        exists: true,
+        matchType: "case-insensitive",
+        fuzzyMatch: true,
+      };
+    }
+
+    // Strategy 3: Filename-only match (ignoring directory)
+    const filename = path.basename(normalizedSearchPath);
+    const filenameMatches = availableFiles.filter(
+      (f) => path.basename(f) === filename,
+    );
+    if (filenameMatches.length === 1) {
+      return {
+        path: filenameMatches[0],
+        exists: true,
+        matchType: "filename-only",
+        fuzzyMatch: true,
+        originalPath: searchPath,
+      };
+    }
+
+    // Strategy 3b: Multiple filename matches - log and return first if reasonable
+    if (filenameMatches.length > 1 && filenameMatches.length <= 5) {
+      console.log(
+        `[FuzzyMatcher] Multiple filename matches for ${filename}:`,
+        filenameMatches,
+      );
+      // Return the first match but note there were multiple
+      return {
+        path: filenameMatches[0],
+        exists: true,
+        matchType: "filename-multiple",
+        fuzzyMatch: true,
+        originalPath: searchPath,
+        alternatives: filenameMatches.slice(1),
+      };
+    }
+
+    // Strategy 4: Filename case-insensitive match
+    const filenameCiMatches = availableFiles.filter(
+      (f) => path.basename(f).toLowerCase() === filename.toLowerCase(),
+    );
+    if (filenameCiMatches.length === 1) {
+      return {
+        path: filenameCiMatches[0],
+        exists: true,
+        matchType: "filename-case-insensitive",
+        fuzzyMatch: true,
+        originalPath: searchPath,
+      };
+    }
+
+    // Strategy 5: Partial path match (last N segments)
+    const pathSegments = normalizedSearchPath.split(/[/\\]/).filter(Boolean);
+    for (let i = 2; i <= Math.min(pathSegments.length, 6); i++) {
+      const partialPath = pathSegments.slice(-i).join("/");
+      const partialMatches = availableFiles.filter(
+        (f) =>
+          f.endsWith(partialPath) ||
+          f.toLowerCase().endsWith(partialPath.toLowerCase()),
+      );
+      if (partialMatches.length === 1) {
+        console.log(
+          `[FuzzyMatcher] Found partial path match with ${i} segments: ${partialMatches[0]}`,
+        );
+        return {
+          path: partialMatches[0],
+          exists: true,
+          matchType: "partial-path",
+          fuzzyMatch: true,
+          originalPath: searchPath,
+        };
+      }
+      if (partialMatches.length > 1 && partialMatches.length <= 3) {
+        console.log(
+          `[FuzzyMatcher] Multiple partial matches for ${partialPath}:`,
+          partialMatches,
+        );
+        return {
+          path: partialMatches[0],
+          exists: true,
+          matchType: "partial-path-multiple",
+          fuzzyMatch: true,
+          originalPath: searchPath,
+          alternatives: partialMatches.slice(1),
+        };
+      }
+    }
+
+    // Strategy 6: Levenshtein distance for typos
+    const closeMatches = this.findByLevenshtein(
+      normalizedSearchPath,
+      availableFiles,
+      5,
+    );
+    if (closeMatches.length > 0) {
+      return {
+        path: closeMatches[0].path,
+        exists: true,
+        matchType: "levenshtein",
+        fuzzyMatch: true,
+        distance: closeMatches[0].distance,
+        originalPath: searchPath,
+      };
+    }
+
+    // No match found
+    console.log(`[FuzzyMatcher] No match found for: ${normalizedSearchPath}`);
+    return {
+      path: searchPath,
+      exists: false,
+      matchType: "not-found",
+      suggestions: this.getSuggestions(normalizedSearchPath, availableFiles),
+    };
+  }
+
+  /**
+   * Get available files for an app (with caching)
+   */
+  async getAvailableFiles(app) {
+    const cacheKey = `files-${app}`;
+    const cached = this.fileCache.get(cacheKey);
+
+    if (cached && Date.now() - cached.timestamp < this.cacheExpiry) {
+      return cached.files;
+    }
+
+    // In a real implementation, this would fetch from the code-analyzer MCP
+    // or scan the actual codebase. For now, return a mock set.
+    const files = await this.scanAppFiles(app);
+
+    this.fileCache.set(cacheKey, {
+      files,
+      timestamp: Date.now(),
+    });
+
+    return files;
+  }
+
+  /**
+   * Scan app files from mounted source directories
+   */
+  async scanAppFiles(app) {
+    // Apps are mounted at /mnt/apps/{app}
+    const basePath = `/mnt/apps/${app}`;
+
+    console.log(`[FuzzyMatcher] Scanning files for app: ${app} at ${basePath}`);
+
+    try {
+      // Scan for all common source file types
+      const patterns = [
+        // .NET/C# files
+        "**/*.cs",
+        // Vue/JavaScript/TypeScript files
+        "**/*.vue",
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.jsx",
+        // Other common files
+        "**/*.json",
+        "**/*.razor",
+        "**/*.cshtml",
+        "**/*.xml",
+        "**/*.yaml",
+        "**/*.yml",
+      ];
+
+      let files = [];
+      for (const pattern of patterns) {
+        try {
+          const matches = await glob(pattern, {
+            cwd: basePath,
+            ignore: [
+              "**/node_modules/**",
+              "**/bin/**",
+              "**/obj/**",
+              "**/dist/**",
+              "**/.git/**",
+            ],
+            nodir: true,
+            absolute: false,
+          });
+          // Store relative paths from the app root
+          files = files.concat(matches);
+        } catch (e) {
+          // Pattern didn't match, continue
+        }
+      }
+
+      const uniqueFiles = [...new Set(files)];
+      console.log(
+        `[FuzzyMatcher] Found ${uniqueFiles.length} files for ${app}`,
+      );
+
+      // Log a sample of files found
+      if (uniqueFiles.length > 0) {
+        console.log(`[FuzzyMatcher] Sample files:`, uniqueFiles.slice(0, 5));
+      }
+
+      return uniqueFiles;
+    } catch (error) {
+      console.log(`[FuzzyMatcher] File scan failed for ${app}:`, error.message);
+      return [];
+    }
+  }
+
+  /**
+   * Calculate Levenshtein distance between two strings
+   */
+  levenshteinDistance(str1, str2) {
+    const m = str1.length;
+    const n = str2.length;
+    const dp = Array(m + 1)
+      .fill(null)
+      .map(() => Array(n + 1).fill(0));
+
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (str1[i - 1] === str2[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1];
+        } else {
+          dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        }
+      }
+    }
+
+    return dp[m][n];
+  }
+
+  /**
+   * Find files by Levenshtein distance
+   */
+  findByLevenshtein(searchPath, availableFiles, maxDistance) {
+    const filename = path.basename(searchPath);
+    const matches = [];
+
+    for (const file of availableFiles) {
+      const fileBasename = path.basename(file);
+      const distance = this.levenshteinDistance(
+        filename.toLowerCase(),
+        fileBasename.toLowerCase(),
+      );
+
+      if (distance <= maxDistance) {
+        matches.push({ path: file, distance });
+      }
+    }
+
+    return matches.sort((a, b) => a.distance - b.distance);
+  }
+
+  /**
+   * Get suggestions for unmatched file
+   */
+  getSuggestions(searchPath, availableFiles) {
+    const filename = path.basename(searchPath);
+    const suggestions = [];
+
+    // Find files with similar names
+    for (const file of availableFiles) {
+      const fileBasename = path.basename(file);
+      if (
+        fileBasename.includes(filename.slice(0, 4)) ||
+        filename.includes(fileBasename.slice(0, 4))
+      ) {
+        suggestions.push(file);
+      }
+    }
+
+    return suggestions.slice(0, 5);
+  }
+}

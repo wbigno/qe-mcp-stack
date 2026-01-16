@@ -6,9 +6,17 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "nodemon src/index.js"
+    "dev": "nodemon src/index.js",
+    "test": "NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "test:coverage": "NODE_OPTIONS=--experimental-vm-modules jest --coverage"
   },
-  "keywords": ["mcp", "code-analysis", "dotnet", "csharp"],
+  "keywords": [
+    "mcp",
+    "code-analysis",
+    "dotnet",
+    "csharp"
+  ],
   "author": "Your Company",
   "license": "UNLICENSED",
   "dependencies": {
@@ -17,6 +25,9 @@
     "xml2js": "^0.6.2"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "nodemon": "^3.0.2",
+    "supertest": "^7.2.2"
   }
 }

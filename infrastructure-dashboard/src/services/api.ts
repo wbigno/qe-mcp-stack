@@ -1,4 +1,9 @@
-import type { InfrastructureData } from "../types/infrastructure";
+import type {
+  InfrastructureData,
+  AuthTestResultWithToken,
+  EndpointExecuteRequest,
+  EndpointExecuteResult,
+} from "../types/infrastructure";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:3000";
@@ -281,6 +286,76 @@ export class InfrastructureAPI {
         retries: options.retries,
       }),
     });
+
+    return response.json();
+  }
+
+  // ============================================================================
+  // Authentication Testing Methods
+  // ============================================================================
+
+  /**
+   * Test authentication configuration and obtain token
+   * Returns token details for display and subsequent API calls
+   */
+  static async testAuthConfig(
+    appKey: string,
+    integrationKey: string,
+    authConfig: { method: string; config: string },
+  ): Promise<AuthTestResultWithToken> {
+    const response = await fetch(
+      `${API_BASE_URL}/api/infrastructure/auth/test`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          appKey,
+          integrationKey,
+          authConfig,
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || "Authentication test failed");
+    }
+
+    return response.json();
+  }
+
+  // ============================================================================
+  // Endpoint Testing Methods
+  // ============================================================================
+
+  /**
+   * Execute an API endpoint through the proxy
+   * Only available in non-production environments
+   */
+  static async executeEndpoint(
+    request: EndpointExecuteRequest,
+  ): Promise<EndpointExecuteResult> {
+    const response = await fetch(
+      `${API_BASE_URL}/api/infrastructure/endpoint/execute`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(request),
+      },
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return {
+        success: false,
+        status: response.status,
+        statusText: response.statusText,
+        headers: {},
+        data: null,
+        latencyMs: 0,
+        error: errorData.error || "Request failed",
+      };
+    }
 
     return response.json();
   }

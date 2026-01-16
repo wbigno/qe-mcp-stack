@@ -5,21 +5,25 @@
 This dashboard provides comprehensive tools for analyzing Azure DevOps work items with two specialized tabs:
 
 **🔍 Story Analysis Tab** - Technical Code Analysis:
+
 - ✅ Blast Radius Analysis (identify affected components from code changes)
 - ✅ Risk Assessment (technical risk scoring based on complexity)
 - ✅ Integration Impact (discover integration points)
 - Note: Does NOT include test case generation
 
 **🤖 Story Analyzer Tab** - AI-Powered Requirements & Test Planning:
+
 - ✅ Requirements Analysis (AI parses acceptance criteria, identifies gaps)
 - ✅ Risk Analysis (using risk-analyzer MCP)
 - ✅ Manual Test Case Generation (AI generates detailed manual test cases with steps, preconditions, expected results)
 - ✅ AI Model Selector (choose Claude model)
 
 Additional Features:
+
 - ✅ Work Items listing with sprint/project filtering
 - ✅ Integration with Azure DevOps API
 - ✅ Real-time analysis results
+- ✅ **Development Context** - View PRs, commits, attachments, and linked work items directly in the dashboard
 
 ---
 
@@ -78,6 +82,7 @@ Use this tab for **code-level impact analysis**:
 5. Optionally push results to Azure DevOps
 
 **APIs Used**:
+
 ```
 POST /api/analysis/blast-radius/analyze
 POST /api/analysis/risk/analyze-story
@@ -109,15 +114,41 @@ Use this tab for **AI-powered requirements review and manual test case generatio
      - Expected results
      - Test data requirements
 
-6. Optionally push test cases to Azure DevOps
+6. **Push test cases to Azure DevOps Test Plan**:
+   - Select a Test Plan from the dropdown (required)
+   - Parent Feature is auto-detected from PBI relations
+   - Click "Push to Azure DevOps"
+   - Test cases are organized in hierarchy:
+     ```
+     Test Plan
+     └── Feature Suite (auto-created if Feature found)
+         └── PBI Suite (linked to story)
+             ├── Test Case #1
+             ├── Test Case #2
+             └── Test Case #3
+     ```
 
 **APIs Used**:
+
 ```
 POST /api/ado/analyze-requirements
 Body: { "storyIds": [63019], "model": "claude-sonnet-4-20250514" }
 
 POST /api/ado/generate-test-cases
 Body: { "storyId": 63019, "includeNegativeTests": true, "includeEdgeCases": true }
+
+GET /api/ado/test-plans
+Response: { success: true, testPlans: [{ id, name, state }] }
+
+POST /api/ado/create-test-cases
+Body: {
+  "testPlanId": 1234,
+  "storyId": 63019,
+  "storyTitle": "Login Feature",
+  "featureId": 100,
+  "featureTitle": "User Authentication",
+  "testCases": [...]
+}
 ```
 
 ---
@@ -131,17 +162,69 @@ Body: { "storyId": 63019, "includeNegativeTests": true, "includeEdgeCases": true
 
 ---
 
+### 5. Development Context (PRs, Attachments, Related Items)
+
+When viewing any work item analysis, the dashboard automatically fetches and displays **Development Context** - a comprehensive view of all related development artifacts:
+
+**What's Displayed:**
+
+- **Pull Requests**: Linked PRs with status, title, and direct links to Azure DevOps
+- **PR Files Changed**: Files modified in linked PRs (used for enhanced blast radius analysis)
+- **Commits**: Linked commit references
+- **Attachments**: Files attached to the work item (specs, designs, screenshots)
+- **Related Work Items**: Parent/child items, linked stories, predecessor/successor relationships
+
+**How to Use:**
+
+1. Navigate to any work item analysis (Story Analysis or Story Analyzer tab)
+2. The Development Context section appears automatically below the work item header
+3. Click any chip to navigate to the artifact in Azure DevOps
+4. PR files are automatically included in blast radius analysis for more accurate impact assessment
+
+**Benefits:**
+
+- **Full Context**: See all related PRs, commits, and attachments in one place
+- **Enhanced Analysis**: PR files automatically expand blast radius coverage
+- **Traceability**: Easy navigation to linked work items and development artifacts
+- **No Extra Setup**: Works automatically if your PAT has `Code: Read` scope
+
+**APIs Used:**
+
+```
+GET /api/ado/work-item/:id/enhanced
+Response: {
+  workItem: {...},
+  developmentLinks: [{ type: "PullRequest", pullRequestId: 123, ... }],
+  attachments: [{ name: "spec.pdf", size: 1024, url: "..." }],
+  relatedWorkItems: [{ id: 456, title: "Parent Feature", relationType: "Parent" }],
+  parentWorkItem: { id: 100, title: "Epic" },
+  childWorkItems: [{ id: 789, title: "Sub-task" }]
+}
+
+GET /api/ado/work-item/:id/pr-files
+Response: {
+  workItemId: 123,
+  pullRequests: [{ pullRequestId: 456, title: "...", files: ["src/file.cs"] }],
+  allFiles: ["src/file.cs", "tests/file.test.cs"],
+  summary: { totalPRs: 1, totalFiles: 2 }
+}
+```
+
+---
+
 ## 🎨 Key Features
 
 ### Two Specialized Analysis Tabs
 
 **🔍 Story Analysis** - For Developers/Tech Leads:
+
 - Blast Radius: See which components are affected by code changes
 - Risk Assessment: Get technical risk scores based on complexity, coverage, and change scope
 - Integration Impact: Discover all integration points and external dependencies
 - Push results back to Azure DevOps work item
 
 **🤖 Story Analyzer** - For QA/Test Planners:
+
 - Requirements Analysis: AI parses acceptance criteria and identifies gaps
 - Risk Analysis: Assess story complexity and testing needs
 - Manual Test Case Generation: AI creates detailed test cases ready for execution
@@ -150,6 +233,7 @@ Body: { "storyId": 63019, "includeNegativeTests": true, "includeEdgeCases": true
 ### AI Model Selection
 
 Choose from multiple Claude models based on your needs:
+
 - **Claude Opus 4.5**: Highest quality, best for complex stories
 - **Claude Sonnet 4.5**: Balanced quality and speed (default)
 - **Claude Haiku**: Fast and cost-effective for simple stories
@@ -161,6 +245,7 @@ Choose from multiple Claude models based on your needs:
 ### Story Analysis Tab (Technical Analysis)
 
 #### 1. Blast Radius Analysis
+
 ```
 POST /api/analysis/blast-radius/analyze
 Content-Type: application/json
@@ -183,6 +268,7 @@ Response: {
 ```
 
 #### 2. Risk Assessment
+
 ```
 POST /api/analysis/risk/analyze-story
 Content-Type: application/json
@@ -211,6 +297,7 @@ Response: {
 ```
 
 #### 3. Integration Impact
+
 ```
 POST /api/analysis/integrations/map
 Content-Type: application/json
@@ -233,6 +320,7 @@ Response: {
 ### Story Analyzer Tab (AI-Powered Analysis)
 
 #### 4. Requirements Analysis
+
 ```
 POST /api/ado/analyze-requirements
 Content-Type: application/json
@@ -269,6 +357,7 @@ Response: {
 ```
 
 #### 5. Generate Manual Test Cases
+
 ```
 POST /api/ado/generate-test-cases
 Content-Type: application/json
@@ -353,7 +442,12 @@ Response: {
    - 2 negative tests (error handling)
    - 3 edge case tests (boundary conditions)
    - 1 integration test
-9. Push test cases to ADO for execution
+9. Push test cases to ADO Test Plan:
+   - Select your sprint's Test Plan from dropdown
+   - Verify Feature is detected (e.g., "User Authentication")
+   - Click "Push to Azure DevOps"
+   - Test cases appear in Test Plan hierarchy:
+     Feature Suite > PBI Suite > Test Cases
 ```
 
 ### Example 3: Complete Analysis Workflow
@@ -380,16 +474,19 @@ Response: {
 ## 🐛 Troubleshooting
 
 ### "Failed to load data"
+
 - **Check**: Orchestrator is running (`docker ps | grep orchestrator`)
 - **Check**: Port 3000 is accessible (`curl http://localhost:3000/health`)
 - **Check**: Azure DevOps MCP is healthy
 
 ### Story analysis returns error
+
 - **Check**: Story ID is valid
 - **Check**: Azure DevOps MCP can access the work item
 - **Check**: STDIO MCPs are configured (requirements-analyzer, test-case-planner)
 
 ### No data appears
+
 - **Check**: Browser console (F12) for errors
 - **Check**: API endpoint is correct (should be port 3000)
 - **Try**: Hard refresh (Cmd+Shift+R)
@@ -401,6 +498,7 @@ Response: {
 ### Story Analysis Tab (Technical)
 
 **Blast Radius Analysis**:
+
 - ✅ Risk Level (Low/Medium/High) with risk score
 - ✅ Changed files with existence check
 - ✅ Affected components list
@@ -408,12 +506,14 @@ Response: {
 - ✅ Recommendations by category (Testing, Documentation, Monitoring)
 
 **Risk Assessment**:
+
 - ✅ Overall risk score (0-100)
 - ✅ Risk level badge (Low/Medium/High)
 - ✅ Risk factors breakdown (complexity, coverage, integration risk)
 - ✅ Recommendations with priority levels
 
 **Integration Impact**:
+
 - ✅ Total integration count
 - ✅ Integration types breakdown (REST, GraphQL, Database, etc.)
 - ✅ Detailed integration points with URLs/details
@@ -422,6 +522,7 @@ Response: {
 ### Story Analyzer Tab (AI-Powered)
 
 **Requirements Analysis**:
+
 - ✅ Parsed acceptance criteria with testability assessment
 - ✅ Requirement gaps identified by AI
 - ✅ Suggested edge cases
@@ -430,6 +531,7 @@ Response: {
 - ✅ Prioritized test areas with reasoning
 
 **Manual Test Cases**:
+
 - ✅ Test case title and type (Functional/Integration/Negative/EdgeCase)
 - ✅ Priority level (1=High, 2=Medium, 3=Low)
 - ✅ Preconditions (what must be true before test)
@@ -439,23 +541,51 @@ Response: {
 - ✅ Additional notes and context
 - ✅ Summary statistics (total, by type, by priority)
 
+### Development Context (Both Tabs)
+
+**Pull Requests:**
+
+- ✅ PR ID with clickable link to Azure DevOps
+- ✅ PR title and status (Active, Completed, Abandoned)
+- ✅ Source and target branches
+
+**PR Files Changed:**
+
+- ✅ List of files modified in linked PRs
+- ✅ File count summary
+- ✅ Automatic inclusion in blast radius analysis
+
+**Attachments:**
+
+- ✅ File name with clickable download link
+- ✅ File size in human-readable format
+
+**Related Work Items:**
+
+- ✅ Parent work item (Feature, Epic)
+- ✅ Child work items (Tasks, Sub-tasks)
+- ✅ Related/Linked work items with relation type
+
 ---
 
 ## 🎉 Benefits
 
 ### For Developers
+
 - ✅ **Blast Radius Visibility**: Know exactly which components your changes affect
 - ✅ **Risk Assessment**: Understand technical risk before coding
 - ✅ **Integration Discovery**: Find all integration points automatically
 - ✅ **Proactive Planning**: Catch issues before they reach production
 
 ### For QA/Test Engineers
+
 - ✅ **AI-Generated Test Cases**: Save hours creating manual test cases
 - ✅ **Comprehensive Coverage**: Get functional, negative, and edge case tests
 - ✅ **Requirements Gap Detection**: AI identifies missing acceptance criteria
 - ✅ **Structured Test Plans**: Ready-to-execute test cases with steps and expected results
 
 ### For Team Leads
+
 - ✅ **Data-Driven Decisions**: Quantified risk scores for sprint planning
 - ✅ **Complete Visibility**: Technical and QA analysis in one place
 - ✅ **Push to ADO**: Share results directly in work items
@@ -466,12 +596,19 @@ Response: {
 ## 📝 Important Notes
 
 ### Technical Requirements
+
 - Dashboard runs on port 5173 (Vite dev server)
 - Orchestrator must be running on port 3000
 - ANTHROPIC_API_KEY must be configured for AI features
 - Azure DevOps MCP must be healthy for work item retrieval
+- **PAT Scopes Required**:
+  - Work Items: Read & Write
+  - Project and Team: Read
+  - Code: Read (for PR files and development links)
+  - Test Management: Read & Write (for test plan operations)
 
 ### Usage Notes
+
 - Story IDs must be valid integer IDs from your ADO project
 - Changed files should use relative paths from repository root
 - AI model selection affects response quality and cost
@@ -479,6 +616,7 @@ Response: {
 - Loading spinners show when AI is processing requests
 
 ### AI Model Selection
+
 - **Claude Opus 4.5**: Best quality, higher cost (~15-30 seconds)
 - **Claude Sonnet 4.5**: Balanced, recommended default (~10-15 seconds)
 - **Claude Haiku**: Fast and cheap, good for simple stories (~5-8 seconds)
