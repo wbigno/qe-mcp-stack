@@ -3,10 +3,14 @@
  * Builds and traverses dependency relationships between files
  */
 
+import fs from "fs";
+import path from "path";
+
 export class DependencyGraph {
   constructor() {
     this.dependencies = new Map(); // file -> [files it depends on]
     this.dependents = new Map(); // file -> [files that depend on it]
+    this.fileInsights = new Map(); // file -> { imports, exports, apiCalls, events, storeActions }
     this.graphCache = new Map();
     this.cacheExpiry = 5 * 60 * 1000; // 5 minute cache
   }
@@ -48,46 +52,98 @@ export class DependencyGraph {
    * Analyze code and build dependency relationships
    */
   async analyzeAndBuildGraph(app, seedFiles) {
-    // This would integrate with code-analyzer in production
-    // For now, build a mock graph based on common patterns
-
     this.dependencies.clear();
     this.dependents.clear();
+    this.fileInsights.clear();
+    this.currentApp = app;
 
     // Analyze each seed file
     for (const file of seedFiles) {
-      await this.analyzeFileDependencies(file);
+      await this.analyzeFileDependencies(file, app);
     }
 
     console.log(
-      `[DepGraph] Graph built: ${this.dependencies.size} dependencies, ${this.dependents.size} dependents`,
+      `[DepGraph] Graph built: ${this.dependencies.size} dependencies, ${this.dependents.size} dependents, ${this.fileInsights.size} file insights`,
     );
   }
 
   /**
-   * Analyze dependencies for a single file
+   * Get insights for a specific file
    */
-  async analyzeFileDependencies(filePath) {
-    // In production, this would parse the actual file
-    // For now, infer dependencies from naming patterns
+  getFileInsights(filePath) {
+    return this.fileInsights.get(filePath) || null;
+  }
 
+  /**
+   * Get all file insights
+   */
+  getAllInsights() {
+    return Object.fromEntries(this.fileInsights);
+  }
+
+  /**
+   * Analyze dependencies for a single file by reading its contents
+   */
+  async analyzeFileDependencies(filePath, app) {
     const deps = [];
-    const lower = filePath.toLowerCase();
+    const insights = {
+      imports: [],
+      exports: [],
+      apiCalls: [],
+      events: [],
+      storeActions: [],
+      componentType: null,
+      functionality: [],
+    };
 
-    // Controllers typically depend on services
+    // Try to read the actual file
+    const basePath = `/mnt/apps/${app}`;
+    const fullPath = path.join(basePath, filePath);
+
+    try {
+      if (fs.existsSync(fullPath)) {
+        const content = fs.readFileSync(fullPath, "utf-8");
+        console.log(
+          `[DepGraph] Analyzing file content: ${filePath} (${content.length} chars)`,
+        );
+
+        // Parse based on file extension
+        const ext = path.extname(filePath).toLowerCase();
+        if (ext === ".vue") {
+          this.parseVueFile(content, insights);
+        } else if ([".js", ".ts", ".jsx", ".tsx"].includes(ext)) {
+          this.parseJsFile(content, insights);
+        } else if (ext === ".cs") {
+          this.parseCsFile(content, insights);
+        }
+
+        // Extract imports as dependencies
+        deps.push(
+          ...insights.imports.filter((i) => i.source).map((i) => i.source),
+        );
+      } else {
+        console.log(`[DepGraph] File not found: ${fullPath}`);
+      }
+    } catch (error) {
+      console.log(`[DepGraph] Error reading file ${fullPath}:`, error.message);
+    }
+
+    // Fallback: infer dependencies from naming patterns
+    const lower = filePath.toLowerCase();
     if (lower.includes("controller")) {
       const serviceName = this.inferServiceFromController(filePath);
       if (serviceName) deps.push(serviceName);
     }
-
-    // Services typically depend on repositories
     if (lower.includes("service")) {
       const repoName = this.inferRepositoryFromService(filePath);
       if (repoName) deps.push(repoName);
     }
 
+    // Store insights
+    this.fileInsights.set(filePath, insights);
+
     // Set up bidirectional relationships
-    this.dependencies.set(filePath, deps);
+    this.dependencies.set(filePath, [...new Set(deps)]);
 
     for (const dep of deps) {
       if (!this.dependents.has(dep)) {
@@ -95,6 +151,198 @@ export class DependencyGraph {
       }
       this.dependents.get(dep).push(filePath);
     }
+  }
+
+  /**
+   * Parse Vue single file component
+   */
+  parseVueFile(content, insights) {
+    insights.componentType = "Vue Component";
+
+    // Extract script section
+    const scriptMatch = content.match(/<script[^>]*>([\s\S]*?)<\/script>/i);
+    const templateMatch = content.match(
+      /<template[^>]*>([\s\S]*?)<\/template>/i,
+    );
+
+    if (scriptMatch) {
+      const scriptContent = scriptMatch[1];
+      this.parseJsFile(scriptContent, insights);
+    }
+
+    // Analyze template for component usage and events
+    if (templateMatch) {
+      const templateContent = templateMatch[1];
+
+      // Find child components used
+      const componentUsage = templateContent.match(/<([A-Z][a-zA-Z]+)/g) || [];
+      componentUsage.forEach((comp) => {
+        const name = comp.substring(1);
+        if (!insights.imports.find((i) => i.name === name)) {
+          insights.imports.push({ name, type: "component", source: null });
+        }
+      });
+
+      // Find event emissions (@click, @submit, etc.)
+      const events = templateContent.match(/@(\w+)(?:\.[\w.]+)?=/g) || [];
+      events.forEach((e) => {
+        insights.events.push({ type: "listener", name: e.replace(/@|=/g, "") });
+      });
+
+      // Find v-model bindings
+      const vModels =
+        templateContent.match(/v-model(?::[a-z]+)?="([^"]+)"/g) || [];
+      vModels.forEach((v) => {
+        insights.functionality.push(`Two-way binding: ${v}`);
+      });
+    }
+
+    // Determine component functionality from content patterns
+    const lower = content.toLowerCase();
+    if (lower.includes("modal") || lower.includes("dialog")) {
+      insights.functionality.push("Modal/Dialog component");
+    }
+    if (
+      lower.includes("form") ||
+      lower.includes("input") ||
+      lower.includes("v-model")
+    ) {
+      insights.functionality.push("Form handling");
+    }
+    if (
+      lower.includes("fetch") ||
+      lower.includes("axios") ||
+      lower.includes("api")
+    ) {
+      insights.functionality.push("API integration");
+    }
+    if (lower.includes("router") || lower.includes("$route")) {
+      insights.functionality.push("Navigation/Routing");
+    }
+    if (
+      lower.includes("store") ||
+      lower.includes("vuex") ||
+      lower.includes("pinia")
+    ) {
+      insights.functionality.push("State management");
+    }
+    if (lower.includes("emit") || lower.includes("$emit")) {
+      insights.functionality.push("Event emission");
+    }
+    if (lower.includes("props")) {
+      insights.functionality.push("Receives props from parent");
+    }
+    if (lower.includes("slot")) {
+      insights.functionality.push("Uses slots for content injection");
+    }
+    if (lower.includes("error") || lower.includes("catch")) {
+      insights.functionality.push("Error handling");
+    }
+    if (lower.includes("loading") || lower.includes("spinner")) {
+      insights.functionality.push("Loading states");
+    }
+    if (lower.includes("validation") || lower.includes("validate")) {
+      insights.functionality.push("Form validation");
+    }
+  }
+
+  /**
+   * Parse JavaScript/TypeScript file
+   */
+  parseJsFile(content, insights) {
+    // Extract imports
+    const importMatches = content.matchAll(
+      /import\s+(?:(\{[^}]+\})|(\w+))\s+from\s+['"]([^'"]+)['"]/g,
+    );
+    for (const match of importMatches) {
+      const names = (match[1] || match[2])
+        .replace(/[{}]/g, "")
+        .split(",")
+        .map((n) => n.trim());
+      names.forEach((name) => {
+        insights.imports.push({ name, source: match[3], type: "import" });
+      });
+    }
+
+    // Extract API calls
+    const apiPatterns = [
+      /(?:fetch|axios|http)\s*\(\s*['"`]([^'"`]+)['"`]/gi,
+      /\$(?:get|post|put|delete|patch)\s*\(\s*['"`]([^'"`]+)['"`]/gi,
+      /api\s*\.\s*\w+\s*\(\s*['"`]?([^'"`\s,)]+)/gi,
+    ];
+    apiPatterns.forEach((pattern) => {
+      const matches = content.matchAll(pattern);
+      for (const match of matches) {
+        if (match[1] && !insights.apiCalls.includes(match[1])) {
+          insights.apiCalls.push(match[1]);
+        }
+      }
+    });
+
+    // Extract $emit events
+    const emitMatches = content.matchAll(/\$emit\s*\(\s*['"]([^'"]+)['"]/g);
+    for (const match of emitMatches) {
+      insights.events.push({ type: "emit", name: match[1] });
+    }
+
+    // Extract store actions/mutations
+    const storePatterns = [
+      /(?:dispatch|commit)\s*\(\s*['"]([^'"]+)['"]/g,
+      /store\s*\.\s*(?:dispatch|commit)\s*\(\s*['"]([^'"]+)['"]/g,
+    ];
+    storePatterns.forEach((pattern) => {
+      const matches = content.matchAll(pattern);
+      for (const match of matches) {
+        insights.storeActions.push(match[1]);
+      }
+    });
+
+    // Extract exports
+    const exportMatches = content.matchAll(
+      /export\s+(?:default\s+)?(?:const|let|var|function|class)\s+(\w+)/g,
+    );
+    for (const match of exportMatches) {
+      insights.exports.push(match[1]);
+    }
+  }
+
+  /**
+   * Parse C# file
+   */
+  parseCsFile(content, insights) {
+    // Extract using statements
+    const usingMatches = content.matchAll(/using\s+([\w.]+);/g);
+    for (const match of usingMatches) {
+      insights.imports.push({ name: match[1], type: "using" });
+    }
+
+    // Extract class inheritance/interfaces
+    const classMatch = content.match(/class\s+(\w+)\s*(?::\s*([^{]+))?/);
+    if (classMatch) {
+      insights.exports.push(classMatch[1]);
+      if (classMatch[2]) {
+        const inherited = classMatch[2].split(",").map((i) => i.trim());
+        inherited.forEach((i) => {
+          insights.imports.push({ name: i, type: "inherits" });
+        });
+      }
+    }
+
+    // Extract HTTP endpoint attributes
+    const httpMethods = content.matchAll(
+      /\[Http(Get|Post|Put|Delete|Patch)\s*(?:\("([^"]+)"\))?\]/g,
+    );
+    for (const match of httpMethods) {
+      insights.apiCalls.push(`${match[1].toUpperCase()} ${match[2] || "/"}`);
+    }
+
+    // Determine service type
+    const lower = content.toLowerCase();
+    if (lower.includes("controller")) insights.componentType = "API Controller";
+    else if (lower.includes("service")) insights.componentType = "Service";
+    else if (lower.includes("repository"))
+      insights.componentType = "Repository";
+    else if (lower.includes("handler")) insights.componentType = "Handler";
   }
 
   /**

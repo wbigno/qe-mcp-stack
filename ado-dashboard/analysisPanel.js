@@ -1,4 +1,5 @@
 import { PushPreviewModal } from "./pushPreviewModal.js";
+import { AppSelector } from "./appSelector.js";
 
 const API_BASE_URL = "http://localhost:3000";
 
@@ -8,6 +9,7 @@ export class AnalysisPanel {
     this.currentStory = null;
     this.currentApps = []; // Now supports multiple apps
     this.availableApps = [];
+    this.analysisAppSelector = null; // Multi-select app selector instance
     // Store extracted data from Technical Details
     this.extractedData = {
       filePaths: [],
@@ -146,20 +148,29 @@ export class AnalysisPanel {
   }
 
   /**
-   * Parse Technical Details field and extract useful information
+   * Parse Technical Details and Impacts fields to extract useful information
    */
   parseAndExtractDetails(story) {
     const technicalDetails = story.fields?.["Custom.TechnicalDetails"] || "";
+    const impacts = story.fields?.["CarepaymentScrum.Impacts"] || "";
 
     // Reset extracted data
     this.extractedData = {
       filePaths: [],
       priorStoryIds: [],
       implementationNotes: [],
+      methods: [],
+      apis: [],
+      components: [],
     };
     this.priorStories = [];
 
-    if (!technicalDetails) return;
+    // Parse Impacts field first (primary source for blast radius)
+    if (impacts) {
+      this.parseImpactsField(impacts);
+    }
+
+    if (!technicalDetails && !impacts) return;
 
     // Strip HTML tags for text analysis
     const textContent = this.stripHtml(technicalDetails);
@@ -236,6 +247,148 @@ export class AnalysisPanel {
     }
 
     console.log("[AnalysisPanel] Extracted data:", this.extractedData);
+  }
+
+  /**
+   * Parse the Impacts field (CarepaymentScrum.Impacts) to extract blast radius data
+   * Extracts: file paths, methods, APIs, components
+   */
+  parseImpactsField(impacts) {
+    if (!impacts) return;
+
+    console.log("[AnalysisPanel] RAW Impacts field:", impacts);
+
+    // Strip HTML tags for text analysis, preserving structure (br -> newlines)
+    const textContent = this.stripHtml(impacts, true);
+
+    console.log(
+      "[AnalysisPanel] Parsed Impacts field (stripped):",
+      textContent.substring(0, 1000),
+    );
+
+    // Extract file paths (various patterns)
+    const filePatterns = [
+      // Windows-style paths with backslashes and file extensions (most common in ADO)
+      /(?:^|[\s,;:\n])([\w.-]+(?:\\[\w.-]+)+\.(?:cs|js|ts|tsx|jsx|py|java|go|rb|php|vue|svelte|json|xml|yaml|yml|sql|razor|cshtml))/gim,
+      // Unix-style paths with forward slashes and file extensions
+      /(?:^|[\s,;:\n])([\w.-]+(?:\/[\w.-]+)+\.(?:cs|js|ts|tsx|jsx|py|java|go|rb|php|vue|svelte|json|xml|yaml|yml|sql|razor|cshtml))/gim,
+      // C# style namespace paths (like CarePayment.Services.Billing)
+      /(?:^|[\s,;:(])((?:[A-Z][\w]*\.)+[A-Z][\w]*(?:\.cs)?)/gm,
+      // Path-like references after keywords
+      /(?:file|path|modify|update|change|touch|edit)[:\s]+[`"']?([\w\-./\\]+\.\w+)[`"']?/gim,
+      // src/lib/app style paths (both slash types)
+      /(?:^|[\s,;:(])((?:src|lib|app|services|controllers|models|components|utils|helpers|api|routes|tests|spec|Core|Common|Payments)[/\\][\w\-./\\]+)/gim,
+    ];
+
+    for (const pattern of filePatterns) {
+      let match;
+      while ((match = pattern.exec(textContent)) !== null) {
+        const filePath = match[1].trim();
+        if (
+          filePath &&
+          filePath.length > 3 &&
+          !this.extractedData.filePaths.includes(filePath)
+        ) {
+          this.extractedData.filePaths.push(filePath);
+        }
+      }
+    }
+
+    // Extract method/function names
+    const methodPatterns = [
+      // Method names with parentheses
+      /(?:method|function|func|def|procedure)[:\s]+[`"']?([\w]+)\s*\(/gim,
+      // C# method signatures
+      /(?:public|private|protected|internal|async)?\s*(?:static|virtual|override|abstract)?\s*(?:Task<[\w<>]+>|void|[\w<>]+)\s+([\w]+)\s*\(/gm,
+      // JavaScript/TypeScript function patterns
+      /(?:async\s+)?(?:function\s+)?([\w]+)\s*(?:=\s*(?:async\s*)?\(|<[^>]*>\s*\(|\()/gm,
+      // Direct method references
+      /(?:call|invoke|execute|run)[:\s]+[`"']?([\w.]+)\(\)/gim,
+    ];
+
+    for (const pattern of methodPatterns) {
+      let match;
+      while ((match = pattern.exec(textContent)) !== null) {
+        const method = match[1].trim();
+        if (
+          method &&
+          method.length > 2 &&
+          !this.extractedData.methods.includes(method)
+        ) {
+          // Filter out common keywords
+          const keywords = [
+            "if",
+            "else",
+            "for",
+            "while",
+            "switch",
+            "case",
+            "return",
+            "new",
+            "this",
+            "var",
+            "let",
+            "const",
+          ];
+          if (!keywords.includes(method.toLowerCase())) {
+            this.extractedData.methods.push(method);
+          }
+        }
+      }
+    }
+
+    // Extract API endpoints
+    const apiPatterns = [
+      // REST API paths
+      /(?:api|endpoint|route|path)[:\s]+[`"']?(\/[\w\-/{}:]+)[`"']?/gim,
+      // URL patterns
+      /(?:GET|POST|PUT|DELETE|PATCH)\s+[`"']?(\/[\w\-/{}:?&=]+)[`"']?/gim,
+      // API endpoints in paths
+      /(\/api\/[\w\-/{}:]+)/gim,
+      // Controller action routes
+      /\[(?:Http(?:Get|Post|Put|Delete|Patch)|Route)\s*\(\s*["']([^"']+)["']\s*\)\]/gim,
+    ];
+
+    for (const pattern of apiPatterns) {
+      let match;
+      while ((match = pattern.exec(textContent)) !== null) {
+        const api = match[1].trim();
+        if (api && api.length > 1 && !this.extractedData.apis.includes(api)) {
+          this.extractedData.apis.push(api);
+        }
+      }
+    }
+
+    // Extract component/class/service names
+    const componentPatterns = [
+      // Service/Controller/Component names
+      /(?:^|[\s,;:(])([A-Z][\w]*(?:Service|Controller|Repository|Handler|Manager|Provider|Factory|Helper|Util|Component|Module|Processor|Validator|Mapper))/gm,
+      // Class names
+      /(?:class|interface|struct|enum)\s+([A-Z][\w]+)/gm,
+      // Named references
+      /(?:component|service|class|module|namespace)[:\s]+[`"']?([A-Z][\w.]+)[`"']?/gim,
+    ];
+
+    for (const pattern of componentPatterns) {
+      let match;
+      while ((match = pattern.exec(textContent)) !== null) {
+        const component = match[1].trim();
+        if (
+          component &&
+          component.length > 3 &&
+          !this.extractedData.components.includes(component)
+        ) {
+          this.extractedData.components.push(component);
+        }
+      }
+    }
+
+    console.log("[AnalysisPanel] Extracted from Impacts:", {
+      filePaths: this.extractedData.filePaths.length,
+      methods: this.extractedData.methods.length,
+      apis: this.extractedData.apis.length,
+      components: this.extractedData.components.length,
+    });
   }
 
   /**
@@ -398,6 +551,18 @@ export class AnalysisPanel {
   render() {
     const hasExtractedFiles = this.extractedData.filePaths.length > 0;
     const hasExtractedStories = this.extractedData.priorStoryIds.length > 0;
+    const hasExtractedMethods = this.extractedData.methods?.length > 0;
+    const hasExtractedApis = this.extractedData.apis?.length > 0;
+    const hasExtractedComponents = this.extractedData.components?.length > 0;
+    const hasAnyExtractedData =
+      hasExtractedFiles ||
+      hasExtractedStories ||
+      hasExtractedMethods ||
+      hasExtractedApis ||
+      hasExtractedComponents;
+
+    // Reset app selector when re-rendering (DOM gets destroyed)
+    this.analysisAppSelector = null;
 
     this.container.innerHTML = `
       <div class="analysis-panel">
@@ -406,6 +571,10 @@ export class AnalysisPanel {
             ? this.renderStoryAnalysisView(
                 hasExtractedFiles,
                 hasExtractedStories,
+                hasExtractedMethods,
+                hasExtractedApis,
+                hasExtractedComponents,
+                hasAnyExtractedData,
               )
             : this.renderEmptyState()
         }
@@ -424,23 +593,16 @@ export class AnalysisPanel {
   }
 
   renderEmptyState() {
-    const appOptions = this.availableApps
-      .map((app) => `<option value="${app.name}">${app.name}</option>`)
-      .join("");
-
     return `
       <div class="panel analyzer-panel">
         <h2>🔍 Story Analysis</h2>
         <p class="panel-description">Analyze blast radius, risk assessment, and integration impact for any work item</p>
 
         <div class="analyzer-form">
-          <div class="form-group">
-            <label for="analysisAppSelect" class="required">Application</label>
-            <select id="analysisAppSelect">
-              <option value="">Select Application...</option>
-              ${appOptions}
-            </select>
-            <small>Required for code analysis features</small>
+          <div class="form-group app-filter-group">
+            <label class="required">Application(s)</label>
+            <div id="analysisAppSelect" class="app-selector-container"></div>
+            <small>Select one or more applications for comprehensive code analysis</small>
           </div>
 
           <div class="form-group">
@@ -466,7 +628,14 @@ export class AnalysisPanel {
     `;
   }
 
-  renderStoryAnalysisView(hasExtractedFiles, hasExtractedStories) {
+  renderStoryAnalysisView(
+    hasExtractedFiles,
+    hasExtractedStories,
+    hasExtractedMethods,
+    hasExtractedApis,
+    hasExtractedComponents,
+    hasAnyExtractedData,
+  ) {
     const story = this.currentStory;
     const technicalDetails = story.fields?.["Custom.TechnicalDetails"] || "";
 
@@ -539,11 +708,11 @@ export class AnalysisPanel {
 
       <!-- Extracted Information -->
       ${
-        hasExtractedFiles || hasExtractedStories
+        hasAnyExtractedData
           ? `
         <div class="extracted-info-section">
           <h3>📊 Extracted Information</h3>
-          <p class="section-description">Automatically extracted from Technical Details field</p>
+          <p class="section-description">Automatically extracted from Technical Details and Impacts fields</p>
 
           ${
             hasExtractedFiles
@@ -584,7 +753,63 @@ export class AnalysisPanel {
           }
 
           ${
-            this.extractedData.implementationNotes.length > 0
+            this.extractedData.methods?.length > 0
+              ? `
+            <div class="extracted-block">
+              <h4>⚙️ Methods/Functions (${this.extractedData.methods.length})</h4>
+              <div class="file-chips">
+                ${this.extractedData.methods
+                  .slice(0, 15)
+                  .map(
+                    (method) =>
+                      `<span class="file-chip method-chip">${method}()</span>`,
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `
+              : ""
+          }
+
+          ${
+            this.extractedData.apis?.length > 0
+              ? `
+            <div class="extracted-block">
+              <h4>🌐 API Endpoints (${this.extractedData.apis.length})</h4>
+              <div class="file-chips">
+                ${this.extractedData.apis
+                  .slice(0, 10)
+                  .map(
+                    (api) => `<span class="file-chip api-chip">${api}</span>`,
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `
+              : ""
+          }
+
+          ${
+            this.extractedData.components?.length > 0
+              ? `
+            <div class="extracted-block">
+              <h4>🧩 Components/Services (${this.extractedData.components.length})</h4>
+              <div class="file-chips">
+                ${this.extractedData.components
+                  .slice(0, 15)
+                  .map(
+                    (comp) =>
+                      `<span class="file-chip component-chip">${comp}</span>`,
+                  )
+                  .join("")}
+              </div>
+            </div>
+          `
+              : ""
+          }
+
+          ${
+            this.extractedData.implementationNotes?.length > 0
               ? `
             <div class="extracted-block">
               <h4>📝 Implementation Notes (${this.extractedData.implementationNotes.length})</h4>
@@ -632,8 +857,8 @@ export class AnalysisPanel {
               <span class="collapse-icon">▼</span>
               <h3>🔥 Blast Radius Analysis</h3>
             </div>
-            <button id="runBlastRadiusBtn" class="btn-secondary" ${!hasExtractedFiles ? "disabled" : ""}>
-              ${hasExtractedFiles ? "Auto-Analyze" : "Run Analysis"}
+            <button id="runBlastRadiusBtn" class="btn-secondary" ${!(hasExtractedFiles || hasExtractedComponents) ? "disabled" : ""}>
+              ${hasExtractedFiles || hasExtractedComponents ? "Auto-Analyze" : "Run Analysis"}
             </button>
           </div>
           <div id="blastRadiusContent" class="analysis-content section-collapsible-content" data-section="blast-radius">
@@ -714,20 +939,27 @@ export class AnalysisPanel {
   attachEmptyStateListeners() {
     const loadStoryBtn = document.getElementById("loadStoryForAnalysisBtn");
     const storyInput = document.getElementById("analysisStoryIdInput");
-    const appSelect = document.getElementById("analysisAppSelect");
+    const appSelectContainer = document.getElementById("analysisAppSelect");
+
+    // Initialize multi-select app selector
+    if (appSelectContainer && !this.analysisAppSelector) {
+      this.analysisAppSelector = new AppSelector(
+        "analysisAppSelect",
+        (_apps) => {
+          // Update button state when apps change
+          updateButtonState();
+        },
+      );
+    }
 
     // Enable/disable load button based on app selection
     const updateButtonState = () => {
-      const hasApp = appSelect?.value?.trim();
+      const hasApps = this.analysisAppSelector?.getSelectedApps()?.length > 0;
       const hasStoryId = storyInput?.value?.trim();
       if (loadStoryBtn) {
-        loadStoryBtn.disabled = !hasApp || !hasStoryId;
+        loadStoryBtn.disabled = !hasApps || !hasStoryId;
       }
     };
-
-    if (appSelect) {
-      appSelect.addEventListener("change", updateButtonState);
-    }
 
     if (storyInput) {
       storyInput.addEventListener("input", updateButtonState);
@@ -745,17 +977,16 @@ export class AnalysisPanel {
 
   async loadStoryById() {
     const input = document.getElementById("analysisStoryIdInput");
-    const appSelect = document.getElementById("analysisAppSelect");
     const loadingSpinner = document.getElementById("loadStoryLoading");
     const loadText = document.getElementById("loadStoryText");
     const errorDiv = document.getElementById("loadStoryError");
     const loadBtn = document.getElementById("loadStoryForAnalysisBtn");
 
     const storyId = input?.value?.trim();
-    const selectedApp = appSelect?.value?.trim();
+    const selectedApps = this.analysisAppSelector?.getSelectedApps() || [];
 
-    if (!selectedApp) {
-      errorDiv.textContent = "Please select an Application";
+    if (selectedApps.length === 0) {
+      errorDiv.textContent = "Please select at least one Application";
       errorDiv.style.display = "block";
       return;
     }
@@ -790,8 +1021,8 @@ export class AnalysisPanel {
         throw new Error(data.error || "Story not found");
       }
 
-      // Load the story into the analysis panel with selected app
-      this.showAnalysis(data.workItem, selectedApp);
+      // Load the story into the analysis panel with selected apps
+      this.showAnalysis(data.workItem, selectedApps);
     } catch (error) {
       console.error("Failed to load story:", error);
       errorDiv.textContent =
@@ -985,9 +1216,20 @@ export class AnalysisPanel {
   }
 
   extractChangedFiles() {
-    // First try to use extracted files from Technical Details
-    if (this.extractedData.filePaths.length > 0) {
-      return this.extractedData.filePaths;
+    // Combine file paths and components for blast radius analysis
+    const allPaths = [...(this.extractedData.filePaths || [])];
+
+    // Add components as potential file paths (e.g., "BillingService" -> could be a service file)
+    if (this.extractedData.components?.length > 0) {
+      this.extractedData.components.forEach((comp) => {
+        if (!allPaths.includes(comp)) {
+          allPaths.push(comp);
+        }
+      });
+    }
+
+    if (allPaths.length > 0) {
+      return allPaths;
     }
 
     // Fall back to manual input
@@ -1003,17 +1245,34 @@ export class AnalysisPanel {
       .filter((line) => line.length > 0);
   }
 
+  /**
+   * Get all extracted impact data for comprehensive analysis
+   */
+  getExtractedImpactData() {
+    return {
+      filePaths: this.extractedData.filePaths || [],
+      methods: this.extractedData.methods || [],
+      apis: this.extractedData.apis || [],
+      components: this.extractedData.components || [],
+    };
+  }
+
   async loadBlastRadius() {
     const container = document.getElementById("blastRadiusContent");
     const changedFiles = this.extractChangedFiles();
+    const impactData = this.getExtractedImpactData();
 
     if (changedFiles.length === 0) {
       container.innerHTML =
-        '<div class="error">No file paths detected. Please add files manually or ensure Technical Details contains file paths.</div>';
+        '<div class="error">No file paths or components detected. Please add files manually or ensure Impacts/Technical Details contains relevant information.</div>';
       return;
     }
 
-    container.innerHTML = `<div class="loading">Analyzing blast radius for ${changedFiles.length} files...</div>`;
+    const totalItems =
+      changedFiles.length +
+      (impactData.methods?.length || 0) +
+      (impactData.apis?.length || 0);
+    container.innerHTML = `<div class="loading">Analyzing blast radius for ${totalItems} items (${changedFiles.length} files/components, ${impactData.methods?.length || 0} methods, ${impactData.apis?.length || 0} APIs)...</div>`;
 
     try {
       const response = await fetch(
@@ -1024,6 +1283,9 @@ export class AnalysisPanel {
           body: JSON.stringify({
             apps: this.currentApps,
             changedFiles,
+            methods: impactData.methods,
+            apis: impactData.apis,
+            components: impactData.components,
             analysisDepth: "moderate",
           }),
         },
@@ -1034,31 +1296,265 @@ export class AnalysisPanel {
       }
 
       const data = await response.json();
+      console.log("[AnalysisPanel] Blast radius raw response:", data);
 
       if (!data.success) {
         throw new Error(data.error || "Analysis failed");
       }
 
       const blast = data.result;
+      console.log("[AnalysisPanel] Blast radius result:", blast);
+
+      // Handle case where blast is a raw string (AI response)
+      if (!blast || typeof blast === "string") {
+        container.innerHTML = `<div class="blast-result"><pre style="white-space: pre-wrap;">${blast || "No analysis available"}</pre></div>`;
+        return;
+      }
 
       // Store analysis result
       this.analysisResults.blastRadius = blast;
       this.updatePushButtonState();
 
+      // Handle multi-app response structure (byApp array)
+      if (blast.byApp && Array.isArray(blast.byApp)) {
+        // Aggregate results from all apps
+        let maxRiskScore = 0;
+        let maxRiskLevel = "low";
+        let allRecommendations = [];
+        let allAffectedComponents = [];
+        let allAffectedTests = [];
+        let allFileInsights = {};
+
+        blast.byApp.forEach((appResult) => {
+          if (appResult.success && appResult.result) {
+            const r = appResult.result;
+            if (r.risk?.score > maxRiskScore) {
+              maxRiskScore = r.risk.score;
+              maxRiskLevel = r.risk.level || "low";
+            }
+            if (r.recommendations) {
+              allRecommendations.push(
+                ...r.recommendations.map((rec) => ({
+                  ...rec,
+                  app: appResult.app,
+                })),
+              );
+            }
+            if (r.impact?.affectedComponents) {
+              allAffectedComponents.push(...r.impact.affectedComponents);
+            }
+            if (r.impact?.affectedTests) {
+              allAffectedTests.push(...r.impact.affectedTests);
+            }
+            // Collect file insights
+            if (r.fileInsights) {
+              Object.entries(r.fileInsights).forEach(([filePath, insights]) => {
+                allFileInsights[filePath] = { ...insights, app: appResult.app };
+              });
+            }
+          }
+        });
+
+        // Deduplicate
+        allAffectedComponents = [...new Set(allAffectedComponents)];
+        allAffectedTests = [...new Set(allAffectedTests)];
+
+        // Build file insights HTML
+        const fileInsightsHtml =
+          Object.entries(allFileInsights).length > 0
+            ? Object.entries(allFileInsights)
+                .map(([filePath, insights]) => {
+                  const fileName = filePath.split(/[/\\]/).pop();
+                  return `
+                <div class="file-insight-card">
+                  <div class="file-insight-header">
+                    <span class="file-name">${fileName}</span>
+                    ${insights.componentType ? `<span class="component-type">${insights.componentType}</span>` : ""}
+                  </div>
+                  <div class="file-insight-path">${filePath}</div>
+
+                  ${
+                    insights.functionality?.length > 0
+                      ? `
+                    <div class="insight-section">
+                      <strong>📋 Functionality:</strong>
+                      <ul class="insight-list">
+                        ${insights.functionality.map((f) => `<li>${f}</li>`).join("")}
+                      </ul>
+                    </div>
+                  `
+                      : ""
+                  }
+
+                  ${
+                    insights.imports?.length > 0
+                      ? `
+                    <div class="insight-section">
+                      <strong>📥 Imports/Dependencies (${insights.imports.length}):</strong>
+                      <div class="insight-chips">
+                        ${insights.imports
+                          .slice(0, 10)
+                          .map(
+                            (i) =>
+                              `<span class="insight-chip import-chip">${i.name}</span>`,
+                          )
+                          .join("")}
+                        ${insights.imports.length > 10 ? `<span class="insight-chip more">+${insights.imports.length - 10} more</span>` : ""}
+                      </div>
+                    </div>
+                  `
+                      : ""
+                  }
+
+                  ${
+                    insights.apiCalls?.length > 0
+                      ? `
+                    <div class="insight-section">
+                      <strong>🌐 API Calls:</strong>
+                      <div class="insight-chips">
+                        ${insights.apiCalls.map((api) => `<span class="insight-chip api-chip">${api}</span>`).join("")}
+                      </div>
+                    </div>
+                  `
+                      : ""
+                  }
+
+                  ${
+                    insights.events?.length > 0
+                      ? `
+                    <div class="insight-section">
+                      <strong>📡 Events:</strong>
+                      <div class="insight-chips">
+                        ${insights.events.map((e) => `<span class="insight-chip event-chip">${e.type}: ${e.name}</span>`).join("")}
+                      </div>
+                    </div>
+                  `
+                      : ""
+                  }
+
+                  ${
+                    insights.storeActions?.length > 0
+                      ? `
+                    <div class="insight-section">
+                      <strong>🗄️ Store Actions:</strong>
+                      <div class="insight-chips">
+                        ${insights.storeActions.map((a) => `<span class="insight-chip store-chip">${a}</span>`).join("")}
+                      </div>
+                    </div>
+                  `
+                      : ""
+                  }
+                </div>
+              `;
+                })
+                .join("")
+            : '<p class="empty">No file insights available</p>';
+
+        container.innerHTML = `
+          <div class="blast-summary risk-${maxRiskLevel}">
+            <div class="metric">
+              <span class="label">Overall Risk Level:</span>
+              <span class="risk-badge ${maxRiskLevel}">${maxRiskLevel.toUpperCase()}</span>
+            </div>
+            <div class="metric">
+              <span class="label">Risk Score:</span>
+              <span class="value">${maxRiskScore}/100</span>
+            </div>
+            <div class="metric">
+              <span class="label">Apps Analyzed:</span>
+              <span class="value">${blast.byApp.length}</span>
+            </div>
+          </div>
+
+          <div class="impact-details">
+            <h4>🔍 File Analysis & Insights</h4>
+            <div class="file-insights-container">
+              ${fileInsightsHtml}
+            </div>
+
+            <h4>📦 Results by Application</h4>
+            <div class="app-results">
+              ${blast.byApp
+                .map((appResult) => {
+                  const r = appResult.result || {};
+                  const risk = r.risk || {};
+                  const foundFiles = (r.changedFiles || []).filter(
+                    (f) => f.exists,
+                  ).length;
+                  const totalFiles = (r.changedFiles || []).length;
+                  return `
+                  <div class="app-result-card">
+                    <div class="app-result-header">
+                      <span class="app-name">${appResult.app}</span>
+                      <span class="risk-badge ${risk.level || "unknown"}">${(risk.level || "N/A").toUpperCase()}</span>
+                    </div>
+                    <div class="app-result-details">
+                      <small>Files: ${foundFiles}/${totalFiles} found | Score: ${risk.score || 0}</small>
+                      ${risk.description ? `<p class="risk-desc">${risk.description}</p>` : ""}
+                    </div>
+                  </div>
+                `;
+                })
+                .join("")}
+            </div>
+
+            <h4>🎯 Affected Components (${allAffectedComponents.length})</h4>
+            <ul class="component-list">
+              ${allAffectedComponents.map((comp) => `<li>${comp}</li>`).join("") || '<li class="empty">No components identified</li>'}
+            </ul>
+
+            <h4>🧪 Affected Tests (${allAffectedTests.length})</h4>
+            <ul class="test-list">
+              ${allAffectedTests.map((test) => `<li>${test}</li>`).join("") || '<li class="empty">No test files identified</li>'}
+            </ul>
+          </div>
+
+          <div class="recommendations">
+            <h4>💡 Recommendations</h4>
+            <ul>
+              ${
+                allRecommendations.length > 0
+                  ? allRecommendations
+                      .map(
+                        (rec) => `
+                    <li class="priority-${rec.priority || "medium"}">
+                      <strong>[${rec.app}]</strong> ${rec.recommendation || rec}
+                    </li>
+                  `,
+                      )
+                      .join("")
+                  : "<li>No specific recommendations</li>"
+              }
+            </ul>
+          </div>
+        `;
+        return;
+      }
+
+      // Legacy single-app response handling
+      if (!blast.risk) {
+        container.innerHTML = `<div class="error">Invalid blast radius response structure</div>`;
+        return;
+      }
+
+      const riskLevel = blast.risk.level || "unknown";
+      const riskScore = blast.risk.score || 0;
+      const riskDesc = blast.risk.description || "No description";
+
       container.innerHTML = `
-        <div class="blast-summary risk-${blast.risk.level}">
+        <div class="blast-summary risk-${riskLevel}">
           <div class="metric">
             <span class="label">Risk Level:</span>
-            <span class="risk-badge ${blast.risk.level}">${blast.risk.level.toUpperCase()}</span>
+            <span class="risk-badge ${riskLevel}">${riskLevel.toUpperCase()}</span>
           </div>
           <div class="metric">
             <span class="label">Risk Score:</span>
-            <span class="value">${blast.risk.score}/100</span>
+            <span class="value">${riskScore}/100</span>
           </div>
         </div>
 
         <div class="risk-description">
-          <p>${blast.risk.description}</p>
+          <p>${riskDesc}</p>
         </div>
 
         <div class="impact-details">
@@ -1068,9 +1564,8 @@ export class AnalysisPanel {
               .map(
                 (file) => `
               <li>
-                <span class="file-name">${file.file}</span>
+                <span class="file-name">${file.file || file.path || file}</span>
                 ${file.exists ? '<span class="badge success">exists</span>' : '<span class="badge error">not found</span>'}
-                ${file.classes ? `<small>${file.classes.length} classes</small>` : ""}
               </li>
             `,
               )
@@ -1097,7 +1592,6 @@ export class AnalysisPanel {
                   (rec) => `
               <li class="priority-${rec.priority}">
                 <strong>[${rec.category}]</strong> ${rec.recommendation}
-                ${rec.files ? `<br><small>Files: ${rec.files.join(", ")}</small>` : ""}
               </li>
             `,
                 )
@@ -2499,7 +2993,7 @@ export class AnalysisPanel {
 
     // Step action input change handlers
     document.querySelectorAll(".step-action-input").forEach((input) => {
-      input.addEventListener("change", (e) => {
+      input.addEventListener("change", (_e) => {
         const tcName = input.dataset.tcName;
         const stepIndex = parseInt(input.dataset.stepIndex);
         this.updateStepAction(tcName, stepIndex, input.value);
@@ -2527,7 +3021,7 @@ export class AnalysisPanel {
 
     // Expected result textarea change handlers
     document.querySelectorAll(".expected-result-input").forEach((textarea) => {
-      textarea.addEventListener("change", (e) => {
+      textarea.addEventListener("change", (_e) => {
         const tcName = textarea.dataset.tcName;
         this.updateExpectedResult(tcName, textarea.value);
       });

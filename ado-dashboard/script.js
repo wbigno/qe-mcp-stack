@@ -51,8 +51,7 @@ document.addEventListener("DOMContentLoaded", () => {
   console.log("Initializing story analyzer...");
   initializeStoryAnalyzer();
 
-  console.log("Initializing test cases tab...");
-  initializeTestCasesTab();
+  // Test Cases tab removed - functionality moved to Story Analysis tab
 
   console.log("Adding SVG gradients...");
   addSVGGradients();
@@ -1799,18 +1798,21 @@ function createTestCaseHtml(testCase) {
     `;
 }
 
+// eslint-disable-next-line no-unused-vars
 function calculatePassed(metrics) {
   const passRate = parseFloat(metrics.passRate || 0);
   const total = metrics.totalRuns || 0;
   return Math.round((passRate / 100) * total);
 }
 
+// eslint-disable-next-line no-unused-vars
 function calculateFailed(metrics) {
   const passRate = parseFloat(metrics.passRate || 0);
   const total = metrics.totalRuns || 0;
   return total - Math.round((passRate / 100) * total);
 }
 
+// eslint-disable-next-line no-unused-vars
 function updateTestRunsList() {
   console.log("[Test Runs List] Updating test runs list...");
   const container = document.getElementById("testRunsList");
@@ -2108,6 +2110,7 @@ function updateQualityTestingChart() {
 // HELPER FUNCTIONS
 // ============================================
 
+// eslint-disable-next-line no-unused-vars
 function escapeHtml(unsafe) {
   if (!unsafe) return "";
   return unsafe
@@ -2391,6 +2394,7 @@ async function analyzeStoryFull(storyId) {
   }
 }
 
+// eslint-disable-next-line no-unused-vars
 async function generateTestCases(storyId) {
   console.log(
     "[Test Generator] Starting test case generation for story:",
@@ -2889,6 +2893,7 @@ window.refreshAllData = function () {
 // TEST CASES TAB
 // ============================================
 
+// eslint-disable-next-line no-unused-vars
 function initializeTestCasesTab() {
   const generateBtn = document.getElementById("generateTestCasesBtn");
   const clearBtn = document.getElementById("clearTestCasesBtn");
@@ -3101,7 +3106,7 @@ function displayTestCasesInTab(data) {
       if (tc.tags && tc.tags.length > 0) {
         html +=
           '<div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border-color);"><strong>Tags:</strong> ';
-        tc.tags.forEach((tag, idx) => {
+        tc.tags.forEach((tag, _idx) => {
           html += `<span class="badge" style="margin-right: 4px;">${tag}</span>`;
         });
         html += "</div>";

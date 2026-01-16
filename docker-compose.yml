@@ -56,7 +56,7 @@ services:
       - ./config:/app/config:ro
       - ./docs:/app/docs:ro
       - orchestrator-data:/app/data
-      - ./mcps/test:/app/mcps:ro
+      - ./mcps:/app/mcps:ro
       - /Users/williambigno/dev/git/Core:/mnt/apps/Core:ro
       - /Users/williambigno/dev/git/Core.Common:/mnt/apps/Core.Common:ro
       - /Users/williambigno/dev/git/Payments:/mnt/apps/Payments:ro
@@ -190,6 +190,7 @@ services:
       - ./shared-theme:/app/public/shared-theme:ro
       - ./swagger-hub/public/css/styles.css:/app/public/css/styles.css:ro
       - ./swagger-hub/public/index.html:/app/public/index.html:ro
+      - ./mcps:/app/mcps:ro
     networks:
       - qe-network
     restart: unless-stopped

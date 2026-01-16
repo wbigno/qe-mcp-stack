@@ -902,9 +902,11 @@ router.post("/integrations/map", async (req, res) => {
 // ============================================
 
 // Analyze blast radius for changed files (supports multiple apps)
+// Also accepts methods, APIs, and components for comprehensive impact analysis
 router.post("/blast-radius/analyze", async (req, res) => {
   try {
-    const { app, apps, changedFiles, depth } = req.body;
+    const { app, apps, changedFiles, methods, apis, components, depth } =
+      req.body;
     // Support both single app and array of apps
     const appList = apps || (app ? [app] : []);
 
@@ -917,7 +919,7 @@ router.post("/blast-radius/analyze", async (req, res) => {
     }
 
     logger.info(
-      `Analyzing blast radius for ${changedFiles.length} files in apps: ${appList.join(", ")}`,
+      `Analyzing blast radius for ${changedFiles.length} files, ${methods?.length || 0} methods, ${apis?.length || 0} APIs in apps: ${appList.join(", ")}`,
     );
 
     // Analyze blast radius for each app and aggregate
@@ -926,6 +928,9 @@ router.post("/blast-radius/analyze", async (req, res) => {
         req.mcpManager.callDockerMcp("blastRadiusAnalyzer", "/analyze", {
           app: appName,
           changedFiles,
+          methods: methods || [],
+          apis: apis || [],
+          components: components || [],
           depth: depth || 2,
         }),
       ),
@@ -934,6 +939,10 @@ router.post("/blast-radius/analyze", async (req, res) => {
     // Aggregate results - merge impacted files, take highest impact scores
     const aggregated = {
       apps: appList,
+      changedFiles,
+      methods: methods || [],
+      apis: apis || [],
+      components: components || [],
       impactedFiles: [
         ...new Set(results.flatMap((r) => r.impactedFiles || [])),
       ],

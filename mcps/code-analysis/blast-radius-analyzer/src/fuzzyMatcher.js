@@ -19,14 +19,24 @@ export class FuzzyMatcher {
     // Get available files for the app
     const availableFiles = await this.getAvailableFiles(app);
 
-    // Strategy 1: Exact match
-    if (availableFiles.includes(searchPath)) {
-      return { path: searchPath, exists: true, matchType: "exact" };
+    // Normalize search path (convert backslashes to forward slashes for Linux)
+    const normalizedSearchPath = searchPath.replace(/\\/g, "/");
+
+    console.log(
+      `[FuzzyMatcher] Searching for: ${normalizedSearchPath} (original: ${searchPath})`,
+    );
+    console.log(
+      `[FuzzyMatcher] Available files count: ${availableFiles.length}`,
+    );
+
+    // Strategy 1: Exact match (normalized)
+    if (availableFiles.includes(normalizedSearchPath)) {
+      return { path: normalizedSearchPath, exists: true, matchType: "exact" };
     }
 
-    // Strategy 2: Case-insensitive match
+    // Strategy 2: Case-insensitive match (normalized)
     const ciMatch = availableFiles.find(
-      (f) => f.toLowerCase() === searchPath.toLowerCase(),
+      (f) => f.toLowerCase() === normalizedSearchPath.toLowerCase(),
     );
     if (ciMatch) {
       return {
@@ -38,7 +48,7 @@ export class FuzzyMatcher {
     }
 
     // Strategy 3: Filename-only match (ignoring directory)
-    const filename = path.basename(searchPath);
+    const filename = path.basename(normalizedSearchPath);
     const filenameMatches = availableFiles.filter(
       (f) => path.basename(f) === filename,
     );
@@ -49,6 +59,23 @@ export class FuzzyMatcher {
         matchType: "filename-only",
         fuzzyMatch: true,
         originalPath: searchPath,
+      };
+    }
+
+    // Strategy 3b: Multiple filename matches - log and return first if reasonable
+    if (filenameMatches.length > 1 && filenameMatches.length <= 5) {
+      console.log(
+        `[FuzzyMatcher] Multiple filename matches for ${filename}:`,
+        filenameMatches,
+      );
+      // Return the first match but note there were multiple
+      return {
+        path: filenameMatches[0],
+        exists: true,
+        matchType: "filename-multiple",
+        fuzzyMatch: true,
+        originalPath: searchPath,
+        alternatives: filenameMatches.slice(1),
       };
     }
 
@@ -67,8 +94,8 @@ export class FuzzyMatcher {
     }
 
     // Strategy 5: Partial path match (last N segments)
-    const pathSegments = searchPath.split(/[/\\]/).filter(Boolean);
-    for (let i = 2; i <= Math.min(pathSegments.length, 4); i++) {
+    const pathSegments = normalizedSearchPath.split(/[/\\]/).filter(Boolean);
+    for (let i = 2; i <= Math.min(pathSegments.length, 6); i++) {
       const partialPath = pathSegments.slice(-i).join("/");
       const partialMatches = availableFiles.filter(
         (f) =>
@@ -76,6 +103,9 @@ export class FuzzyMatcher {
           f.toLowerCase().endsWith(partialPath.toLowerCase()),
       );
       if (partialMatches.length === 1) {
+        console.log(
+          `[FuzzyMatcher] Found partial path match with ${i} segments: ${partialMatches[0]}`,
+        );
         return {
           path: partialMatches[0],
           exists: true,
@@ -84,10 +114,28 @@ export class FuzzyMatcher {
           originalPath: searchPath,
         };
       }
+      if (partialMatches.length > 1 && partialMatches.length <= 3) {
+        console.log(
+          `[FuzzyMatcher] Multiple partial matches for ${partialPath}:`,
+          partialMatches,
+        );
+        return {
+          path: partialMatches[0],
+          exists: true,
+          matchType: "partial-path-multiple",
+          fuzzyMatch: true,
+          originalPath: searchPath,
+          alternatives: partialMatches.slice(1),
+        };
+      }
     }
 
     // Strategy 6: Levenshtein distance for typos
-    const closeMatches = this.findByLevenshtein(searchPath, availableFiles, 5);
+    const closeMatches = this.findByLevenshtein(
+      normalizedSearchPath,
+      availableFiles,
+      5,
+    );
     if (closeMatches.length > 0) {
       return {
         path: closeMatches[0].path,
@@ -100,11 +148,12 @@ export class FuzzyMatcher {
     }
 
     // No match found
+    console.log(`[FuzzyMatcher] No match found for: ${normalizedSearchPath}`);
     return {
       path: searchPath,
       exists: false,
       matchType: "not-found",
-      suggestions: this.getSuggestions(searchPath, availableFiles),
+      suggestions: this.getSuggestions(normalizedSearchPath, availableFiles),
     };
   }
 
@@ -132,40 +181,69 @@ export class FuzzyMatcher {
   }
 
   /**
-   * Scan app files (mock implementation)
+   * Scan app files from mounted source directories
    */
   async scanAppFiles(app) {
-    // This would integrate with the code-analyzer MCP in production
-    // For now, return common .NET file patterns
+    // Apps are mounted at /mnt/apps/{app}
+    const basePath = `/mnt/apps/${app}`;
+
+    console.log(`[FuzzyMatcher] Scanning files for app: ${app} at ${basePath}`);
+
     try {
-      // Try to glob for actual files if a source path exists
+      // Scan for all common source file types
       const patterns = [
-        "**/src/**/*.cs",
-        "**/Controllers/**/*.cs",
-        "**/Services/**/*.cs",
-        "**/Models/**/*.cs",
-        "**/Tests/**/*.cs",
+        // .NET/C# files
+        "**/*.cs",
+        // Vue/JavaScript/TypeScript files
+        "**/*.vue",
+        "**/*.js",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.jsx",
+        // Other common files
+        "**/*.json",
+        "**/*.razor",
+        "**/*.cshtml",
+        "**/*.xml",
+        "**/*.yaml",
+        "**/*.yml",
       ];
 
       let files = [];
       for (const pattern of patterns) {
         try {
           const matches = await glob(pattern, {
-            ignore: "**/node_modules/**",
+            cwd: basePath,
+            ignore: [
+              "**/node_modules/**",
+              "**/bin/**",
+              "**/obj/**",
+              "**/dist/**",
+              "**/.git/**",
+            ],
             nodir: true,
+            absolute: false,
           });
+          // Store relative paths from the app root
           files = files.concat(matches);
         } catch (e) {
           // Pattern didn't match, continue
         }
       }
 
-      return [...new Set(files)];
-    } catch (error) {
+      const uniqueFiles = [...new Set(files)];
       console.log(
-        "[FuzzyMatcher] File scan failed, using empty list:",
-        error.message,
+        `[FuzzyMatcher] Found ${uniqueFiles.length} files for ${app}`,
       );
+
+      // Log a sample of files found
+      if (uniqueFiles.length > 0) {
+        console.log(`[FuzzyMatcher] Sample files:`, uniqueFiles.slice(0, 5));
+      }
+
+      return uniqueFiles;
+    } catch (error) {
+      console.log(`[FuzzyMatcher] File scan failed for ${app}:`, error.message);
       return [];
     }
   }

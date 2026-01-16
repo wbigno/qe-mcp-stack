@@ -109,17 +109,17 @@ export class MCPManager {
       ...this.playwrightMcps,
     };
 
-    // Dashboard Services (Static file servers - no health check)
+    // Dashboard Services (nginx containers with health endpoints)
     this.dashboards = {
       adoDashboard: {
-        url: "http://ado-dashboard:8080",
+        url: "http://dashboard:5173",
         status: "unknown",
-        type: "static",
+        type: "dashboard",
       },
       codeDashboard: {
-        url: "http://code-dashboard:8080",
+        url: "http://code-dashboard:8081",
         status: "unknown",
-        type: "static",
+        type: "dashboard",
       },
     };
 
@@ -185,13 +185,13 @@ export class MCPManager {
 
     for (const [name, dashboard] of Object.entries(this.dashboards)) {
       try {
-        // Try to fetch root path (static file servers respond to GET /)
-        await axios.get(dashboard.url, { timeout: 2000 });
-        dashboard.status = "available";
-        logger.info(`✓ ${name} is available at ${dashboard.url}`);
+        // Dashboards have /health endpoints
+        await axios.get(`${dashboard.url}/health`, { timeout: 2000 });
+        dashboard.status = "healthy";
+        logger.info(`✓ ${name} is healthy at ${dashboard.url}`);
       } catch (error) {
-        dashboard.status = "unavailable";
-        logger.warn(`⚠ ${name} not available: ${error.message}`);
+        dashboard.status = "unhealthy";
+        logger.warn(`⚠ ${name} not healthy: ${error.message}`);
       }
     }
   }
@@ -214,18 +214,18 @@ export class MCPManager {
         }
       }
 
-      // Check Dashboards (less frequently - they're static)
+      // Check Dashboards
       for (const [name, dashboard] of Object.entries(this.dashboards)) {
         try {
-          await axios.get(dashboard.url, { timeout: 2000 });
-          if (dashboard.status !== "available") {
-            dashboard.status = "available";
-            logger.info(`${name} is now available`);
+          await axios.get(`${dashboard.url}/health`, { timeout: 2000 });
+          if (dashboard.status !== "healthy") {
+            dashboard.status = "healthy";
+            logger.info(`${name} is now healthy`);
           }
         } catch (error) {
-          if (dashboard.status !== "unavailable") {
-            dashboard.status = "unavailable";
-            logger.warn(`${name} is unavailable`);
+          if (dashboard.status !== "unhealthy") {
+            dashboard.status = "unhealthy";
+            logger.warn(`${name} is unhealthy`);
           }
         }
       }

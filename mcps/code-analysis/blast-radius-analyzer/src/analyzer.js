@@ -73,6 +73,15 @@ export class BlastRadiusAnalyzer {
       affectedIntegrations,
     );
 
+    // Get file insights from dependency graph
+    const fileInsights = {};
+    for (const file of resolvedFiles.filter((f) => f.exists)) {
+      const insights = depGraph.getFileInsights(file.path);
+      if (insights) {
+        fileInsights[file.path] = insights;
+      }
+    }
+
     return {
       risk,
       changedFiles: resolvedFiles,
@@ -85,6 +94,7 @@ export class BlastRadiusAnalyzer {
         transitiveDependencies: affectedComponents.filter((c) => c.depth > 1)
           .length,
       },
+      fileInsights,
       recommendations,
     };
   }
