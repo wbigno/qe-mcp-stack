@@ -172,11 +172,16 @@ const App: React.FC = () => {
   const renderContent = () => {
     // If an integration is selected, show integration detail
     if (selectedIntegration && integration) {
+      // Get the base URL for the current environment
+      const currentBaseUrl = app.baseUrls?.[environment] || app.baseUrl;
+
       return (
         <IntegrationView
           integration={integration}
           appKey={selectedApp}
           integrationKey={selectedIntegration}
+          environment={environment}
+          baseUrl={currentBaseUrl}
           onBack={handleBackFromIntegration}
         />
       );

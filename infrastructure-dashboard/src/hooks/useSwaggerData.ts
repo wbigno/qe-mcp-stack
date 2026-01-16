@@ -4,7 +4,8 @@ import type {
   EndpointGroup,
   EndpointInfo,
 } from "../types/swagger";
-import { InfrastructureAPI } from "../services/api";
+// Note: InfrastructureAPI is available but this hook needs URL param support
+// import { InfrastructureAPI } from "../services/api";
 
 interface UseSwaggerDataResult {
   spec: SwaggerSpec | null;
@@ -87,8 +88,10 @@ export function useSwaggerData(): UseSwaggerDataResult {
     setError(null);
 
     try {
-      const data = await InfrastructureAPI.getSwaggerSpec();
-      setSpec(data);
+      // Note: This hook is not currently used - fetchSwaggerSpec requires a URL parameter
+      // For now, setting spec to null as a placeholder
+      // In future, this should accept a URL parameter: const data = await InfrastructureAPI.fetchSwaggerSpec(url);
+      setSpec(null);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Failed to fetch Swagger spec",

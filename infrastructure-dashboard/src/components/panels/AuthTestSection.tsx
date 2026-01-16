@@ -11,14 +11,24 @@ import {
   Eye,
   EyeOff,
   Save,
+  Copy,
+  Check,
+  Timer,
 } from "lucide-react";
-import type { Integration, AuthTestResult } from "../../types/infrastructure";
+import type {
+  Integration,
+  AuthTestResultWithToken,
+  Environment,
+} from "../../types/infrastructure";
 import { InfrastructureAPI } from "../../services/api";
 
 interface AuthTestSectionProps {
   integration: Integration;
   appKey: string;
   integrationKey: string;
+  environment?: Environment;
+  baseUrl?: string;
+  onTokenObtained?: (token: string, expiresAt?: string) => void;
 }
 
 const AUTH_FLOW_STEPS: Record<string, string[]> = {
@@ -66,13 +76,18 @@ export const AuthTestSection: React.FC<AuthTestSectionProps> = ({
   integration,
   appKey,
   integrationKey,
+  environment: _environment, // Reserved for future environment-specific auth
+  baseUrl: _baseUrl, // Reserved for future environment-specific base URL
+  onTokenObtained,
 }) => {
   const [testing, setTesting] = useState(false);
-  const [result, setResult] = useState<AuthTestResult | null>(null);
+  const [result, setResult] = useState<AuthTestResultWithToken | null>(null);
   const [currentStep, setCurrentStep] = useState<number>(-1);
   const [apiKeyValue, setApiKeyValue] = useState<string>("");
   const [showKey, setShowKey] = useState(false);
   const [keySaved, setKeySaved] = useState(false);
+  const [showToken, setShowToken] = useState(false);
+  const [tokenCopied, setTokenCopied] = useState(false);
 
   // Storage key for this specific integration
   const storageKey = `${STORAGE_KEY_PREFIX}${appKey}_${integrationKey}`;
@@ -107,9 +122,52 @@ export const AuthTestSection: React.FC<AuthTestSectionProps> = ({
     setKeySaved(false);
   };
 
+  const handleCopyToken = async () => {
+    if (result?.token) {
+      try {
+        await navigator.clipboard.writeText(result.token);
+        setTokenCopied(true);
+        setTimeout(() => setTokenCopied(false), 2000);
+      } catch (err) {
+        console.error("Failed to copy token:", err);
+      }
+    }
+  };
+
+  const maskToken = (token: string): string => {
+    if (token.length <= 20) return "●".repeat(token.length);
+    return (
+      token.substring(0, 10) + "●".repeat(8) + token.substring(token.length - 6)
+    );
+  };
+
+  const formatExpiryTime = (
+    expiresAt?: string,
+    expiresIn?: number,
+  ): string | null => {
+    if (expiresAt) {
+      const expiry = new Date(expiresAt);
+      const now = new Date();
+      const diffMs = expiry.getTime() - now.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+
+      if (diffMins > 0) {
+        return `Expires: ${expiry.toLocaleTimeString()} (${diffMins} min remaining)`;
+      }
+      return "Token expired";
+    }
+    if (expiresIn) {
+      const mins = Math.floor(expiresIn / 60);
+      return `Expires in ${mins} minutes`;
+    }
+    return null;
+  };
+
   const handleTest = async () => {
     setTesting(true);
     setResult(null);
+    setShowToken(false);
+    setTokenCopied(false);
 
     // Animate through steps
     for (let i = 0; i < flowSteps.length; i++) {
@@ -127,6 +185,11 @@ export const AuthTestSection: React.FC<AuthTestSectionProps> = ({
         },
       );
       setResult(testResult);
+
+      // Notify parent of obtained token for endpoint testing
+      if (testResult.success && testResult.token && onTokenObtained) {
+        onTokenObtained(testResult.token, testResult.expiresAt);
+      }
     } catch (error) {
       setResult({
         success: false,
@@ -331,15 +394,66 @@ export const AuthTestSection: React.FC<AuthTestSectionProps> = ({
                 Status: {result.details.statusCode}
               </div>
             )}
-            {result.details?.tokenObtained && (
-              <div className="text-green-400">Token obtained</div>
-            )}
             {result.error && (
               <div className="col-span-2 text-red-400 mt-1">
                 Error: {result.error}
               </div>
             )}
           </div>
+
+          {/* Token Display Section */}
+          {result.success && result.token && (
+            <div className="mt-4 pt-4 border-t border-green-500/20">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-secondary flex items-center gap-1">
+                  <Key className="w-3 h-3" />
+                  {result.tokenType || "Token"}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowToken(!showToken)}
+                    className="text-xs text-secondary hover:text-primary flex items-center gap-1"
+                    title={showToken ? "Hide token" : "Show token"}
+                  >
+                    {showToken ? (
+                      <EyeOff className="w-3 h-3" />
+                    ) : (
+                      <Eye className="w-3 h-3" />
+                    )}
+                  </button>
+                  <button
+                    onClick={handleCopyToken}
+                    className="text-xs text-secondary hover:text-primary flex items-center gap-1"
+                    title="Copy token"
+                  >
+                    {tokenCopied ? (
+                      <>
+                        <Check className="w-3 h-3 text-green-400" />
+                        <span className="text-green-400">Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        <span>Copy</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+              <div className="bg-primary rounded-lg p-2">
+                <code className="text-xs text-green-300 break-all font-mono">
+                  {showToken ? result.token : maskToken(result.token)}
+                </code>
+              </div>
+              {/* Token Expiry */}
+              {(result.expiresAt || result.expiresIn) && (
+                <div className="mt-2 flex items-center gap-1 text-xs text-secondary">
+                  <Timer className="w-3 h-3" />
+                  {formatExpiryTime(result.expiresAt, result.expiresIn)}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>

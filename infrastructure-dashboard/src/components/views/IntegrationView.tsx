@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   Database,
   Cloud,
@@ -15,15 +15,21 @@ import {
   Key,
   X,
 } from "lucide-react";
-import type { Integration, IntegrationType } from "../../types/infrastructure";
+import type {
+  Integration,
+  IntegrationType,
+  Environment,
+} from "../../types/infrastructure";
 import { getIntegrationColorClass } from "../../utils/integrationHelpers";
-import { MethodBadge } from "../common/MethodBadge";
 import AuthTestSection from "../panels/AuthTestSection";
+import EndpointTester from "../panels/EndpointTester";
 
 interface IntegrationViewProps {
   integration: Integration;
   appKey: string;
   integrationKey: string;
+  environment: Environment;
+  baseUrl: string;
   onBack: () => void;
 }
 
@@ -49,8 +55,22 @@ export const IntegrationView: React.FC<IntegrationViewProps> = ({
   integration,
   appKey,
   integrationKey,
+  environment,
+  baseUrl,
   onBack,
 }) => {
+  const [obtainedToken, setObtainedToken] = useState<string | null>(null);
+  // Token expiry stored for future use (e.g., auto-refresh, display)
+  const [_tokenExpiresAt, setTokenExpiresAt] = useState<string | undefined>();
+
+  const handleTokenObtained = (token: string, expiresAt?: string) => {
+    setObtainedToken(token);
+    setTokenExpiresAt(expiresAt);
+  };
+
+  // Get the effective base URL for API calls
+  const effectiveBaseUrl = integration.baseUrl || baseUrl;
+
   return (
     <div className="p-6">
       <button onClick={onBack} className="mb-4 btn btn-ghost">
@@ -107,6 +127,9 @@ export const IntegrationView: React.FC<IntegrationViewProps> = ({
           integration={integration}
           appKey={appKey}
           integrationKey={integrationKey}
+          environment={environment}
+          baseUrl={effectiveBaseUrl}
+          onTokenObtained={handleTokenObtained}
         />
 
         {/* Features */}
@@ -123,24 +146,15 @@ export const IntegrationView: React.FC<IntegrationViewProps> = ({
           </div>
         )}
 
-        {/* Endpoints */}
-        {integration.endpoints && (
-          <div className="mb-6">
-            <h3 className="font-semibold mb-3">API Endpoints</h3>
-            <div className="space-y-2">
-              {integration.endpoints.map((ep, i) => (
-                <div key={i} className="bg-tertiary rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <MethodBadge method={ep.method} />
-                    <code className="text-sm">{ep.path}</code>
-                  </div>
-                  <div className="text-xs text-tertiary ml-14">
-                    {ep.purpose}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {/* Interactive Endpoint Tester */}
+        {integration.endpoints && integration.endpoints.length > 0 && (
+          <EndpointTester
+            integration={integration}
+            environment={environment}
+            baseUrl={effectiveBaseUrl}
+            token={obtainedToken}
+            authMethod={integration.authentication?.method || "API Key"}
+          />
         )}
 
         {/* Code Implementation */}

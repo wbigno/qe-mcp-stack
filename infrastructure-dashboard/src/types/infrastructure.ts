@@ -181,3 +181,51 @@ export interface DatabaseRelationship {
   relationshipType: "one-to-one" | "one-to-many" | "many-to-many";
   foreignKey?: string;
 }
+
+// ============================================================================
+// Endpoint Tester Types
+// ============================================================================
+
+export interface EndpointDefinition {
+  method: string;
+  path: string;
+  purpose: string;
+  pathParams?: string[];
+  queryParams?: string[];
+  requestBody?: Record<string, unknown>;
+  responseExample?: Record<string, unknown>;
+}
+
+export interface EndpointExecuteRequest {
+  url: string;
+  method: string;
+  headers: Record<string, string>;
+  body?: unknown;
+  environment: Environment;
+}
+
+export interface EndpointExecuteResult {
+  success: boolean;
+  status: number;
+  statusText: string;
+  headers: Record<string, string>;
+  data: unknown;
+  latencyMs: number;
+  error?: string;
+}
+
+export interface AuthTestResultWithToken extends AuthTestResult {
+  token?: string;
+  tokenType?: string;
+  expiresAt?: string;
+  expiresIn?: number;
+}
+
+// Environments allowed for endpoint testing
+export const ENDPOINT_TEST_ALLOWED_ENVIRONMENTS: Environment[] = [
+  "local",
+  "dev",
+  "qa",
+  "qa2",
+  "staging",
+];
