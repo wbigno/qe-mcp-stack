@@ -5776,3 +5776,182 @@ button:disabled:hover {
 .app-select-options::-webkit-scrollbar-thumb:hover {
     background: var(--text-secondary, #94a3b8);
 }
+
+/* ============================================
+   Phase 3: Test Case Comparison Styles
+   ============================================ */
+
+/* Comparison Summary */
+.comparison-summary {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(147, 51, 234, 0.1));
+    border: 1px solid var(--border-color, #334155);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+.comparison-summary h5 {
+    color: var(--text-primary, #f1f5f9);
+    margin-bottom: 12px;
+    font-size: 14px;
+}
+
+.comparison-stats {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+}
+
+.comp-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.comp-stat.comp-new {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.comp-stat.comp-update {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+    border: 1px solid rgba(251, 191, 36, 0.3);
+}
+
+.comp-stat.comp-exists {
+    background: rgba(148, 163, 184, 0.2);
+    color: #94a3b8;
+    border: 1px solid rgba(148, 163, 184, 0.3);
+}
+
+.comp-count {
+    font-weight: 700;
+    font-size: 16px;
+}
+
+.existing-count {
+    font-size: 12px;
+    color: var(--text-secondary, #94a3b8);
+    margin-bottom: 12px;
+}
+
+/* Approval Actions */
+.approval-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.btn-select-all,
+.btn-deselect-all {
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    border: 1px solid var(--border-color, #334155);
+    background: var(--bg-secondary, #1e293b);
+    color: var(--text-secondary, #94a3b8);
+    transition: all 0.2s ease;
+}
+
+.btn-select-all:hover,
+.btn-deselect-all:hover {
+    background: var(--bg-primary, #0f172a);
+    color: var(--text-primary, #f1f5f9);
+}
+
+.approved-count {
+    font-size: 12px;
+    color: var(--text-secondary, #94a3b8);
+    margin-left: auto;
+}
+
+#approvedTestCaseCount {
+    font-weight: 600;
+    color: var(--accent, #3b82f6);
+}
+
+/* Test Case Status Badges */
+.test-status-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-right: 8px;
+}
+
+.test-status-badge.status-new {
+    background: rgba(34, 197, 94, 0.2);
+    color: #4ade80;
+}
+
+.test-status-badge.status-update {
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+}
+
+.test-status-badge.status-exists {
+    background: rgba(148, 163, 184, 0.2);
+    color: #94a3b8;
+}
+
+/* Test Case Item Status Styling */
+.test-case-item.status-new {
+    border-left-color: #4ade80;
+}
+
+.test-case-item.status-update {
+    border-left-color: #fbbf24;
+}
+
+.test-case-item.status-exists {
+    border-left-color: #94a3b8;
+    opacity: 0.7;
+}
+
+/* Approval Checkbox */
+.tc-approval-checkbox {
+    width: 18px;
+    height: 18px;
+    margin-right: 8px;
+    cursor: pointer;
+    accent-color: var(--accent, #3b82f6);
+}
+
+/* Update Info */
+.update-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    margin: 8px 0;
+    background: rgba(251, 191, 36, 0.1);
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.similarity-badge {
+    color: #fbbf24;
+    font-weight: 500;
+}
+
+.existing-tc-ref {
+    color: var(--text-secondary, #94a3b8);
+}
+
+.existing-tc-ref a {
+    color: var(--accent, #3b82f6);
+    text-decoration: none;
+}
+
+.existing-tc-ref a:hover {
+    text-decoration: underline;
+}

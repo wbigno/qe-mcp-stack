@@ -27,6 +27,9 @@ export class AnalysisPanel {
     };
     // Store generated test cases
     this.generatedTestCases = null;
+    // Phase 3: Store test case comparison results
+    this.testCaseComparison = null;
+    this.approvedTestCases = new Set(); // Track which test cases are approved for push
     // Test Plan management
     this.testPlans = [];
     this.selectedTestPlanId = null;
@@ -2633,6 +2636,9 @@ export class AnalysisPanel {
 
       this.generatedTestCases = data.testCases;
 
+      // Phase 3: Compare generated test cases with existing ones in ADO
+      await this.compareWithExistingTestCases();
+
       // Load Test Plans and parent Feature for the push UI
       await Promise.all([
         this.loadTestPlans(),
@@ -2658,6 +2664,159 @@ export class AnalysisPanel {
       if (buttonText) buttonText.textContent = "✅ Generate Test Cases";
       if (generateBtn) generateBtn.disabled = false;
     }
+  }
+
+  /**
+   * Phase 3: Compare generated test cases with existing ones in ADO
+   * Returns comparison with NEW, UPDATE, or EXISTS status for each test case
+   */
+  async compareWithExistingTestCases() {
+    if (!this.generatedTestCases || !this.currentStory) {
+      console.log("No test cases or story to compare");
+      return;
+    }
+
+    try {
+      console.log(
+        `Comparing ${this.generatedTestCases.length} generated test cases with existing ones for story ${this.currentStory.id}`,
+      );
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/ado/work-item/${this.currentStory.id}/compare-test-cases`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            generatedTestCases: this.generatedTestCases.map((tc) => ({
+              title: tc.name || tc.title,
+              steps: tc.steps || [],
+              priority: tc.priority,
+              expectedResult: tc.expectedResult,
+            })),
+          }),
+        },
+      );
+
+      if (!response.ok) {
+        console.warn(
+          "Test case comparison not available:",
+          response.statusText,
+        );
+        this.testCaseComparison = null;
+        return;
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        this.testCaseComparison = data;
+        console.log("Test case comparison result:", {
+          existingCount: data.existingTestCases?.length || 0,
+          newCount: data.summary?.newCount || 0,
+          updateCount: data.summary?.updateCount || 0,
+          existsCount: data.summary?.existsCount || 0,
+        });
+
+        // Pre-select NEW and UPDATE test cases for approval
+        this.approvedTestCases = new Set();
+        data.comparisons?.forEach((comp, idx) => {
+          if (comp.status === "NEW" || comp.status === "UPDATE") {
+            this.approvedTestCases.add(idx);
+          }
+        });
+      } else {
+        console.warn("Test case comparison failed:", data.error);
+        this.testCaseComparison = null;
+      }
+    } catch (error) {
+      console.warn("Could not compare test cases:", error.message);
+      this.testCaseComparison = null;
+    }
+  }
+
+  /**
+   * Get comparison status for a generated test case by index
+   */
+  getTestCaseComparisonStatus(tcIndex) {
+    if (
+      !this.testCaseComparison ||
+      !this.testCaseComparison.comparisons ||
+      tcIndex >= this.testCaseComparison.comparisons.length
+    ) {
+      return { status: "NEW", similarity: 0, existing: null };
+    }
+    return this.testCaseComparison.comparisons[tcIndex];
+  }
+
+  /**
+   * Toggle approval status for a test case
+   */
+  toggleTestCaseApproval(tcIndex) {
+    if (this.approvedTestCases.has(tcIndex)) {
+      this.approvedTestCases.delete(tcIndex);
+    } else {
+      this.approvedTestCases.add(tcIndex);
+    }
+    // Update the checkbox UI
+    const checkbox = document.querySelector(
+      `input.tc-approval-checkbox[data-tc-index="${tcIndex}"]`,
+    );
+    if (checkbox) {
+      checkbox.checked = this.approvedTestCases.has(tcIndex);
+    }
+    // Update push button count
+    this.updateApprovedCount();
+  }
+
+  /**
+   * Update the approved count display
+   */
+  updateApprovedCount() {
+    const countSpan = document.getElementById("approvedTestCaseCount");
+    if (countSpan) {
+      const newCount =
+        this.testCaseComparison?.comparisons?.filter(
+          (c, i) => c.status === "NEW" && this.approvedTestCases.has(i),
+        ).length || 0;
+      const updateCount =
+        this.testCaseComparison?.comparisons?.filter(
+          (c, i) => c.status === "UPDATE" && this.approvedTestCases.has(i),
+        ).length || 0;
+      countSpan.textContent = `${newCount} new, ${updateCount} updates`;
+    }
+  }
+
+  /**
+   * Select all test cases for approval
+   */
+  selectAllTestCases() {
+    this.generatedTestCases?.forEach((_, idx) => {
+      const comp = this.getTestCaseComparisonStatus(idx);
+      if (comp.status !== "EXISTS") {
+        this.approvedTestCases.add(idx);
+      }
+    });
+    this.updateApprovalCheckboxes();
+    this.updateApprovedCount();
+  }
+
+  /**
+   * Deselect all test cases
+   */
+  deselectAllTestCases() {
+    this.approvedTestCases.clear();
+    this.updateApprovalCheckboxes();
+    this.updateApprovedCount();
+  }
+
+  /**
+   * Update all approval checkboxes to match state
+   */
+  updateApprovalCheckboxes() {
+    document.querySelectorAll("input.tc-approval-checkbox").forEach((cb) => {
+      const idx = parseInt(cb.dataset.tcIndex);
+      cb.checked = this.approvedTestCases.has(idx);
+    });
   }
 
   /**
@@ -2736,12 +2895,57 @@ export class AnalysisPanel {
       integration: testCases.filter((tc) => tc.type === "integration").length,
     };
 
+    // Phase 3: Count by comparison status
+    const comparisonCounts = {
+      new: 0,
+      update: 0,
+      exists: 0,
+    };
+    if (this.testCaseComparison?.comparisons) {
+      this.testCaseComparison.comparisons.forEach((comp) => {
+        if (comp.status === "NEW") comparisonCounts.new++;
+        else if (comp.status === "UPDATE") comparisonCounts.update++;
+        else if (comp.status === "EXISTS") comparisonCounts.exists++;
+      });
+    }
+
+    // Build global index lookup (tc name -> global index)
+    const tcGlobalIndex = {};
+    testCases.forEach((tc, idx) => {
+      tcGlobalIndex[tc.name] = idx;
+    });
+
     // Store current filter state
     this.currentTestFilter = this.currentTestFilter || "all";
+
+    // Phase 3: Comparison summary section
+    const comparisonSummaryHtml = this.testCaseComparison
+      ? `
+      <div class="comparison-summary">
+        <h5>📊 Comparison with Existing Test Cases</h5>
+        <div class="comparison-stats">
+          <span class="comp-stat comp-new"><span class="comp-count">${comparisonCounts.new}</span> New</span>
+          <span class="comp-stat comp-update"><span class="comp-count">${comparisonCounts.update}</span> Updates</span>
+          <span class="comp-stat comp-exists"><span class="comp-count">${comparisonCounts.exists}</span> Already Exist</span>
+        </div>
+        ${
+          this.testCaseComparison.existingTestCases?.length > 0
+            ? `<div class="existing-count">Found ${this.testCaseComparison.existingTestCases.length} existing test cases linked to this story</div>`
+            : `<div class="existing-count">No existing test cases found - all will be created as new</div>`
+        }
+        <div class="approval-actions">
+          <button class="btn-select-all" onclick="window.analysisPanel?.selectAllTestCases()">✓ Select All</button>
+          <button class="btn-deselect-all" onclick="window.analysisPanel?.deselectAllTestCases()">✗ Deselect All</button>
+          <span class="approved-count">Selected: <span id="approvedTestCaseCount">${comparisonCounts.new} new, ${comparisonCounts.update} updates</span></span>
+        </div>
+      </div>
+    `
+      : "";
 
     resultsContainer.innerHTML = `
       <div class="test-cases-summary">
         <h4>Generated Test Cases Summary</h4>
+        ${comparisonSummaryHtml}
         <div class="test-stats">
           <span class="stat total-stat"><strong id="totalTestCount">${testCases.length}</strong> Total Test Cases</span>
           <button class="stat-filter stat type-positive ${this.currentTestFilter === "positive" ? "active" : ""}" data-filter="positive">
@@ -2778,10 +2982,35 @@ export class AnalysisPanel {
               ${
                 data.testCases.length > 0
                   ? data.testCases
-                      .map(
-                        (tc, index) => `
-                <div class="test-case-item priority-${tc.priority || "medium"}" data-type="${tc.type}" data-tc-index="${index}" data-ac-ref="${acId}" data-tc-name="${tc.name}">
+                      .map((tc, index) => {
+                        const globalIdx = tcGlobalIndex[tc.name];
+                        const comp =
+                          this.getTestCaseComparisonStatus(globalIdx);
+                        const statusClass =
+                          comp.status === "NEW"
+                            ? "status-new"
+                            : comp.status === "UPDATE"
+                              ? "status-update"
+                              : "status-exists";
+                        const statusIcon =
+                          comp.status === "NEW"
+                            ? "🆕"
+                            : comp.status === "UPDATE"
+                              ? "🔄"
+                              : "✅";
+                        const isApproved =
+                          this.approvedTestCases.has(globalIdx);
+                        const showCheckbox = comp.status !== "EXISTS";
+
+                        return `
+                <div class="test-case-item priority-${tc.priority || "medium"} ${statusClass}" data-type="${tc.type}" data-tc-index="${globalIdx}" data-ac-ref="${acId}" data-tc-name="${tc.name}">
                   <div class="test-case-header">
+                    ${
+                      showCheckbox
+                        ? `<input type="checkbox" class="tc-approval-checkbox" data-tc-index="${globalIdx}" ${isApproved ? "checked" : ""} title="Select for push to ADO" />`
+                        : ""
+                    }
+                    <span class="test-status-badge ${statusClass}" title="${comp.status}${comp.similarity ? ` (${comp.similarity}% similar)` : ""}">${statusIcon} ${comp.status}</span>
                     <span class="test-type type-${tc.type}">[${tc.type.toUpperCase()}]</span>
                     <span class="test-name">${tc.name}</span>
                     <div class="test-case-actions">
@@ -2789,6 +3018,22 @@ export class AnalysisPanel {
                       <button class="btn-delete-test" data-tc-name="${tc.name}" title="Remove test case">✕</button>
                     </div>
                   </div>
+                  ${
+                    comp.status === "UPDATE" && comp.existing
+                      ? `
+                  <div class="update-info">
+                    <span class="similarity-badge">${comp.similarity}% similar to existing</span>
+                    <span class="existing-tc-ref">Existing: #${comp.existing.id}</span>
+                  </div>
+                  `
+                      : ""
+                  }`;
+                      })
+                      .join("") +
+                    data.testCases
+                      .map((tc, index) => {
+                        const globalIdx = tcGlobalIndex[tc.name];
+                        return `
                   <div class="test-steps-editable">
                     <div class="steps-header">
                       <strong>Steps:</strong>
@@ -2826,8 +3071,8 @@ export class AnalysisPanel {
                       rows="2">${tc.expectedResult || ""}</textarea>
                   </div>
                 </div>
-              `,
-                      )
+              `;
+                      })
                       .join("")
                   : '<p class="no-tests">No test cases generated for this AC</p>'
               }
@@ -3026,6 +3271,15 @@ export class AnalysisPanel {
         this.updateExpectedResult(tcName, textarea.value);
       });
     });
+
+    // Phase 3: Approval checkbox event listeners
+    document.querySelectorAll(".tc-approval-checkbox").forEach((checkbox) => {
+      checkbox.addEventListener("change", (e) => {
+        e.stopPropagation();
+        const tcIndex = parseInt(checkbox.dataset.tcIndex);
+        this.toggleTestCaseApproval(tcIndex);
+      });
+    });
   }
 
   /**
@@ -3171,6 +3425,7 @@ export class AnalysisPanel {
   /**
    * Push test cases to Azure DevOps with Test Plan hierarchy
    * Structure: Feature Suite > PBI Suite > Test Cases
+   * Phase 3: Only push approved test cases, handle NEW and UPDATE separately
    */
   async pushTestCasesToAdo() {
     if (!this.generatedTestCases || this.generatedTestCases.length === 0) {
@@ -3183,6 +3438,48 @@ export class AnalysisPanel {
       return;
     }
 
+    // Phase 3: Filter to only approved test cases
+    const approvedIndices = Array.from(this.approvedTestCases);
+    if (approvedIndices.length === 0) {
+      alert(
+        "No test cases selected for push. Please select at least one test case.",
+      );
+      return;
+    }
+
+    // Separate NEW and UPDATE test cases
+    const newTestCases = [];
+    const updateTestCases = [];
+
+    approvedIndices.forEach((idx) => {
+      const tc = this.generatedTestCases[idx];
+      const comp = this.getTestCaseComparisonStatus(idx);
+
+      if (comp.status === "NEW") {
+        newTestCases.push({
+          title: tc.name,
+          steps: tc.steps,
+          expectedResult: tc.expectedResult,
+          priority: tc.priority,
+          type: tc.type,
+          acceptanceCriteriaRef: tc.acceptanceCriteriaRef,
+        });
+      } else if (comp.status === "UPDATE" && comp.existing) {
+        updateTestCases.push({
+          existingId: comp.existing.id,
+          title: tc.name,
+          steps: tc.steps,
+          expectedResult: tc.expectedResult,
+          priority: tc.priority,
+          type: tc.type,
+        });
+      }
+    });
+
+    console.log(
+      `Approved: ${approvedIndices.length}, New: ${newTestCases.length}, Updates: ${updateTestCases.length}`,
+    );
+
     // Disable button and show loading
     const pushBtn = document.getElementById("pushToAdoBtn");
     const originalText = pushBtn?.innerHTML;
@@ -3192,64 +3489,103 @@ export class AnalysisPanel {
     }
 
     try {
-      const requestBody = {
-        // Test Plan hierarchy data
-        testPlanId: this.selectedTestPlanId,
-        storyId: this.currentStory.id,
-        storyTitle: this.currentStory.fields["System.Title"],
-        // Project for Test Plan operations (critical for cross-project scenarios)
-        project: this.getStoryProject(),
-        // Parent Feature (if exists)
-        featureId: this.parentFeature?.id,
-        featureTitle: this.parentFeature?.title,
-        // Test cases
-        testCases: this.generatedTestCases.map((tc) => ({
-          title: tc.name,
-          steps: tc.steps,
-          expectedResult: tc.expectedResult,
-          priority: tc.priority,
-          type: tc.type,
-          acceptanceCriteriaRef: tc.acceptanceCriteriaRef,
-        })),
-      };
+      let createdCount = 0;
+      let updatedCount = 0;
+      const errors = [];
 
-      console.log("Pushing test cases with hierarchy:", {
-        testPlanId: requestBody.testPlanId,
-        storyId: requestBody.storyId,
-        featureId: requestBody.featureId,
-        testCaseCount: requestBody.testCases.length,
-      });
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/ado/create-test-cases`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(requestBody),
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.error || `HTTP error! status: ${response.status}`,
+      // Phase 3: Create NEW test cases
+      if (newTestCases.length > 0) {
+        const createResponse = await fetch(
+          `${API_BASE_URL}/api/ado/create-test-cases`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              testPlanId: this.selectedTestPlanId,
+              storyId: this.currentStory.id,
+              storyTitle: this.currentStory.fields["System.Title"],
+              project: this.getStoryProject(),
+              featureId: this.parentFeature?.id,
+              featureTitle: this.parentFeature?.title,
+              testCases: newTestCases,
+            }),
+          },
         );
+
+        if (createResponse.ok) {
+          const createData = await createResponse.json();
+          if (createData.success) {
+            createdCount = createData.createdCount || newTestCases.length;
+          } else {
+            errors.push(`Create failed: ${createData.error}`);
+          }
+        } else {
+          errors.push(`Create request failed: ${createResponse.statusText}`);
+        }
       }
 
-      const data = await response.json();
+      // Phase 3: Update existing test cases
+      for (const tc of updateTestCases) {
+        try {
+          const updateResponse = await fetch(
+            `${API_BASE_URL}/api/ado/test-cases/${tc.existingId}`,
+            {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                title: tc.title,
+                steps: tc.steps,
+                priority: tc.priority,
+              }),
+            },
+          );
 
-      if (data.success) {
-        const selectedPlan = this.testPlans.find(
-          (tp) => tp.id === this.selectedTestPlanId,
-        );
-        let successMsg = `Successfully created ${data.createdCount || this.generatedTestCases.length} test cases!\n\n`;
-        successMsg += `Test Plan: ${selectedPlan?.name || this.selectedTestPlanId}\n`;
-        if (data.suite) {
-          successMsg += `Suite: ${data.suite.name} (${data.suite.type})`;
+          if (updateResponse.ok) {
+            const updateData = await updateResponse.json();
+            if (updateData.success) {
+              updatedCount++;
+            } else {
+              errors.push(`Update #${tc.existingId}: ${updateData.error}`);
+            }
+          } else {
+            errors.push(
+              `Update #${tc.existingId} failed: ${updateResponse.statusText}`,
+            );
+          }
+        } catch (e) {
+          errors.push(`Update #${tc.existingId}: ${e.message}`);
         }
+      }
+
+      // Build result message
+      const selectedPlan = this.testPlans.find(
+        (tp) => tp.id === this.selectedTestPlanId,
+      );
+      let successMsg = "";
+
+      if (createdCount > 0 || updatedCount > 0) {
+        successMsg = `Successfully pushed test cases!\n\n`;
+        if (createdCount > 0) {
+          successMsg += `✅ Created: ${createdCount} new test cases\n`;
+        }
+        if (updatedCount > 0) {
+          successMsg += `🔄 Updated: ${updatedCount} existing test cases\n`;
+        }
+        successMsg += `\nTest Plan: ${selectedPlan?.name || this.selectedTestPlanId}`;
+      }
+
+      if (errors.length > 0) {
+        successMsg +=
+          `\n\n⚠️ ${errors.length} error(s):\n` + errors.slice(0, 3).join("\n");
+        if (errors.length > 3) {
+          successMsg += `\n... and ${errors.length - 3} more`;
+        }
+      }
+
+      if (successMsg) {
         alert(successMsg);
-      } else {
-        throw new Error(data.error || "Failed to create test cases");
+      } else if (errors.length > 0) {
+        throw new Error(errors.join(", "));
       }
     } catch (error) {
       console.error("Push to ADO error:", error);
