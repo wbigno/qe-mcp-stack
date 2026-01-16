@@ -686,5 +686,518 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
     },
   );
 
+  // ============================================
+  // ENHANCED WORK ITEM ROUTES (Development Links, Attachments, Related Work)
+  // ============================================
+
+  /**
+   * @swagger
+   * /work-items/enhanced:
+   *   post:
+   *     summary: Get enhanced work items with full details
+   *     description: Retrieves work items with parsed development links (PRs, commits, builds), attachments, and related work items
+   *     tags: [Work Items]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - ids
+   *             properties:
+   *               ids:
+   *                 type: array
+   *                 items:
+   *                   type: number
+   *     responses:
+   *       200:
+   *         description: Enhanced work items with development links, attachments, and relations
+   */
+  router.post("/enhanced", async (req: Request, res: Response) => {
+    try {
+      const { ids } = req.body;
+
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        const response: APIResponse = {
+          success: false,
+          error: {
+            code: "INVALID_REQUEST",
+            message: "ids array is required",
+          },
+        };
+        res.status(400).json(response);
+        return;
+      }
+
+      const workItems = await adoService.getEnhancedWorkItems(ids);
+
+      const response: APIResponse = {
+        success: true,
+        data: workItems,
+      };
+
+      res.json(response);
+    } catch (error) {
+      logError("Get enhanced work items failed", { error });
+      const response: APIResponse = {
+        success: false,
+        error: {
+          code: "GET_ENHANCED_FAILED",
+          message: (error as Error).message,
+        },
+      };
+      res.status(500).json(response);
+    }
+  });
+
+  /**
+   * @swagger
+   * /work-items/{workItemId}/files-changed:
+   *   get:
+   *     summary: Get files changed in PRs linked to a work item
+   *     description: Retrieves all files modified in pull requests linked to the work item (Development section)
+   *     tags: [Work Items]
+   *     parameters:
+   *       - in: path
+   *         name: workItemId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Files changed from linked PRs
+   */
+  router.get(
+    "/:workItemId/files-changed",
+    async (req: Request, res: Response) => {
+      try {
+        const workItemId = parseInt(req.params.workItemId);
+
+        if (isNaN(workItemId)) {
+          const response: APIResponse = {
+            success: false,
+            error: {
+              code: "INVALID_REQUEST",
+              message: "Valid workItemId is required",
+            },
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        const result = await adoService.getFilesChangedForWorkItem(workItemId);
+
+        const response: APIResponse = {
+          success: true,
+          data: result,
+        };
+
+        res.json(response);
+      } catch (error) {
+        logError("Get files changed failed", {
+          error,
+          workItemId: req.params.workItemId,
+        });
+        const response: APIResponse = {
+          success: false,
+          error: {
+            code: "GET_FILES_CHANGED_FAILED",
+            message: (error as Error).message,
+          },
+        };
+        res.status(500).json(response);
+      }
+    },
+  );
+
+  /**
+   * @swagger
+   * /work-items/{workItemId}/existing-test-cases:
+   *   get:
+   *     summary: Get existing test cases linked to a work item
+   *     description: Retrieves all test cases currently linked to the specified PBI/Story
+   *     tags: [Work Items]
+   *     parameters:
+   *       - in: path
+   *         name: workItemId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Existing test cases with parsed steps
+   */
+  router.get(
+    "/:workItemId/existing-test-cases",
+    async (req: Request, res: Response) => {
+      try {
+        const workItemId = parseInt(req.params.workItemId);
+
+        if (isNaN(workItemId)) {
+          const response: APIResponse = {
+            success: false,
+            error: {
+              code: "INVALID_REQUEST",
+              message: "Valid workItemId is required",
+            },
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        const testCases =
+          await adoService.getExistingTestCasesForWorkItem(workItemId);
+
+        const response: APIResponse = {
+          success: true,
+          data: testCases,
+        };
+
+        res.json(response);
+      } catch (error) {
+        logError("Get existing test cases failed", {
+          error,
+          workItemId: req.params.workItemId,
+        });
+        const response: APIResponse = {
+          success: false,
+          error: {
+            code: "GET_EXISTING_TEST_CASES_FAILED",
+            message: (error as Error).message,
+          },
+        };
+        res.status(500).json(response);
+      }
+    },
+  );
+
+  /**
+   * @swagger
+   * /work-items/{workItemId}/compare-test-cases:
+   *   post:
+   *     summary: Compare generated test cases with existing ones
+   *     description: Compares generated test cases against existing ones linked to the work item, identifying NEW, UPDATE, or EXISTS status
+   *     tags: [Work Items]
+   *     parameters:
+   *       - in: path
+   *         name: workItemId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - testCases
+   *             properties:
+   *               testCases:
+   *                 type: array
+   *                 items:
+   *                   type: object
+   *                   properties:
+   *                     title:
+   *                       type: string
+   *                     steps:
+   *                       type: array
+   *     responses:
+   *       200:
+   *         description: Comparison results with NEW, UPDATE, EXISTS status for each test case
+   */
+  router.post(
+    "/:workItemId/compare-test-cases",
+    async (req: Request, res: Response) => {
+      try {
+        const workItemId = parseInt(req.params.workItemId);
+        const { testCases } = req.body;
+
+        if (isNaN(workItemId)) {
+          const response: APIResponse = {
+            success: false,
+            error: {
+              code: "INVALID_REQUEST",
+              message: "Valid workItemId is required",
+            },
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        if (!testCases || !Array.isArray(testCases)) {
+          const response: APIResponse = {
+            success: false,
+            error: {
+              code: "INVALID_REQUEST",
+              message: "testCases array is required",
+            },
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        const comparison = await adoService.compareTestCases(
+          workItemId,
+          testCases,
+        );
+
+        const response: APIResponse = {
+          success: true,
+          data: comparison,
+        };
+
+        res.json(response);
+      } catch (error) {
+        logError("Compare test cases failed", {
+          error,
+          workItemId: req.params.workItemId,
+        });
+        const response: APIResponse = {
+          success: false,
+          error: {
+            code: "COMPARE_TEST_CASES_FAILED",
+            message: (error as Error).message,
+          },
+        };
+        res.status(500).json(response);
+      }
+    },
+  );
+
+  /**
+   * @swagger
+   * /work-items/test-cases/{testCaseId}:
+   *   patch:
+   *     summary: Update an existing test case
+   *     description: Updates title and/or steps of an existing test case
+   *     tags: [Work Items]
+   *     parameters:
+   *       - in: path
+   *         name: testCaseId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             properties:
+   *               title:
+   *                 type: string
+   *               steps:
+   *                 type: array
+   *     responses:
+   *       200:
+   *         description: Updated test case
+   */
+  router.patch(
+    "/test-cases/:testCaseId",
+    async (req: Request, res: Response) => {
+      try {
+        const testCaseId = parseInt(req.params.testCaseId);
+        const { title, steps } = req.body;
+
+        if (isNaN(testCaseId)) {
+          const response: APIResponse = {
+            success: false,
+            error: {
+              code: "INVALID_REQUEST",
+              message: "Valid testCaseId is required",
+            },
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        if (!title && !steps) {
+          const response: APIResponse = {
+            success: false,
+            error: {
+              code: "INVALID_REQUEST",
+              message: "At least one of title or steps is required",
+            },
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        const updated = await adoService.updateTestCase(testCaseId, {
+          title,
+          steps,
+        });
+
+        const response: APIResponse = {
+          success: true,
+          data: updated,
+        };
+
+        res.json(response);
+      } catch (error) {
+        logError("Update test case failed", {
+          error,
+          testCaseId: req.params.testCaseId,
+        });
+        const response: APIResponse = {
+          success: false,
+          error: {
+            code: "UPDATE_TEST_CASE_FAILED",
+            message: (error as Error).message,
+          },
+        };
+        res.status(500).json(response);
+      }
+    },
+  );
+
+  /**
+   * @swagger
+   * /work-items/pull-requests/{pullRequestId}:
+   *   get:
+   *     summary: Get pull request details
+   *     description: Retrieves details of a specific pull request
+   *     tags: [Git]
+   *     parameters:
+   *       - in: path
+   *         name: pullRequestId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *       - in: query
+   *         name: repositoryId
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: Pull request details
+   */
+  router.get(
+    "/pull-requests/:pullRequestId",
+    async (req: Request, res: Response) => {
+      try {
+        const pullRequestId = parseInt(req.params.pullRequestId);
+        const repositoryId = req.query.repositoryId as string | undefined;
+
+        if (isNaN(pullRequestId)) {
+          const response: APIResponse = {
+            success: false,
+            error: {
+              code: "INVALID_REQUEST",
+              message: "Valid pullRequestId is required",
+            },
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        const pr = await adoService.getPullRequest(pullRequestId, repositoryId);
+
+        const response: APIResponse = {
+          success: true,
+          data: pr,
+        };
+
+        res.json(response);
+      } catch (error) {
+        logError("Get pull request failed", {
+          error,
+          pullRequestId: req.params.pullRequestId,
+        });
+        const response: APIResponse = {
+          success: false,
+          error: {
+            code: "GET_PULL_REQUEST_FAILED",
+            message: (error as Error).message,
+          },
+        };
+        res.status(500).json(response);
+      }
+    },
+  );
+
+  /**
+   * @swagger
+   * /work-items/pull-requests/{pullRequestId}/changes:
+   *   get:
+   *     summary: Get files changed in a pull request
+   *     description: Retrieves all files modified in the specified pull request
+   *     tags: [Git]
+   *     parameters:
+   *       - in: path
+   *         name: pullRequestId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *       - in: query
+   *         name: repositoryId
+   *         required: true
+   *         schema:
+   *           type: string
+   *     responses:
+   *       200:
+   *         description: List of changed files
+   */
+  router.get(
+    "/pull-requests/:pullRequestId/changes",
+    async (req: Request, res: Response) => {
+      try {
+        const pullRequestId = parseInt(req.params.pullRequestId);
+        const repositoryId = req.query.repositoryId as string;
+
+        if (isNaN(pullRequestId)) {
+          const response: APIResponse = {
+            success: false,
+            error: {
+              code: "INVALID_REQUEST",
+              message: "Valid pullRequestId is required",
+            },
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        if (!repositoryId) {
+          const response: APIResponse = {
+            success: false,
+            error: {
+              code: "INVALID_REQUEST",
+              message: "repositoryId query parameter is required",
+            },
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        const changes = await adoService.getPullRequestChanges(
+          repositoryId,
+          pullRequestId,
+        );
+
+        const response: APIResponse = {
+          success: true,
+          data: changes,
+        };
+
+        res.json(response);
+      } catch (error) {
+        logError("Get PR changes failed", {
+          error,
+          pullRequestId: req.params.pullRequestId,
+        });
+        const response: APIResponse = {
+          success: false,
+          error: {
+            code: "GET_PR_CHANGES_FAILED",
+            message: (error as Error).message,
+          },
+        };
+        res.status(500).json(response);
+      }
+    },
+  );
+
   return router;
 }
