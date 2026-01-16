@@ -844,4 +844,232 @@ describe("Analysis Routes", () => {
       });
     });
   });
+
+  // ============================================
+  // Enhanced Blast Radius Analysis (Phase 2 - PR File Integration)
+  // ============================================
+  describe("POST /api/analysis/blast-radius/enhanced", () => {
+    describe("Successful enhanced blast radius analysis", () => {
+      it("should analyze blast radius with PR files integration", async () => {
+        // Mock ADO MCP to return PR files
+        mockMcpManager.callDockerMcp
+          .mockResolvedValueOnce({
+            // First call: get PR files from ADO
+            success: true,
+            data: {
+              workItemId: 12345,
+              files: [
+                "src/services/auth-service.ts",
+                "src/components/LoginForm.tsx",
+              ],
+              pullRequests: [
+                {
+                  pullRequestId: 789,
+                  title: "Implement login feature",
+                  status: "completed",
+                  fileCount: 2,
+                },
+              ],
+            },
+          })
+          .mockResolvedValueOnce({
+            // Second call: blast radius analysis
+            impactedFiles: [
+              "src/services/auth-service.ts",
+              "src/components/LoginForm.tsx",
+            ],
+            impactScore: 75,
+          })
+          .mockResolvedValueOnce({
+            // Third call: integration mapping
+            result: {
+              integrations: [{ type: "API", name: "AuthAPI" }],
+            },
+          });
+
+        const response = await request(app)
+          .post("/api/analysis/blast-radius/enhanced")
+          .send({
+            storyId: 12345,
+            app: "Core",
+            impactDescription: "Changes to authentication flow",
+            includePRFiles: true,
+            includeIntegrations: true,
+          });
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        // Response has sources, combined, blastRadius structure
+        expect(response.body.sources).toBeDefined();
+        expect(response.body.sources.pullRequests).toBeDefined();
+        expect(response.body.combined).toBeDefined();
+      });
+
+      it("should work without PR files when includePRFiles is false", async () => {
+        // When impactDescription has file references, it parses them and runs blast radius
+        mockMcpManager.callDockerMcp.mockResolvedValueOnce({
+          // Blast radius analysis for the file from impact description
+          impactedFiles: ["src/file.ts"],
+          impactScore: 40,
+        });
+
+        const response = await request(app)
+          .post("/api/analysis/blast-radius/enhanced")
+          .send({
+            storyId: 12345,
+            app: "Core",
+            impactDescription: "Some changes affecting src/file.ts",
+            includePRFiles: false,
+            includeIntegrations: false,
+          });
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.sources.pullRequests.available).toBe(false);
+      });
+
+      it("should handle multiple apps", async () => {
+        mockMcpManager.callDockerMcp
+          .mockResolvedValueOnce({
+            // PR files fetch
+            success: true,
+            data: { files: ["src/file.ts"], pullRequests: [] },
+          })
+          .mockResolvedValueOnce({
+            // Blast radius for Core
+            impactedFiles: [],
+            impactScore: 30,
+          })
+          .mockResolvedValueOnce({
+            // Blast radius for Payments
+            impactedFiles: [],
+            impactScore: 50,
+          })
+          .mockResolvedValueOnce({
+            // Integration mapping for Core
+            result: { integrations: [] },
+          })
+          .mockResolvedValueOnce({
+            // Integration mapping for Payments
+            result: { integrations: [] },
+          });
+
+        const response = await request(app)
+          .post("/api/analysis/blast-radius/enhanced")
+          .send({
+            storyId: 12345,
+            apps: ["Core", "Payments"],
+            impactDescription: "Changes src/file.ts",
+            includePRFiles: true,
+            includeIntegrations: true,
+          });
+
+        expect(response.status).toBe(200);
+        expect(response.body.apps).toContain("Core");
+        expect(response.body.apps).toContain("Payments");
+      });
+
+      it("should combine Impact field with PR files for comprehensive analysis", async () => {
+        mockMcpManager.callDockerMcp
+          .mockResolvedValueOnce({
+            // PR files fetch
+            success: true,
+            data: {
+              files: ["src/new-file.ts"],
+              pullRequests: [],
+            },
+          })
+          .mockResolvedValueOnce({
+            // Blast radius analysis
+            impactedFiles: ["src/services/auth.ts", "src/new-file.ts"],
+            impactScore: 60,
+          });
+
+        const response = await request(app)
+          .post("/api/analysis/blast-radius/enhanced")
+          .send({
+            storyId: 12345,
+            app: "Core",
+            impactDescription: "Affects authentication (src/services/auth.ts)",
+            includePRFiles: true,
+            includeIntegrations: false,
+          });
+
+        expect(response.status).toBe(200);
+        // Should have combined sources
+        expect(response.body.combined).toBeDefined();
+        expect(response.body.combined.totalFiles).toBeGreaterThan(0);
+      });
+    });
+
+    describe("Validation errors (400)", () => {
+      it("should return 400 when storyId is missing", async () => {
+        const response = await request(app)
+          .post("/api/analysis/blast-radius/enhanced")
+          .send({ app: "Core" });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toContain("storyId");
+      });
+
+      it("should return 400 when app/apps is missing", async () => {
+        const response = await request(app)
+          .post("/api/analysis/blast-radius/enhanced")
+          .send({ storyId: 12345 });
+
+        expect(response.status).toBe(400);
+        expect(response.body.error).toContain("app");
+      });
+    });
+
+    describe("Error handling (500)", () => {
+      it("should handle blast radius analyzer MCP failures", async () => {
+        // PR fetch succeeds but blast radius fails
+        mockMcpManager.callDockerMcp
+          .mockResolvedValueOnce({
+            success: true,
+            data: { files: ["src/file.ts"], pullRequests: [] },
+          })
+          .mockRejectedValueOnce(new Error("Blast radius analyzer failed"));
+
+        const response = await request(app)
+          .post("/api/analysis/blast-radius/enhanced")
+          .send({
+            storyId: 12345,
+            app: "Core",
+            impactDescription: "src/file.ts",
+            includePRFiles: true,
+            includeIntegrations: false,
+          });
+
+        expect(response.status).toBe(500);
+        expect(response.body.success).toBe(false);
+      });
+
+      it("should continue analysis even if PR fetch fails", async () => {
+        // PR fetch fails but is handled gracefully
+        mockMcpManager.callDockerMcp
+          .mockRejectedValueOnce(new Error("PR fetch failed"))
+          .mockResolvedValueOnce({
+            // Blast radius analysis proceeds with just impact files
+            impactedFiles: ["src/file.ts"],
+            impactScore: 30,
+          });
+
+        const response = await request(app)
+          .post("/api/analysis/blast-radius/enhanced")
+          .send({
+            storyId: 12345,
+            app: "Core",
+            impactDescription: "src/file.ts changes",
+            includePRFiles: true,
+            includeIntegrations: false,
+          });
+
+        // Should still return 200 since PR fetch failure is non-fatal
+        expect(response.status).toBe(200);
+        expect(response.body.sources.pullRequests.available).toBe(false);
+      });
+    });
+  });
 });

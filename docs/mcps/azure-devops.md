@@ -37,6 +37,10 @@ Create a PAT with the following scopes:
 
 - Work Items: Read & Write
 - Project and Team: Read
+- Code: Read (required for PR file analysis and development links)
+- Test Management: Read & Write (required for test plan/suite operations)
+
+**Note:** The PAT authenticates all API requests server-side. Users don't need to sign in separately - the configured PAT provides access to Azure DevOps resources within the token's scope and permissions.
 
 ## API Endpoints
 
