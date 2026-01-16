@@ -16,6 +16,15 @@ export class AnalysisPanel {
       priorStoryIds: [],
       implementationNotes: [],
     };
+    // Store enhanced work item data (PRs, attachments, related items)
+    this.enhancedData = {
+      developmentLinks: [],
+      attachments: [],
+      relatedWorkItems: [],
+      parentWorkItem: null,
+      childWorkItems: [],
+      prFiles: [], // Files changed in linked PRs
+    };
     // Store fetched prior stories
     this.priorStories = [];
     // Store analysis results for push to ADO
@@ -148,6 +157,10 @@ export class AnalysisPanel {
       this.parseAndExtractDetails(story);
     }
     this.render();
+    // Fetch enhanced work item data (PRs, attachments, related items) async
+    if (story) {
+      this.fetchEnhancedWorkItemData();
+    }
   }
 
   /**
@@ -460,6 +473,241 @@ export class AnalysisPanel {
     );
 
     return content;
+  }
+
+  /**
+   * Fetch enhanced work item data (PRs, attachments, related items)
+   */
+  async fetchEnhancedWorkItemData() {
+    if (!this.currentStory?.id) {
+      return;
+    }
+
+    // Reset enhanced data
+    this.enhancedData = {
+      developmentLinks: [],
+      attachments: [],
+      relatedWorkItems: [],
+      parentWorkItem: null,
+      childWorkItems: [],
+      prFiles: [],
+    };
+
+    try {
+      // Fetch enhanced work item data
+      const response = await fetch(
+        `${API_BASE_URL}/api/ado/work-item/${this.currentStory.id}/enhanced`,
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && data.workItem) {
+          const workItem = data.workItem;
+          this.enhancedData.developmentLinks = workItem.developmentLinks || [];
+          this.enhancedData.attachments = workItem.attachments || [];
+          this.enhancedData.relatedWorkItems = workItem.relatedWorkItems || [];
+          this.enhancedData.parentWorkItem = workItem.parentWorkItem || null;
+          this.enhancedData.childWorkItems = workItem.childWorkItems || [];
+
+          console.log(
+            "[AnalysisPanel] Enhanced data loaded:",
+            this.enhancedData,
+          );
+        }
+      }
+
+      // Also fetch PR files if there are PRs
+      const prLinks = this.enhancedData.developmentLinks.filter(
+        (link) => link.type === "PullRequest",
+      );
+      if (prLinks.length > 0) {
+        const prFilesResponse = await fetch(
+          `${API_BASE_URL}/api/ado/work-item/${this.currentStory.id}/pr-files`,
+        );
+        if (prFilesResponse.ok) {
+          const prData = await prFilesResponse.json();
+          if (prData.success) {
+            this.enhancedData.prFiles = prData.files || [];
+            console.log(
+              `[AnalysisPanel] Loaded ${this.enhancedData.prFiles.length} files from PRs`,
+            );
+          }
+        }
+      }
+
+      // Re-render to show the new data
+      this.render();
+    } catch (error) {
+      console.error("Failed to fetch enhanced work item data:", error);
+    }
+  }
+
+  /**
+   * Render development context section (PRs, attachments, related items)
+   */
+  renderDevelopmentContext() {
+    const hasPRs =
+      this.enhancedData.developmentLinks.filter((l) => l.type === "PullRequest")
+        .length > 0;
+    const hasCommits =
+      this.enhancedData.developmentLinks.filter((l) => l.type === "Commit")
+        .length > 0;
+    const hasAttachments = this.enhancedData.attachments.length > 0;
+    const hasRelated = this.enhancedData.relatedWorkItems.length > 0;
+    const hasPRFiles = this.enhancedData.prFiles.length > 0;
+    const hasParent = this.enhancedData.parentWorkItem !== null;
+    const hasChildren = this.enhancedData.childWorkItems.length > 0;
+
+    const hasAnyDevContext =
+      hasPRs ||
+      hasCommits ||
+      hasAttachments ||
+      hasRelated ||
+      hasPRFiles ||
+      hasParent ||
+      hasChildren;
+
+    if (!hasAnyDevContext) {
+      return "";
+    }
+
+    const prs = this.enhancedData.developmentLinks.filter(
+      (l) => l.type === "PullRequest",
+    );
+    const commits = this.enhancedData.developmentLinks.filter(
+      (l) => l.type === "Commit",
+    );
+
+    return `
+      <div class="development-context-section">
+        <h3>🔄 Development Context</h3>
+        <p class="section-description">Linked PRs, commits, attachments, and related work items from Azure DevOps</p>
+
+        ${
+          hasPRs
+            ? `
+          <div class="extracted-block">
+            <h4>🔀 Pull Requests (${prs.length})</h4>
+            <div class="pr-chips">
+              ${prs
+                .map(
+                  (pr) => `
+                <span class="pr-chip" title="PR #${pr.pullRequestId}">
+                  <span class="pr-icon">⎇</span> PR #${pr.pullRequestId}
+                </span>
+              `,
+                )
+                .join("")}
+            </div>
+          </div>
+        `
+            : ""
+        }
+
+        ${
+          hasPRFiles
+            ? `
+          <div class="extracted-block">
+            <h4>📝 Files Changed in PRs (${this.enhancedData.prFiles.length})</h4>
+            <div class="file-chips">
+              ${this.enhancedData.prFiles
+                .slice(0, 20)
+                .map(
+                  (file) => `
+                <span class="file-chip pr-file-chip">${file}</span>
+              `,
+                )
+                .join("")}
+              ${this.enhancedData.prFiles.length > 20 ? `<span class="more-chip">+${this.enhancedData.prFiles.length - 20} more</span>` : ""}
+            </div>
+          </div>
+        `
+            : ""
+        }
+
+        ${
+          hasCommits
+            ? `
+          <div class="extracted-block">
+            <h4>📦 Commits (${commits.length})</h4>
+            <div class="commit-chips">
+              ${commits
+                .slice(0, 10)
+                .map(
+                  (commit) => `
+                <span class="commit-chip" title="${commit.commitId || ""}">
+                  ${commit.commitId ? commit.commitId.substring(0, 7) : "commit"}
+                </span>
+              `,
+                )
+                .join("")}
+            </div>
+          </div>
+        `
+            : ""
+        }
+
+        ${
+          hasAttachments
+            ? `
+          <div class="extracted-block">
+            <h4>📎 Attachments (${this.enhancedData.attachments.length})</h4>
+            <div class="attachment-chips">
+              ${this.enhancedData.attachments
+                .map(
+                  (att) => `
+                <span class="attachment-chip" title="${att.name} (${this.formatFileSize(att.size)})">
+                  <span class="att-icon">📄</span> ${att.name}
+                </span>
+              `,
+                )
+                .join("")}
+            </div>
+          </div>
+        `
+            : ""
+        }
+
+        ${
+          hasRelated || hasParent || hasChildren
+            ? `
+          <div class="extracted-block">
+            <h4>🔗 Linked Work Items</h4>
+            <div class="relation-chips">
+              ${hasParent ? `<span class="relation-chip parent-chip" title="Parent">⬆️ #${this.enhancedData.parentWorkItem.id} (Parent)</span>` : ""}
+              ${this.enhancedData.childWorkItems
+                .slice(0, 5)
+                .map(
+                  (child) => `
+                <span class="relation-chip child-chip" title="Child">⬇️ #${child.id} (Child)</span>
+              `,
+                )
+                .join("")}
+              ${this.enhancedData.relatedWorkItems
+                .slice(0, 5)
+                .map(
+                  (rel) => `
+                <span class="relation-chip related-chip" title="${rel.relationType}">↔️ #${rel.id}</span>
+              `,
+                )
+                .join("")}
+            </div>
+          </div>
+        `
+            : ""
+        }
+      </div>
+    `;
+  }
+
+  /**
+   * Format file size to human readable format
+   */
+  formatFileSize(bytes) {
+    if (!bytes) return "0 B";
+    const sizes = ["B", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${sizes[i]}`;
   }
 
   /**
@@ -835,6 +1083,9 @@ export class AnalysisPanel {
           : ""
       }
 
+      <!-- Development Context (PRs, Attachments, Related Items) -->
+      ${this.renderDevelopmentContext()}
+
       <!-- Prior Stories Section -->
       ${
         hasExtractedStories
@@ -1104,6 +1355,14 @@ export class AnalysisPanel {
           filePaths: [],
           priorStoryIds: [],
           implementationNotes: [],
+        };
+        this.enhancedData = {
+          developmentLinks: [],
+          attachments: [],
+          relatedWorkItems: [],
+          parentWorkItem: null,
+          childWorkItems: [],
+          prFiles: [],
         };
         this.priorStories = [];
         this.analysisResults = {
