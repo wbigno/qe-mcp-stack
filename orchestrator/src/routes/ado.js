@@ -793,9 +793,180 @@ IMPORTANT: Use the attached QA documentation to:
       // Continue without attachment context
     }
 
-    // Build AI prompt for manual test case generation
-    const prompt = `You are a QA Engineer using QE (Quality Engineering) methodology. Generate detailed MANUAL test cases for this user story, prioritizing based on risk analysis.
-${qeRiskContext}
+    // Build AI prompt for manual test case generation using QE Component-Based Methodology
+    const prompt = `You are a Senior QA Engineer using QE (Quality Engineering) methodology. Your task is to generate COMPREHENSIVE manual test cases by breaking down the story into distinct QE STORIES (components), not just acceptance criteria.
+
+## CRITICAL PARADIGM SHIFT - QE STORY-BASED APPROACH
+
+DO NOT just generate tests per Acceptance Criteria. Instead:
+1. ANALYZE the story, PR files, attachments, and context to identify ALL distinct COMPONENTS/QE STORIES
+2. Generate tests for EACH QE story/component, ensuring comprehensive business flow coverage
+3. ACs are guidelines, but components drive test coverage
+
+## QE Story Categories - MANDATORY TEST GENERATION
+
+Analyze the provided context and generate tests for ALL applicable QE stories. Each QE story has REQUIRED sub-categories - you MUST generate tests for each sub-category listed.
+
+### CRITICAL PRIORITY - Business Revenue Flows
+
+**QE-PAY: Payment Processing** (MINIMUM 15 tests required)
+Generate tests for ALL of these sub-categories:
+
+*Sub-category PAY-1: Member Portal Payments (3 tests minimum)*
+- TC: One-time CC payment via /Pages/ManagePayments/make-a-payment-tab
+- TC: One-time ACH payment
+- TC: Payment with invalid card number (negative)
+
+*Sub-category PAY-2: Provider Portal Payments (3 tests minimum)*
+- TC: CC payment via /TakeAPayment.aspx
+- TC: ACH payment
+- TC: Payment with insufficient funds (negative)
+
+*Sub-category PAY-3: Recurring Payments (3 tests minimum)*
+- TC: Setup recurring CC payment via /Pages/ManagePayments/automatic-payments-tab
+- TC: Setup recurring ACH payment
+- TC: Cancel recurring payment
+
+*Sub-category PAY-4: Tokenization & FiServ (3 tests minimum)*
+- TC: Get tokenization auth session
+- TC: Use token for payment
+- TC: FiServ CC payment integration
+- TC: FiServ ACH payment integration
+
+*Sub-category PAY-5: CONCURRENT LOAD TESTS (MANDATORY - 4 tests minimum)*
+- TC: 10 simultaneous CC payments - verify no socket exhaustion
+- TC: 25 simultaneous CC payments - verify connection pooling
+- TC: 50 simultaneous mixed payments - verify system stability
+- TC: 10 simultaneous ACH payments
+
+### HIGH PRIORITY - User-Facing Functionality
+
+**QE-SESS: Session Storage** (MINIMUM 9 tests required)
+Generate tests for ALL of these sub-categories:
+
+*Sub-category SESS-1: CareLink Sessions (3 tests minimum)*
+- TC: Login to CareLink - verify session stored in Redis DB 0
+- TC: Navigate between pages - verify session maintained
+- TC: Session timeout - verify session expires correctly
+
+*Sub-category SESS-2: Provider Portal Sessions (3 tests minimum)*
+- TC: Login to Provider Portal - verify session in DB 0
+- TC: Access multiple accounts - verify session isolation
+- TC: Re-login after timeout - verify new session created
+
+*Sub-category SESS-3: Concurrent Sessions (3 tests minimum)*
+- TC: 50 concurrent CareLink users
+- TC: 50 concurrent Provider Portal users
+- TC: Mixed portal concurrent access
+
+**QE-PORTAL: Portal Functionality** (MINIMUM 12 tests required)
+Generate tests for ALL of these sub-categories:
+
+*Sub-category PORT-1: PreCare (3 tests minimum)*
+- TC: Submit PreCare enrollment
+- TC: Update PreCare info
+- TC: Get PreCare status via /PreCare/PreCareStatus.aspx
+
+*Sub-category PORT-2: Text-to-Pay (3 tests minimum)*
+- TC: Send confirmation code via /Pages/ManagePayments/text-to-pay-tab
+- TC: Verify valid confirmation code
+- TC: Verify invalid confirmation code (negative)
+
+*Sub-category PORT-3: Digital Member Cards (2 tests minimum)*
+- TC: View member card
+- TC: Download card PDF
+
+*Sub-category PORT-4: CareLink & Provider Portal (4 tests minimum)*
+- TC: CareLink lookup by Patient Account Number
+- TC: CareLink lookup by First and Last Name
+- TC: Provider Portal account search
+- TC: Provider Portal view account overview
+
+**QE-3P: Third-Party Integrations** (MINIMUM 15 tests required)
+Generate tests for ALL of these sub-categories:
+
+*Sub-category 3P-1: Smart Terms (2 tests minimum)*
+- TC: Apply Smart Terms via POST /api/testdata/SmartTerms/{accountId}
+- TC: Find eligible accounts
+
+*Sub-category 3P-2: RevSpring (3 tests minimum)*
+- TC: Download correspondence PDF
+- TC: Get RevSpring correspondences list
+- TC: Process confirmation files batch job
+
+*Sub-category 3P-3: Marketing Cloud (3 tests minimum)*
+- TC: Sync card account via POST /api/testdata/SendCardAccountToMarketingCloud/{accountId}
+- TC: Sync PreCare contact
+- TC: Send offer event
+
+*Sub-category 3P-4: TransUnion (3 tests minimum)*
+- TC: +Acuity credit check
+- TC: CarePayment Realtime check via /CarePaymentRealtime.aspx
+- TC: Bankruptcy job via POST /api/testdata/TransUnion/StartTransUnionBankruptcyJob
+
+*Sub-category 3P-5: NICE (2 tests minimum)*
+- TC: Retrieve call details via POST /api/testdata/Nice/activate/retrieveCompletedCallDetailsHangfireJob
+- TC: Get unlinked dispositions
+
+*Sub-category 3P-6: Satmetrix (2 tests minimum)*
+- TC: Retrieve member surveys job
+- TC: Survey data processing verification
+
+### MEDIUM PRIORITY - Infrastructure
+
+**QE-REDIS: Redis Database Operations** (MINIMUM 8 tests required)
+*Sub-category REDIS-1: Database Isolation (3 tests minimum)*
+- TC: Verify sessions in DB 0 only
+- TC: Verify Hangfire in DB 1 only
+- TC: Clear one DB, verify others unaffected (cross-contamination test)
+
+*Sub-category REDIS-2: Connection Management (3 tests minimum)*
+- TC: Monitor connection count under load
+- TC: Connection pool reuse verification
+- TC: Redis failover/resilience
+
+*Sub-category REDIS-3: Performance (2 tests minimum)*
+- TC: Memory usage monitoring
+- TC: 1000 concurrent Redis operations
+
+**QE-HF: Hangfire Job Processing** (MINIMUM 8 tests required)
+*Sub-category HF-1: Job Retention (3 tests minimum)*
+- TC: Non-batch job expires after 6 hours
+- TC: Batch job retained for 24 hours
+- TC: Job inside batch not affected by 6-hour expiration
+
+*Sub-category HF-2: Job Execution (3 tests minimum)*
+- TC: Trigger recurring job
+- TC: Batch job with multiple steps
+- TC: Job failure handling
+
+*Sub-category HF-3: Config Validation (2 tests minimum)*
+- TC: Verify QA environment config
+- TC: Verify Production environment config
+
+**QE-PERF: Performance Testing** (MINIMUM 8 tests required)
+*Sub-category PERF-1: Connection Pool (4 tests minimum)*
+- TC: Static HttpClient verification
+- TC: MaxConnectionsPerServer <= 20
+- TC: Socket exhaustion = 0 errors
+- TC: Connection reuse rate > 90%
+
+*Sub-category PERF-2: Concurrent Operations (4 tests minimum)*
+- TC: 100 concurrent Member Portal page loads
+- TC: 50 concurrent Provider Portal searches
+- TC: 50 concurrent CareLink lookups
+- TC: 25 concurrent correspondence downloads
+
+### LOW PRIORITY - Operations
+
+**QE-TEAMS: Teams Notifications** (MINIMUM 4 tests required)
+*Sub-category TEAMS-1: Job Notifications (2 tests minimum)*
+- TC: Hangfire job failure triggers Teams notification
+- TC: Notification contains job name, error, timestamp
+
+*Sub-category TEAMS-2: Integration Notifications (2 tests minimum)*
+- TC: FiServ file processing notification
+- TC: Alteon incident notification
 
 ## Story Information
 Story ID: ${storyId}
@@ -808,82 +979,169 @@ ${blastRadiusContext}
 ${prContext}
 ${attachmentContext}
 
-## Test Generation Requirements - RISK-PRIORITY ORDER IS MANDATORY
+## Test Generation Rules
 
-STRICT RULES:
-1. RISK-PRIORITY ORDER: Generate test cases for CRITICAL risk ACs FIRST, then HIGH, then MEDIUM, then LOW
-2. HARD LIMIT: Maximum 6 tests per AC - NEVER exceed this for ANY AC
-3. EVERY AC MUST HAVE TESTS: You must generate tests for ALL ${parsedAcceptanceCriteria?.length || "listed"} acceptance criteria
+### MANDATORY MINIMUM TEST COUNTS (STRICT ENFORCEMENT):
 
-Per-AC test counts based on risk level:
-- CRITICAL risk AC: 4-6 tests (positive + negative + edge + integration)
-- HIGH risk AC: 3-4 tests (positive + negative)
-- MEDIUM risk AC: 2-3 tests (positive + 1 negative)
-- LOW risk AC: 1-2 tests (positive only)
+| QE Story | Minimum Tests | Sub-categories |
+|----------|---------------|----------------|
+| QE-PAY | 15 | PAY-1(3), PAY-2(3), PAY-3(3), PAY-4(3), PAY-5(4) |
+| QE-SESS | 9 | SESS-1(3), SESS-2(3), SESS-3(3) |
+| QE-PORTAL | 12 | PORT-1(3), PORT-2(3), PORT-3(2), PORT-4(4) |
+| QE-3P | 15 | 3P-1(2), 3P-2(3), 3P-3(3), 3P-4(3), 3P-5(2), 3P-6(2) |
+| QE-REDIS | 8 | REDIS-1(3), REDIS-2(3), REDIS-3(2) |
+| QE-HF | 8 | HF-1(3), HF-2(3), HF-3(2) |
+| QE-PERF | 8 | PERF-1(4), PERF-2(4) |
+| QE-TEAMS | 4 | TEAMS-1(2), TEAMS-2(2) |
+| **TOTAL** | **79** | Must generate at least 79 test cases |
 
-Test types:
-- Positive (happy path) - REQUIRED for every AC
-${includeNegativeTests ? "- Negative (error handling) - required for critical, high, AND medium risk ACs" : ""}
-${includeEdgeCases ? "- Edge cases - for critical and high risk ACs only" : ""}
-${includeIntegration ? "- Integration - only if AC involves external systems" : ""}
-- Performance/Load - if infrastructure changes (Redis, connection pooling, API clients)
-- Concurrency - if thread-safety or connection pooling changes are mentioned
+### MANDATORY REQUIREMENTS:
+1. **SUB-CATEGORY COVERAGE**: You MUST generate tests for EVERY sub-category listed above
+2. **CONCURRENT/LOAD TESTS**: PAY-5, SESS-3, PERF-2 are MANDATORY - these validate the socket exhaustion fix
+3. **STEP-SPECIFIC EXPECTED RESULTS**: EACH step MUST have its own unique expected result
+4. **INCLUDE SPECIFIC DETAILS**: URLs, TestDataController endpoints, Redis CLI commands
 
-ENHANCED TEST CASE REQUIREMENTS:
-1. Include specific test steps that can be executed manually
-2. If TestDataController endpoints are mentioned in attachments, include them in test steps
-3. If specific URLs/navigation paths are mentioned, include them in test steps
-4. Include monitoring/validation points (e.g., "Check Redis keys", "Monitor connection count")
-5. For infrastructure changes, include before/after comparison steps
+### Test Types per QE Story:
+- Positive (happy path) - REQUIRED for every sub-category
+- Negative (error handling) - required for CRITICAL/HIGH priority stories
+- Load/Concurrency - MANDATORY for PAY-5, SESS-3, PERF-2 sub-categories
+- Integration - for third-party systems (QE-3P)
 
-OUTPUT ORDER: The testCases array should be ordered by risk priority:
-1. First, all test cases for CRITICAL risk ACs
-2. Then, all test cases for HIGH risk ACs
-3. Then, all test cases for MEDIUM risk ACs
-4. Finally, all test cases for LOW risk ACs
+### CRITICAL: Step-Specific Expected Results
+BAD (DO NOT DO THIS):
+  Step 1 Expected: "Payment succeeds"
+  Step 2 Expected: "Payment succeeds"
+  Step 3 Expected: "Payment succeeds"
 
-STOP AND CHECK: Before returning, verify you have tests for ALL ${parsedAcceptanceCriteria?.length || "listed"} ACs and NO AC has more than 6 tests.
+GOOD (DO THIS):
+  Step 1 Expected: "Payment form displays with CC/ACH options"
+  Step 2 Expected: "Entered payment details are validated, no errors shown"
+  Step 3 Expected: "Confirmation dialog shows amount and payment method"
+  Step 4 Expected: "Success message displayed with confirmation number"
+  Step 5 Expected: "Payment appears in account history within 30 seconds"
 
 ## Output Format
-For each test case, use this EXACT naming format (TC number is sequential, starting at 01):
-  name: "TC{nn} PBI-${storyId} AC{acNumber}: [{type}] {description}"
 
-Where {nn} is a zero-padded sequential number (01, 02, 03... 10, 11, etc.)
+### CRITICAL: Test Case Naming Convention
+
+Use different naming formats based on AC alignment:
+
+**1. AC-Aligned Test** (test directly validates an acceptance criterion):
+   name: "TC{nn} PBI-${storyId} {QE-STORY}/AC{n}: [{type}] {description}"
+   Example: "TC01 PBI-${storyId} QE-REDIS/AC2: [positive] Verify Redis job expiration"
+
+**2. GAP Coverage Test** (test covers functionality NOT in any AC - CRITICAL for comprehensive coverage):
+   name: "TC{nn} PBI-${storyId} {QE-STORY} [GAP]: [{type}] {description}"
+   Example: "TC15 PBI-${storyId} QE-PAY [GAP]: [positive] Member Portal CC payment"
+
+**3. Cross-AC Test** (test validates multiple ACs):
+   name: "TC{nn} PBI-${storyId} {QE-STORY}/AC{n},AC{m}: [{type}] {description}"
+   Example: "TC08 PBI-${storyId} QE-PERF/AC1,AC2: [load] Concurrent API load test"
+
+### When to Use [GAP]:
+- Payment flows not explicitly mentioned in ACs
+- Portal functionality not covered by ACs
+- Third-party integrations implied but not stated in ACs
+- Business-critical flows that MUST be tested but aren't in ACs
+- Any test where you cannot identify a specific AC it validates
+
+This is IMPORTANT because it helps QA identify:
+1. Tests that validate stated requirements (AC-aligned)
+2. Tests that cover gaps in requirements (GAP) - these often catch production bugs
+
+Examples:
+- TC01 PBI-${storyId} QE-REDIS/AC2: [positive] Redis database isolation verification
+- TC02 PBI-${storyId} QE-HF/AC2: [positive] Hangfire job expiration (6h non-batch)
+- TC10 PBI-${storyId} QE-PAY [GAP]: [positive] Member Portal CC payment
+- TC11 PBI-${storyId} QE-PAY [GAP]: [positive] Member Portal ACH payment
+- TC12 PBI-${storyId} QE-PAY [GAP]: [negative] Invalid CC number handling
+- TC20 PBI-${storyId} QE-PORTAL [GAP]: [positive] PreCare enrollment submission
+- TC30 PBI-${storyId} QE-3P [GAP]: [integration] TransUnion credit check
 
 Return the response in this JSON format:
 {
+  "qeStories": [
+    {
+      "storyId": "QE-PAY",
+      "name": "Payment Processing",
+      "riskLevel": "critical",
+      "testCount": 11,
+      "gapTests": 11,
+      "acAlignedTests": 0
+    }
+  ],
   "testCases": [
     {
-      "name": "TC01 PBI-${storyId} AC3: [positive] Test description for critical AC",
-      "acceptanceCriteriaRef": "AC3",
-      "type": "positive|negative|edge|integration",
-      "priority": "critical|high|medium|low",
-      "steps": ["step 1", "step 2", "step 3"],
-      "expectedResult": "what should happen"
+      "name": "TC01 PBI-${storyId} QE-REDIS/AC2: [positive] Redis database isolation",
+      "qeStory": "QE-REDIS",
+      "acceptanceCriteriaRef": "AC2",
+      "isGapCoverage": false,
+      "type": "positive",
+      "priority": "medium",
+      "steps": [
+        {"action": "Connect to Redis and check DB 0", "expected": "DB 0 contains only session keys"},
+        {"action": "Check DB 1 for Hangfire data", "expected": "DB 1 contains only hangfire:* keys"},
+        {"action": "Check DB 2 for cache data", "expected": "DB 2 contains only cache keys"}
+      ],
+      "expectedResult": "Redis databases are properly isolated"
     },
     {
-      "name": "TC02 PBI-${storyId} AC3: [negative] Another test for critical AC",
-      "acceptanceCriteriaRef": "AC3",
-      "type": "negative",
+      "name": "TC10 PBI-${storyId} QE-PAY [GAP]: [positive] Member Portal CC payment",
+      "qeStory": "QE-PAY",
+      "acceptanceCriteriaRef": null,
+      "isGapCoverage": true,
+      "gapReason": "Payment flows are critical business functionality impacted by HttpClient changes but not explicitly covered in ACs",
+      "type": "positive",
       "priority": "critical",
-      "steps": ["step 1", "step 2"],
-      "expectedResult": "expected error handling"
+      "steps": [
+        {"action": "Navigate to Member Portal /Pages/ManagePayments/make-a-payment-tab", "expected": "Payment tab loads with CC and ACH payment options visible"},
+        {"action": "Select Credit Card payment option", "expected": "Credit card form expands with fields for card number, expiry, CVV"},
+        {"action": "Enter valid test CC details", "expected": "All fields validate successfully"},
+        {"action": "Submit payment", "expected": "Payment processes within 10 seconds"},
+        {"action": "Verify confirmation", "expected": "Success message with confirmation number"}
+      ],
+      "expectedResult": "CC payment completes successfully"
     }
   ]
 }
 
-FINAL CHECK BEFORE RESPONDING:
-1. TC NUMBERING: Ensure TC numbers are sequential (TC01, TC02, TC03...) in risk-priority order
-2. AC COVERAGE: You MUST have tests for ALL ${parsedAcceptanceCriteria?.length || "listed"} ACs
-3. PER-AC LIMIT: Each AC should have 2-6 tests, NEVER more than 6
+## FINAL VERIFICATION CHECKLIST (MANDATORY - CHECK EACH BOX)
+
+Before returning, verify you have met ALL these requirements:
+
+### Minimum Test Count Verification:
+1. [ ] QE-PAY: At least 15 tests (including 4 concurrent payment tests in PAY-5)
+2. [ ] QE-SESS: At least 9 tests (including 3 concurrent session tests in SESS-3)
+3. [ ] QE-PORTAL: At least 12 tests
+4. [ ] QE-3P: At least 15 tests (covering all 6 third-party systems)
+5. [ ] QE-REDIS: At least 8 tests
+6. [ ] QE-HF: At least 8 tests
+7. [ ] QE-PERF: At least 8 tests (including 4 concurrent operation tests)
+8. [ ] QE-TEAMS: At least 4 tests
+9. [ ] **TOTAL: At least 79 test cases**
+
+### Quality Verification:
+10. [ ] EACH step has a UNIQUE expected result (NOT the same result repeated)
+11. [ ] Test steps include specific URLs from the QE story templates
+12. [ ] Concurrent/load tests specify user counts (10, 25, 50, etc.)
+13. [ ] TC numbers are sequential (TC01, TC02... TC79+)
+
+### Gap Coverage:
+14. [ ] Payment concurrent tests are marked as [GAP] if not in ACs
+15. [ ] Session tests are marked as [GAP] if not in ACs
+16. [ ] Teams notification tests are marked as [GAP]
+
+If you cannot generate 79+ tests, explain which sub-categories are not applicable and why.
 
 Return ONLY the JSON object, no markdown.`;
 
     try {
-      logger.info(`Calling Claude AI to generate manual test cases`);
+      logger.info(
+        `Calling Claude AI to generate comprehensive QE story-based test cases`,
+      );
 
-      // Call Claude AI - use higher token limit to support many ACs (up to 6 tests per AC)
-      const aiResponse = await callClaude(prompt, model, 32768);
+      // Call Claude AI - use higher token limit to support comprehensive QE story-based generation (30+ tests)
+      const aiResponse = await callClaude(prompt, model, 16384);
 
       // Parse AI response
       let testCasesData;
@@ -903,15 +1161,64 @@ Return ONLY the JSON object, no markdown.`;
       }
 
       const testCases = testCasesData.testCases || [];
+      const qeStories = testCasesData.qeStories || [];
 
       // Add IDs and automated flag, ensure proper format
       testCases.forEach((tc, index) => {
         tc.id = index + 1;
         tc.automated = false; // These are MANUAL test cases
         tc.storyId = parseInt(storyId);
+
+        // Handle new step format with action/expected pairs
+        if (tc.steps && Array.isArray(tc.steps)) {
+          tc.steps = tc.steps.map((step, stepIdx) => {
+            if (typeof step === "object" && step.action) {
+              // New format: {action: "...", expected: "..."}
+              return {
+                stepNumber: stepIdx + 1,
+                action: step.action,
+                expectedResult:
+                  step.expected ||
+                  tc.expectedResult ||
+                  "Verify operation completes successfully",
+              };
+            } else if (typeof step === "string") {
+              // Legacy format: plain string
+              return {
+                stepNumber: stepIdx + 1,
+                action: step,
+                expectedResult:
+                  tc.expectedResult ||
+                  "Verify operation completes successfully",
+              };
+            }
+            return step;
+          });
+        }
+
+        // Extract QE story from name if present
+        if (!tc.qeStory && tc.name) {
+          const qeMatch = tc.name.match(/QE-([A-Z0-9]+)/i);
+          if (qeMatch) {
+            tc.qeStory = `QE-${qeMatch[1].toUpperCase()}`;
+          }
+        }
+
+        // Detect [GAP] coverage from name
+        if (tc.name && tc.name.includes("[GAP]")) {
+          tc.isGapCoverage = true;
+          // Clear AC ref for gap tests since they don't map to ACs
+          if (!tc.acceptanceCriteriaRef) {
+            tc.acceptanceCriteriaRef = null;
+          }
+        } else if (tc.isGapCoverage === undefined) {
+          tc.isGapCoverage = false;
+        }
+
         // Ensure acceptanceCriteriaRef is present (extract from name if needed)
-        if (!tc.acceptanceCriteriaRef && tc.name) {
-          const acMatch = tc.name.match(/AC(\d+)/i);
+        // Only for non-gap tests
+        if (!tc.isGapCoverage && !tc.acceptanceCriteriaRef && tc.name) {
+          const acMatch = tc.name.match(/\/AC(\d+)/i);
           if (acMatch) {
             tc.acceptanceCriteriaRef = `AC${acMatch[1]}`;
             tc.acRef = `AC${acMatch[1]}`; // Alias for compatibility
@@ -954,16 +1261,38 @@ Return ONLY the JSON object, no markdown.`;
         ).length,
       };
 
+      // Count by QE Story
+      const qeStoryCounts = testCases.reduce((acc, tc) => {
+        const qeStory = tc.qeStory || "UNCATEGORIZED";
+        if (!acc[qeStory]) acc[qeStory] = 0;
+        acc[qeStory]++;
+        return acc;
+      }, {});
+
+      // Count gap coverage vs AC-aligned tests
+      const gapCoverageCounts = {
+        gapTests: testCases.filter((tc) => tc.isGapCoverage === true).length,
+        acAlignedTests: testCases.filter(
+          (tc) => tc.isGapCoverage === false && tc.acceptanceCriteriaRef,
+        ).length,
+        uncategorized: testCases.filter(
+          (tc) => tc.isGapCoverage === false && !tc.acceptanceCriteriaRef,
+        ).length,
+      };
+
       const response = {
         success: true,
         timestamp: new Date().toISOString(),
         storyId: parseInt(storyId),
         storyTitle: title,
         testCases: testCases,
+        qeStories: qeStories, // Include QE story breakdown from AI
         summary: {
           totalTestCases: testCases.length,
           byType: typeCounts,
           byPriority: priorityCounts,
+          byQEStory: qeStoryCounts, // Tests grouped by QE story
+          byCoverage: gapCoverageCounts, // Gap vs AC-aligned breakdown
           // Legacy fields for backward compatibility
           functionalTests: typeCounts.positive,
           integrationTests: typeCounts.integration,

@@ -260,11 +260,12 @@ export class ADOService {
   }
 
   /**
-   * Create test cases
+   * Create test cases with optional "Tests" relationship to parent PBI
+   * When parentId is provided, creates a "Tests" link (TestedBy-Reverse) from test case to PBI
    */
   async createTestCases(request: CreateTestCasesRequest): Promise<WorkItem[]> {
     try {
-      const { testCases } = request;
+      const { testCases, parentId } = request;
       const created: WorkItem[] = [];
 
       for (const testCase of testCases) {
@@ -276,9 +277,10 @@ export class ADOService {
           title: testCase.title,
           stepCount: testCase.steps?.length || 0,
           stepsXmlPreview: stepsXml.substring(0, 200),
+          parentId,
         });
 
-        const doc = [
+        const doc: Array<{ op: string; path: string; value: any }> = [
           { op: "add", path: "/fields/System.Title", value: testCase.title },
           {
             op: "add",
@@ -291,6 +293,23 @@ export class ADOService {
             value: stepsXml,
           },
         ];
+
+        // Add "Tests" relationship to parent PBI if provided
+        // This creates the "Tested By" link that enables comparison functionality
+        if (parentId) {
+          const workItemUrl = `https://dev.azure.com/${this.config.organization}/_apis/wit/workItems/${parentId}`;
+          doc.push({
+            op: "add",
+            path: "/relations/-",
+            value: {
+              rel: "Microsoft.VSTS.Common.TestedBy-Reverse",
+              url: workItemUrl,
+              attributes: {
+                comment: "Tests this requirement",
+              },
+            },
+          });
+        }
 
         const response = await this.client.post<WorkItem>(
           `/wit/workitems/$Test Case?api-version=${this.config.apiVersion}`,
@@ -305,10 +324,11 @@ export class ADOService {
           id: response.data.id,
           title: testCase.title,
           stepCount: testCase.steps?.length || 0,
+          linkedToParent: !!parentId,
         });
       }
 
-      logger.info("Test cases created", { count: created.length });
+      logger.info("Test cases created", { count: created.length, parentId });
 
       return created;
     } catch (error: any) {
@@ -901,8 +921,12 @@ export class ADOService {
         parentSuiteId,
       );
 
-      // Create test case work items (uses default client - work items are org-scoped)
-      const createdTestCases = await this.createTestCases({ testCases });
+      // Create test case work items with "Tests" link to PBI (uses default client - work items are org-scoped)
+      // The parentId creates a "Tested By" relationship enabling comparison functionality
+      const createdTestCases = await this.createTestCases({
+        testCases,
+        parentId: storyId,
+      });
 
       // Add test cases to the PBI suite (using project-specific client)
       if (createdTestCases.length > 0) {
