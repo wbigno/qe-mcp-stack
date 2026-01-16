@@ -964,4 +964,347 @@ router.post("/blast-radius/analyze", async (req, res) => {
   }
 });
 
+// ============================================
+// PR-ENHANCED BLAST RADIUS ANALYSIS (Phase 2)
+// Combines Impact field + PR files for comprehensive analysis
+// ============================================
+
+/**
+ * Analyze blast radius with automatic PR file detection
+ * POST /api/analysis/blast-radius/enhanced
+ * Body: {
+ *   storyId: number,           // Work item ID to analyze
+ *   app?: string,              // Single app name
+ *   apps?: string[],           // Multiple app names
+ *   impactDescription?: string, // Impact field content (initial expectation)
+ *   includePRFiles?: boolean,   // Whether to fetch PR files (default: true)
+ *   includeIntegrations?: boolean, // Whether to analyze integrations (default: true)
+ *   depth?: number              // Analysis depth (default: 2)
+ * }
+ *
+ * This endpoint:
+ * 1. Uses Impact field as initial input (user's expectation of what's affected)
+ * 2. If PRs are linked, fetches the actual changed files to EXPAND the analysis
+ * 3. Returns combined blast radius from both sources
+ */
+router.post("/blast-radius/enhanced", async (req, res) => {
+  try {
+    const {
+      storyId,
+      app,
+      apps,
+      impactDescription,
+      includePRFiles = true,
+      includeIntegrations = true,
+      depth = 2,
+    } = req.body;
+
+    const appList = apps || (app ? [app] : []);
+
+    if (!storyId) {
+      return res.status(400).json({
+        success: false,
+        error: "storyId is required",
+      });
+    }
+
+    if (appList.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: "app or apps parameter required",
+      });
+    }
+
+    logger.info(
+      `Enhanced blast radius analysis for story ${storyId} in apps: ${appList.join(", ")}`,
+    );
+
+    // Step 1: Extract files from Impact field (initial expectation)
+    let impactFiles = [];
+    let impactMethods = [];
+    let impactApis = [];
+
+    if (impactDescription) {
+      // Parse file paths from impact description (common patterns)
+      const filePatterns = impactDescription.match(
+        /(?:[\w-]+\/)*[\w-]+\.(?:cs|ts|js|tsx|jsx|json|xml|config)/gi,
+      );
+      if (filePatterns) {
+        impactFiles = [...new Set(filePatterns)];
+      }
+
+      // Parse method names (e.g., "ProcessPayment", "GetUser", etc.)
+      const methodPatterns = impactDescription.match(
+        /\b[A-Z][a-zA-Z]+(?:Async)?\s*\(/g,
+      );
+      if (methodPatterns) {
+        impactMethods = [
+          ...new Set(methodPatterns.map((m) => m.replace(/\s*\($/, ""))),
+        ];
+      }
+
+      // Parse API endpoints
+      const apiPatterns = impactDescription.match(
+        /(?:\/api\/[\w/-]+|(?:GET|POST|PUT|DELETE|PATCH)\s+\/[\w/-]+)/gi,
+      );
+      if (apiPatterns) {
+        impactApis = [...new Set(apiPatterns)];
+      }
+
+      logger.info(
+        `Parsed from Impact field: ${impactFiles.length} files, ${impactMethods.length} methods, ${impactApis.length} APIs`,
+      );
+    }
+
+    // Step 2: Fetch PR files if enabled and PRs are linked
+    let prFiles = [];
+    let pullRequests = [];
+
+    if (includePRFiles) {
+      try {
+        const prFilesResponse = await req.mcpManager.callDockerMcp(
+          "azureDevOps",
+          `/work-items/${storyId}/files-changed`,
+          {},
+          "GET",
+        );
+
+        const prData = prFilesResponse?.data || {};
+        prFiles = prData.files || [];
+        pullRequests = prData.pullRequests || [];
+
+        logger.info(
+          `Fetched ${prFiles.length} files from ${pullRequests.length} PRs`,
+        );
+      } catch (prError) {
+        logger.warn(`Could not fetch PR files: ${prError.message}`);
+        // Continue without PR files
+      }
+    }
+
+    // Step 3: Combine Impact files + PR files for comprehensive analysis
+    const allChangedFiles = [...new Set([...impactFiles, ...prFiles])];
+
+    logger.info(
+      `Combined analysis: ${allChangedFiles.length} total files (${impactFiles.length} from Impact, ${prFiles.length} from PRs)`,
+    );
+
+    // Step 4: Run blast radius analysis
+    let blastRadiusResult = null;
+
+    if (allChangedFiles.length > 0 || impactMethods.length > 0) {
+      const blastRadiusResults = await Promise.all(
+        appList.map((appName) =>
+          req.mcpManager.callDockerMcp("blastRadiusAnalyzer", "/analyze", {
+            app: appName,
+            changedFiles: allChangedFiles,
+            methods: impactMethods,
+            apis: impactApis,
+            components: [],
+            depth,
+          }),
+        ),
+      );
+
+      // Aggregate blast radius results
+      blastRadiusResult = {
+        apps: appList,
+        changedFiles: allChangedFiles,
+        methods: impactMethods,
+        apis: impactApis,
+        impactedFiles: [
+          ...new Set(blastRadiusResults.flatMap((r) => r.impactedFiles || [])),
+        ],
+        impactScore: Math.max(
+          ...blastRadiusResults.map((r) => r.impactScore || 0),
+        ),
+        byApp: blastRadiusResults.map((r, i) => ({ app: appList[i], ...r })),
+      };
+    }
+
+    // Step 5: Run integration mapping if enabled
+    let integrationResult = null;
+
+    if (includeIntegrations && allChangedFiles.length > 0) {
+      try {
+        const integrationResults = await Promise.all(
+          appList.map((appName) =>
+            req.mcpManager.callDockerMcp(
+              "integrationMapper",
+              "/map-integrations",
+              {
+                app: appName,
+                changedFiles: allChangedFiles,
+              },
+            ),
+          ),
+        );
+
+        // Merge integration results
+        const mergedIntegrations = integrationResults.flatMap(
+          (r) => r.result?.integrations || [],
+        );
+
+        // Filter integrations to only those from changed files
+        const filteredIntegrations = mergedIntegrations.filter(
+          (integration) => {
+            const integrationFile = (
+              integration.file ||
+              integration.sourceFile ||
+              ""
+            )
+              .toLowerCase()
+              .replace(/\\/g, "/");
+
+            return allChangedFiles.some((changedFile) => {
+              const normalizedChanged = changedFile
+                .toLowerCase()
+                .replace(/\\/g, "/");
+              const changedFileName = normalizedChanged.split("/").pop();
+              return (
+                integrationFile.includes(normalizedChanged) ||
+                integrationFile.endsWith(changedFileName)
+              );
+            });
+          },
+        );
+
+        integrationResult = {
+          apps: appList,
+          integrations: filteredIntegrations,
+          summary: {
+            total: filteredIntegrations.length,
+            byType: filteredIntegrations.reduce((acc, i) => {
+              const type = i.type || "unknown";
+              acc[type] = (acc[type] || 0) + 1;
+              return acc;
+            }, {}),
+          },
+        };
+
+        logger.info(
+          `Found ${filteredIntegrations.length} integrations in changed files`,
+        );
+      } catch (intError) {
+        logger.warn(`Could not analyze integrations: ${intError.message}`);
+      }
+    }
+
+    // Step 6: Build comprehensive response
+    const response = {
+      success: true,
+      storyId: parseInt(storyId),
+      apps: appList,
+      sources: {
+        impactField: {
+          files: impactFiles,
+          methods: impactMethods,
+          apis: impactApis,
+          available: !!impactDescription,
+        },
+        pullRequests: {
+          files: prFiles,
+          prCount: pullRequests.length,
+          prs: pullRequests.map((pr) => ({
+            id: pr.pullRequestId,
+            title: pr.title,
+            status: pr.status,
+            fileCount: pr.fileCount,
+          })),
+          available: prFiles.length > 0,
+        },
+      },
+      combined: {
+        totalFiles: allChangedFiles.length,
+        files: allChangedFiles,
+        uniqueFromImpact: impactFiles.filter((f) => !prFiles.includes(f)),
+        uniqueFromPRs: prFiles.filter((f) => !impactFiles.includes(f)),
+        overlapping: impactFiles.filter((f) => prFiles.includes(f)),
+      },
+      blastRadius: blastRadiusResult,
+      integrations: integrationResult,
+      recommendations: generateEnhancedRecommendations(
+        blastRadiusResult,
+        integrationResult,
+        impactFiles,
+        prFiles,
+      ),
+    };
+
+    res.json(response);
+  } catch (error) {
+    logger.error("Enhanced blast radius analysis error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Enhanced blast radius analysis failed",
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * Generate recommendations based on enhanced analysis
+ */
+function generateEnhancedRecommendations(
+  blastRadius,
+  integrations,
+  impactFiles,
+  prFiles,
+) {
+  const recommendations = [];
+
+  // Check for discrepancy between Impact expectation and PR reality
+  const uniqueFromPRs = prFiles.filter((f) => !impactFiles.includes(f));
+  const uniqueFromImpact = impactFiles.filter((f) => !prFiles.includes(f));
+
+  if (uniqueFromPRs.length > 0 && impactFiles.length > 0) {
+    recommendations.push({
+      type: "scope_expansion",
+      priority: "high",
+      message: `PR contains ${uniqueFromPRs.length} files not mentioned in Impact field. Consider expanding test coverage.`,
+      files: uniqueFromPRs.slice(0, 5),
+    });
+  }
+
+  if (uniqueFromImpact.length > 0 && prFiles.length > 0) {
+    recommendations.push({
+      type: "scope_reduction",
+      priority: "medium",
+      message: `Impact field mentions ${uniqueFromImpact.length} files not changed in PR. Verify if additional changes are needed.`,
+      files: uniqueFromImpact.slice(0, 5),
+    });
+  }
+
+  // High impact score warning
+  if (blastRadius && blastRadius.impactScore > 70) {
+    recommendations.push({
+      type: "high_impact",
+      priority: "critical",
+      message: `High blast radius score (${blastRadius.impactScore}). Recommend comprehensive regression testing.`,
+    });
+  }
+
+  // Integration points warning
+  if (integrations && integrations.summary.total > 5) {
+    recommendations.push({
+      type: "integration_heavy",
+      priority: "high",
+      message: `${integrations.summary.total} integration points affected. Include integration tests in test plan.`,
+      byType: integrations.summary.byType,
+    });
+  }
+
+  // No PR linked warning
+  if (prFiles.length === 0 && impactFiles.length > 0) {
+    recommendations.push({
+      type: "no_pr_linked",
+      priority: "info",
+      message:
+        "No PR linked to this work item. Analysis based on Impact field only.",
+    });
+  }
+
+  return recommendations;
+}
+
 export default router;

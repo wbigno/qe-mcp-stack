@@ -347,6 +347,7 @@ router.post("/generate-test-cases", async (req, res) => {
       includeNegativeTests = options.includeNegative ?? true,
       includeEdgeCases = options.includeEdgeCases ?? true,
       includeIntegration = options.includeIntegration ?? true,
+      includePRContext = true, // Phase 2: Fetch PR files for enhanced test generation
       model,
     } = req.body;
 
@@ -630,6 +631,67 @@ ${blast.recommendations
       }
     }
 
+    // Phase 2: Fetch PR files for enhanced test generation context
+    let prContext = "";
+    let prFiles = [];
+    let pullRequests = [];
+
+    if (includePRContext) {
+      try {
+        logger.info(`Fetching PR files for story ${storyId}`);
+        const prFilesResponse = await req.mcpManager.callDockerMcp(
+          "azureDevOps",
+          `/work-items/${storyId}/files-changed`,
+          {},
+          "GET",
+        );
+
+        const prData = prFilesResponse?.data || {};
+        prFiles = prData.files || [];
+        pullRequests = prData.pullRequests || [];
+
+        if (prFiles.length > 0) {
+          // Group files by type for better context
+          const filesByType = prFiles.reduce((acc, file) => {
+            const ext = file.split(".").pop()?.toLowerCase() || "other";
+            if (!acc[ext]) acc[ext] = [];
+            acc[ext].push(file);
+            return acc;
+          }, {});
+
+          prContext = `
+## PR-Based Code Changes (${prFiles.length} files changed across ${pullRequests.length} PR(s)):
+${
+  pullRequests.length > 0
+    ? `
+Pull Requests:
+${pullRequests.map((pr) => `- PR #${pr.pullRequestId}: ${pr.title} (${pr.status})`).join("\n")}
+`
+    : ""
+}
+Files Changed by Type:
+${Object.entries(filesByType)
+  .map(
+    ([ext, files]) =>
+      `- ${ext.toUpperCase()} (${files.length}): ${files.slice(0, 5).join(", ")}${files.length > 5 ? ` ... and ${files.length - 5} more` : ""}`,
+  )
+  .join("\n")}
+
+IMPORTANT: These files have been modified in the linked PR. Ensure test cases cover:
+1. Direct functionality changes in these files
+2. Regression testing for existing features in modified files
+3. Integration testing if multiple components are affected`;
+
+          logger.info(
+            `PR context added: ${prFiles.length} files from ${pullRequests.length} PRs`,
+          );
+        }
+      } catch (prError) {
+        logger.warn(`Could not fetch PR files for context: ${prError.message}`);
+        // Continue without PR context
+      }
+    }
+
     // Build AI prompt for manual test case generation
     const prompt = `You are a QA Engineer using QE (Quality Engineering) methodology. Generate detailed MANUAL test cases for this user story, prioritizing based on risk analysis.
 ${qeRiskContext}
@@ -642,6 +704,7 @@ Acceptance Criteria: ${cleanCriteria || "No acceptance criteria provided"}
 ${acContext}
 ${integrationContext}
 ${blastRadiusContext}
+${prContext}
 
 ## Test Generation Requirements - RISK-PRIORITY ORDER IS MANDATORY
 
@@ -807,6 +870,21 @@ Return ONLY the JSON object, no markdown.`;
               acRiskMapping: acRiskMapping,
             }
           : null,
+        // Phase 2: Include PR context if available
+        prContext:
+          prFiles.length > 0
+            ? {
+                fileCount: prFiles.length,
+                prCount: pullRequests.length,
+                pullRequests: pullRequests.map((pr) => ({
+                  id: pr.pullRequestId,
+                  title: pr.title,
+                  status: pr.status,
+                })),
+                files: prFiles.slice(0, 20), // Limit to first 20 for response size
+                usedForGeneration: true,
+              }
+            : null,
       };
 
       // If updateADO is true, add test cases to Azure DevOps
@@ -2579,6 +2657,309 @@ router.post("/batch-update", async (req, res) => {
     res.status(500).json({
       success: false,
       error: "Failed to execute batch update",
+      message: error.message,
+    });
+  }
+});
+
+// ============================================
+// ENHANCED WORK ITEM ENDPOINTS (Phase 2)
+// Development Links, PR Files, Test Case Comparison
+// ============================================
+
+/**
+ * Get enhanced work item with development links, attachments, and related items
+ * GET /api/ado/work-item/:id/enhanced
+ * Returns: work item with parsed developmentLinks, attachments, relatedWorkItems, etc.
+ */
+router.get("/work-item/:id/enhanced", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid work item ID",
+      });
+    }
+
+    logger.info(`Fetching enhanced work item ${id} with development links`);
+
+    const response = await req.mcpManager.callDockerMcp(
+      "azureDevOps",
+      "/work-items/enhanced",
+      { workItemIds: [parseInt(id)] },
+    );
+
+    const workItems = response?.data || [];
+
+    if (workItems.length === 0) {
+      return res.status(404).json({
+        success: false,
+        error: `Work item ${id} not found`,
+      });
+    }
+
+    const enhancedItem = workItems[0];
+
+    // Build summary
+    const summary = {
+      hasPullRequests: (enhancedItem.developmentLinks || []).some(
+        (l) => l.type === "PullRequest",
+      ),
+      hasCommits: (enhancedItem.developmentLinks || []).some(
+        (l) => l.type === "Commit",
+      ),
+      hasBuilds: (enhancedItem.developmentLinks || []).some(
+        (l) => l.type === "Build",
+      ),
+      attachmentCount: (enhancedItem.attachments || []).length,
+      relatedWorkItemCount: (enhancedItem.relatedWorkItems || []).length,
+      hasParent: !!enhancedItem.parentWorkItem,
+      childCount: (enhancedItem.childWorkItems || []).length,
+      pullRequestCount: (enhancedItem.developmentLinks || []).filter(
+        (l) => l.type === "PullRequest",
+      ).length,
+    };
+
+    res.json({
+      success: true,
+      workItem: enhancedItem,
+      summary,
+    });
+  } catch (error) {
+    logger.error("Get enhanced work item error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch enhanced work item",
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * Get all files changed in PRs linked to a work item
+ * GET /api/ado/work-item/:id/pr-files
+ * Returns: Array of file paths changed across all linked PRs
+ * This is used to expand blast radius analysis beyond the Impact field
+ */
+router.get("/work-item/:id/pr-files", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid work item ID",
+      });
+    }
+
+    logger.info(`Fetching PR files for work item ${id}`);
+
+    const response = await req.mcpManager.callDockerMcp(
+      "azureDevOps",
+      `/work-items/${id}/files-changed`,
+      {},
+      "GET",
+    );
+
+    const data = response?.data || {};
+    const files = data.files || [];
+
+    res.json({
+      success: true,
+      workItemId: parseInt(id),
+      fileCount: files.length,
+      files,
+      pullRequests: data.pullRequests || [],
+    });
+  } catch (error) {
+    logger.error("Get PR files error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch PR files",
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * Get existing test cases linked to a work item
+ * GET /api/ado/work-item/:id/existing-test-cases
+ * Returns: Array of existing test cases with their steps
+ */
+router.get("/work-item/:id/existing-test-cases", async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid work item ID",
+      });
+    }
+
+    logger.info(`Fetching existing test cases for work item ${id}`);
+
+    const response = await req.mcpManager.callDockerMcp(
+      "azureDevOps",
+      `/work-items/${id}/existing-test-cases`,
+      {},
+      "GET",
+    );
+
+    const testCases = response?.data || [];
+
+    res.json({
+      success: true,
+      workItemId: parseInt(id),
+      testCaseCount: testCases.length,
+      testCases,
+    });
+  } catch (error) {
+    logger.error("Get existing test cases error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to fetch existing test cases",
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * Compare generated test cases with existing ones
+ * POST /api/ado/work-item/:id/compare-test-cases
+ * Body: { generatedTestCases: TestCase[] }
+ * Returns: Comparison result with NEW, UPDATE, EXISTS statuses
+ */
+router.post("/work-item/:id/compare-test-cases", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { generatedTestCases } = req.body;
+
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid work item ID",
+      });
+    }
+
+    if (
+      !generatedTestCases ||
+      !Array.isArray(generatedTestCases) ||
+      generatedTestCases.length === 0
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: "generatedTestCases array is required",
+      });
+    }
+
+    logger.info(
+      `Comparing ${generatedTestCases.length} generated test cases for work item ${id}`,
+    );
+
+    // Transform test cases to MCP format
+    const mcpTestCases = generatedTestCases.map((tc) => ({
+      title: tc.title || tc.name,
+      steps: (tc.steps || []).map((step, idx) => ({
+        action: typeof step === "string" ? step : step.action || step,
+        expectedResult:
+          typeof step === "string"
+            ? tc.expectedResult || "Verify expected behavior"
+            : step.expectedResult ||
+              tc.expectedResult ||
+              "Verify expected behavior",
+        stepNumber: idx + 1,
+      })),
+      priority: tc.priority,
+      automationStatus: tc.automationStatus || "Not Automated",
+    }));
+
+    const response = await req.mcpManager.callDockerMcp(
+      "azureDevOps",
+      `/work-items/${id}/compare-test-cases`,
+      { generatedTestCases: mcpTestCases },
+    );
+
+    const comparison = response?.data || {};
+
+    res.json({
+      success: true,
+      workItemId: parseInt(id),
+      workItemTitle: comparison.workItemTitle,
+      existingTestCases: comparison.existingTestCases || [],
+      generatedTestCases: comparison.generatedTestCases || [],
+      comparisons: comparison.comparisons || [],
+      summary: comparison.summary || {
+        newCount: 0,
+        updateCount: 0,
+        existsCount: 0,
+        totalGenerated: generatedTestCases.length,
+        totalExisting: 0,
+      },
+    });
+  } catch (error) {
+    logger.error("Compare test cases error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to compare test cases",
+      message: error.message,
+    });
+  }
+});
+
+/**
+ * Update an existing test case
+ * PATCH /api/ado/test-cases/:id
+ * Body: { title?, steps?, priority?, automationStatus? }
+ */
+router.patch("/test-cases/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, steps, priority, automationStatus } = req.body;
+
+    if (!id || isNaN(parseInt(id))) {
+      return res.status(400).json({
+        success: false,
+        error: "Invalid test case ID",
+      });
+    }
+
+    logger.info(`Updating test case ${id}`);
+
+    const updateData = {};
+    if (title) updateData.title = title;
+    if (steps) {
+      updateData.steps = steps.map((step, idx) => ({
+        action: typeof step === "string" ? step : step.action || step,
+        expectedResult:
+          typeof step === "string"
+            ? "Verify expected behavior"
+            : step.expectedResult || "Verify expected behavior",
+        stepNumber: idx + 1,
+      }));
+    }
+    if (priority !== undefined) updateData.priority = priority;
+    if (automationStatus) updateData.automationStatus = automationStatus;
+
+    const response = await req.mcpManager.callDockerMcp(
+      "azureDevOps",
+      `/work-items/test-cases/${id}`,
+      updateData,
+      "PATCH",
+    );
+
+    res.json({
+      success: true,
+      testCaseId: parseInt(id),
+      updated: response?.data || {},
+    });
+  } catch (error) {
+    logger.error("Update test case error:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to update test case",
       message: error.message,
     });
   }
