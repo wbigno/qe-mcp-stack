@@ -968,6 +968,122 @@ export function createWorkItemsRouter(adoService: ADOService): Router {
 
   /**
    * @swagger
+   * /work-items/{workItemId}/attachments:
+   *   get:
+   *     summary: Get text attachments content for a work item
+   *     description: Downloads and returns content of text-based attachments (.md, .txt, .json) for enhanced context
+   *     tags: [Work Items]
+   *     parameters:
+   *       - in: path
+   *         name: workItemId
+   *         required: true
+   *         schema:
+   *           type: integer
+   *     responses:
+   *       200:
+   *         description: Attachment contents
+   */
+  router.get(
+    "/:workItemId/attachments",
+    async (req: Request, res: Response) => {
+      try {
+        const workItemId = parseInt(req.params.workItemId);
+
+        if (isNaN(workItemId)) {
+          const response: APIResponse = {
+            success: false,
+            error: {
+              code: "INVALID_REQUEST",
+              message: "Valid workItemId is required",
+            },
+          };
+          res.status(400).json(response);
+          return;
+        }
+
+        // Get enhanced work item to find attachments
+        const [enhanced] = await adoService.getEnhancedWorkItems([workItemId]);
+
+        if (!enhanced) {
+          const response: APIResponse = {
+            success: false,
+            error: {
+              code: "NOT_FOUND",
+              message: `Work item ${workItemId} not found`,
+            },
+          };
+          res.status(404).json(response);
+          return;
+        }
+
+        const attachments = enhanced.attachments || [];
+        const textAttachments: Array<{
+          name: string;
+          content: string;
+          size: number;
+        }> = [];
+
+        // Only download text-based files to include in context
+        const textExtensions = [".md", ".txt", ".json", ".xml", ".csv", ".log"];
+
+        for (const attachment of attachments) {
+          const isTextFile = textExtensions.some((ext) =>
+            attachment.name.toLowerCase().endsWith(ext),
+          );
+
+          if (isTextFile && attachment.size < 500000) {
+            // Max 500KB per file
+            try {
+              const content = await adoService.downloadAttachment(
+                attachment.url,
+              );
+              textAttachments.push({
+                name: attachment.name,
+                content: content.toString("utf-8"),
+                size: attachment.size,
+              });
+            } catch (downloadError) {
+              logError("Failed to download attachment", {
+                name: attachment.name,
+                error: downloadError,
+              });
+            }
+          }
+        }
+
+        const response: APIResponse = {
+          success: true,
+          data: {
+            workItemId,
+            totalAttachments: attachments.length,
+            textAttachments,
+            summary: {
+              downloaded: textAttachments.length,
+              skipped: attachments.length - textAttachments.length,
+            },
+          },
+        };
+
+        res.json(response);
+      } catch (error) {
+        logError("Get attachments content failed", {
+          error,
+          workItemId: req.params.workItemId,
+        });
+        const response: APIResponse = {
+          success: false,
+          error: {
+            code: "GET_ATTACHMENTS_FAILED",
+            message: (error as Error).message,
+          },
+        };
+        res.status(500).json(response);
+      }
+    },
+  );
+
+  /**
+   * @swagger
    * /work-items/test-cases/{testCaseId}:
    *   patch:
    *     summary: Update an existing test case

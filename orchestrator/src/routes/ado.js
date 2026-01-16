@@ -659,6 +659,31 @@ ${blast.recommendations
             return acc;
           }, {});
 
+          // Identify components being changed for component-based testing
+          const componentPatterns = {
+            Redis: /redis|cache|session/i,
+            Hangfire: /hangfire|job|batch|queue/i,
+            Payment: /payment|fiserv|ach|credit/i,
+            Portal: /portal|carelink|provider|member/i,
+            API: /api|client|proxy|service/i,
+            Database: /repository|entity|migration|sql/i,
+            Integration: /marketing|transunion|revspring|nice|satmetrix/i,
+          };
+
+          const detectedComponents = [];
+          prFiles.forEach((file) => {
+            Object.entries(componentPatterns).forEach(
+              ([component, pattern]) => {
+                if (
+                  pattern.test(file) &&
+                  !detectedComponents.includes(component)
+                ) {
+                  detectedComponents.push(component);
+                }
+              },
+            );
+          });
+
           prContext = `
 ## PR-Based Code Changes (${prFiles.length} files changed across ${pullRequests.length} PR(s)):
 ${
@@ -677,19 +702,95 @@ ${Object.entries(filesByType)
   )
   .join("\n")}
 
+${
+  detectedComponents.length > 0
+    ? `
+DETECTED COMPONENTS REQUIRING TESTING:
+${detectedComponents.map((c) => `- ${c}`).join("\n")}
+
+COMPONENT-BASED TEST GENERATION:
+For each detected component, generate tests that cover:
+- Unit/Functional tests for the component
+- Integration tests with dependent components
+- Performance/Load tests if applicable (especially for Redis, Payment, API)
+- Negative/Error handling tests
+`
+    : ""
+}
+
 IMPORTANT: These files have been modified in the linked PR. Ensure test cases cover:
 1. Direct functionality changes in these files
 2. Regression testing for existing features in modified files
 3. Integration testing if multiple components are affected`;
 
           logger.info(
-            `PR context added: ${prFiles.length} files from ${pullRequests.length} PRs`,
+            `PR context added: ${prFiles.length} files from ${pullRequests.length} PRs, detected components: ${detectedComponents.join(", ")}`,
           );
         }
       } catch (prError) {
         logger.warn(`Could not fetch PR files for context: ${prError.message}`);
         // Continue without PR context
       }
+    }
+
+    // Phase 3: Fetch attachment content for enhanced context (QA guides, test plans, etc.)
+    let attachmentContext = "";
+    try {
+      logger.info(`Fetching attachments for story ${storyId}`);
+      const attachmentsResponse = await req.mcpManager.callDockerMcp(
+        "azureDevOps",
+        `/work-items/${storyId}/attachments`,
+        {},
+        "GET",
+      );
+
+      const attachmentsData = attachmentsResponse?.data || {};
+      const textAttachments = attachmentsData.textAttachments || [];
+
+      if (textAttachments.length > 0) {
+        // Truncate content if too large (max 50KB total for attachments)
+        let totalSize = 0;
+        const maxTotalSize = 50000;
+        const includedAttachments = [];
+
+        for (const att of textAttachments) {
+          if (totalSize + att.content.length <= maxTotalSize) {
+            includedAttachments.push(att);
+            totalSize += att.content.length;
+          }
+        }
+
+        if (includedAttachments.length > 0) {
+          attachmentContext = `
+## QA Documentation Attachments (${includedAttachments.length} files):
+${includedAttachments
+  .map(
+    (att) => `
+### ${att.name}
+\`\`\`
+${att.content.substring(0, 15000)}${att.content.length > 15000 ? "\n... (truncated)" : ""}
+\`\`\`
+`,
+  )
+  .join("\n")}
+
+IMPORTANT: Use the attached QA documentation to:
+1. Identify specific test scenarios mentioned in the documents
+2. Include TestDataController endpoints mentioned for triggering jobs
+3. Follow the component breakdown if provided
+4. Include performance/load testing scenarios if mentioned
+5. Include rollback indicators and monitoring points`;
+
+          logger.info(
+            `Attachment context added: ${includedAttachments.length} files, ${totalSize} bytes`,
+          );
+        }
+      }
+    } catch (attachError) {
+      logger.warn(
+        `Could not fetch attachments for context: ${attachError.message}`,
+      );
+      // Continue without attachment context
     }
 
     // Build AI prompt for manual test case generation
@@ -705,6 +806,7 @@ ${acContext}
 ${integrationContext}
 ${blastRadiusContext}
 ${prContext}
+${attachmentContext}
 
 ## Test Generation Requirements - RISK-PRIORITY ORDER IS MANDATORY
 
@@ -724,6 +826,15 @@ Test types:
 ${includeNegativeTests ? "- Negative (error handling) - required for critical, high, AND medium risk ACs" : ""}
 ${includeEdgeCases ? "- Edge cases - for critical and high risk ACs only" : ""}
 ${includeIntegration ? "- Integration - only if AC involves external systems" : ""}
+- Performance/Load - if infrastructure changes (Redis, connection pooling, API clients)
+- Concurrency - if thread-safety or connection pooling changes are mentioned
+
+ENHANCED TEST CASE REQUIREMENTS:
+1. Include specific test steps that can be executed manually
+2. If TestDataController endpoints are mentioned in attachments, include them in test steps
+3. If specific URLs/navigation paths are mentioned, include them in test steps
+4. Include monitoring/validation points (e.g., "Check Redis keys", "Monitor connection count")
+5. For infrastructure changes, include before/after comparison steps
 
 OUTPUT ORDER: The testCases array should be ordered by risk priority:
 1. First, all test cases for CRITICAL risk ACs
@@ -2688,7 +2799,7 @@ router.get("/work-item/:id/enhanced", async (req, res) => {
     const response = await req.mcpManager.callDockerMcp(
       "azureDevOps",
       "/work-items/enhanced",
-      { workItemIds: [parseInt(id)] },
+      { ids: [parseInt(id)] },
     );
 
     const workItems = response?.data || [];
@@ -2879,7 +2990,7 @@ router.post("/work-item/:id/compare-test-cases", async (req, res) => {
     const response = await req.mcpManager.callDockerMcp(
       "azureDevOps",
       `/work-items/${id}/compare-test-cases`,
-      { generatedTestCases: mcpTestCases },
+      { testCases: mcpTestCases },
     );
 
     const comparison = response?.data || {};

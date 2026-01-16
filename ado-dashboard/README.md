@@ -23,6 +23,7 @@ Additional Features:
 - ✅ Work Items listing with sprint/project filtering
 - ✅ Integration with Azure DevOps API
 - ✅ Real-time analysis results
+- ✅ **Development Context** - View PRs, commits, attachments, and linked work items directly in the dashboard
 
 ---
 
@@ -158,6 +159,56 @@ Body: {
 2. Find a parent work item (PBI, Feature, Bug)
 3. Click **"📊 View Analysis"** button
 4. Automatically navigates to Story Analysis tab with story selected
+
+---
+
+### 5. Development Context (PRs, Attachments, Related Items)
+
+When viewing any work item analysis, the dashboard automatically fetches and displays **Development Context** - a comprehensive view of all related development artifacts:
+
+**What's Displayed:**
+
+- **Pull Requests**: Linked PRs with status, title, and direct links to Azure DevOps
+- **PR Files Changed**: Files modified in linked PRs (used for enhanced blast radius analysis)
+- **Commits**: Linked commit references
+- **Attachments**: Files attached to the work item (specs, designs, screenshots)
+- **Related Work Items**: Parent/child items, linked stories, predecessor/successor relationships
+
+**How to Use:**
+
+1. Navigate to any work item analysis (Story Analysis or Story Analyzer tab)
+2. The Development Context section appears automatically below the work item header
+3. Click any chip to navigate to the artifact in Azure DevOps
+4. PR files are automatically included in blast radius analysis for more accurate impact assessment
+
+**Benefits:**
+
+- **Full Context**: See all related PRs, commits, and attachments in one place
+- **Enhanced Analysis**: PR files automatically expand blast radius coverage
+- **Traceability**: Easy navigation to linked work items and development artifacts
+- **No Extra Setup**: Works automatically if your PAT has `Code: Read` scope
+
+**APIs Used:**
+
+```
+GET /api/ado/work-item/:id/enhanced
+Response: {
+  workItem: {...},
+  developmentLinks: [{ type: "PullRequest", pullRequestId: 123, ... }],
+  attachments: [{ name: "spec.pdf", size: 1024, url: "..." }],
+  relatedWorkItems: [{ id: 456, title: "Parent Feature", relationType: "Parent" }],
+  parentWorkItem: { id: 100, title: "Epic" },
+  childWorkItems: [{ id: 789, title: "Sub-task" }]
+}
+
+GET /api/ado/work-item/:id/pr-files
+Response: {
+  workItemId: 123,
+  pullRequests: [{ pullRequestId: 456, title: "...", files: ["src/file.cs"] }],
+  allFiles: ["src/file.cs", "tests/file.test.cs"],
+  summary: { totalPRs: 1, totalFiles: 2 }
+}
+```
 
 ---
 
@@ -490,6 +541,31 @@ Response: {
 - ✅ Additional notes and context
 - ✅ Summary statistics (total, by type, by priority)
 
+### Development Context (Both Tabs)
+
+**Pull Requests:**
+
+- ✅ PR ID with clickable link to Azure DevOps
+- ✅ PR title and status (Active, Completed, Abandoned)
+- ✅ Source and target branches
+
+**PR Files Changed:**
+
+- ✅ List of files modified in linked PRs
+- ✅ File count summary
+- ✅ Automatic inclusion in blast radius analysis
+
+**Attachments:**
+
+- ✅ File name with clickable download link
+- ✅ File size in human-readable format
+
+**Related Work Items:**
+
+- ✅ Parent work item (Feature, Epic)
+- ✅ Child work items (Tasks, Sub-tasks)
+- ✅ Related/Linked work items with relation type
+
 ---
 
 ## 🎉 Benefits
@@ -525,6 +601,11 @@ Response: {
 - Orchestrator must be running on port 3000
 - ANTHROPIC_API_KEY must be configured for AI features
 - Azure DevOps MCP must be healthy for work item retrieval
+- **PAT Scopes Required**:
+  - Work Items: Read & Write
+  - Project and Team: Read
+  - Code: Read (for PR files and development links)
+  - Test Management: Read & Write (for test plan operations)
 
 ### Usage Notes
 

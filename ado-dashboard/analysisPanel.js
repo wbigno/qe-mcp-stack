@@ -3286,13 +3286,7 @@ export class AnalysisPanel {
                   </div>
                   `
                       : ""
-                  }`;
-                      })
-                      .join("") +
-                    data.testCases
-                      .map((tc, index) => {
-                        const globalIdx = tcGlobalIndex[tc.name];
-                        return `
+                  }
                   <div class="test-steps-editable">
                     <div class="steps-header">
                       <strong>Steps:</strong>
