@@ -2,12 +2,14 @@
 
 ## Branch: `infra-enhancements`
 
+## Status: ✅ COMPLETED (January 16, 2026)
+
 ## Overview
 
 Enhance the Authentication Flow Testing and API Endpoints sections to:
 
-1. Display the actual token/key in the success message (masked with reveal option)
-2. Make API Endpoints functional - users can call endpoints using the obtained token
+1. ✅ Display the actual token/key in the success message (masked with reveal option)
+2. ✅ Make API Endpoints functional - users can call endpoints using the obtained token
 
 ---
 
@@ -31,7 +33,7 @@ Enhance the Authentication Flow Testing and API Endpoints sections to:
 
 ## Implementation Plan
 
-### Phase 1: Token Display Enhancement
+### Phase 1: Token Display Enhancement ✅ COMPLETED
 
 **File:** `infrastructure-dashboard/src/components/panels/AuthTestSection.tsx`
 
@@ -63,7 +65,7 @@ const [obtainedToken, setObtainedToken] = useState<string | null>(null);
 
 ---
 
-### Phase 2: Interactive Endpoint Tester Component
+### Phase 2: Interactive Endpoint Tester Component ✅ COMPLETED
 
 **New File:** `infrastructure-dashboard/src/components/panels/EndpointTester.tsx`
 
@@ -144,9 +146,9 @@ interface EndpointTesterProps {
 
 ---
 
-### Phase 3: Backend Proxy for CORS
+### Phase 3: Backend Proxy for CORS ✅ COMPLETED
 
-**File:** `orchestrator/src/routes/infrastructure.js` (new route)
+**File:** `orchestrator/src/routes/infrastructure.js` (new routes added)
 
 **Purpose:** Proxy API calls to avoid CORS issues when calling external APIs from the browser.
 
@@ -183,7 +185,7 @@ POST /api/infrastructure/proxy
 
 ---
 
-### Phase 4: Update Infrastructure API Service
+### Phase 4: Update Infrastructure API Service ✅ COMPLETED
 
 **File:** `infrastructure-dashboard/src/services/api.ts`
 
@@ -208,7 +210,7 @@ static async testAuthConfig(
 
 ---
 
-### Phase 5: Enhance Endpoint Data Structure
+### Phase 5: Enhance Endpoint Data Structure ✅ COMPLETED
 
 **File:** `orchestrator/src/data/carePaymentApps.js`
 
@@ -237,16 +239,16 @@ endpoints: [
 
 ## File Changes Summary
 
-| File                                       | Action | Description                                                           |
-| ------------------------------------------ | ------ | --------------------------------------------------------------------- |
-| `AuthTestSection.tsx`                      | MODIFY | Add token display, copy, expiration; accept environment/baseUrl props |
-| `EndpointTester.tsx`                       | CREATE | New interactive endpoint component with environment awareness         |
-| `IntegrationView.tsx`                      | MODIFY | Accept environment/baseUrl props, pass token to EndpointTester        |
-| `InfrastructureDashboard.tsx`              | MODIFY | Pass environment/baseUrl to IntegrationView                           |
-| `orchestrator/routes/infrastructure.js`    | MODIFY | Add API proxy endpoint                                                |
-| `infrastructure-dashboard/services/api.ts` | MODIFY | Add proxy call method                                                 |
-| `carePaymentApps.js`                       | MODIFY | Enhance endpoint definitions with pathParams, requestBody             |
-| `infrastructure/types.ts`                  | MODIFY | Add EndpointTesterProps, EndpointResult types                         |
+| File                                       | Action | Description                                                           | Status |
+| ------------------------------------------ | ------ | --------------------------------------------------------------------- | ------ |
+| `AuthTestSection.tsx`                      | MODIFY | Add token display, copy, expiration; accept environment/baseUrl props | ✅     |
+| `EndpointTester.tsx`                       | CREATE | New interactive endpoint component with environment awareness         | ✅     |
+| `IntegrationView.tsx`                      | MODIFY | Accept environment/baseUrl props, pass token to EndpointTester        | ✅     |
+| `App.tsx`                                  | MODIFY | Pass environment/baseUrl to IntegrationView                           | ✅     |
+| `orchestrator/routes/infrastructure.js`    | MODIFY | Add auth/test and endpoint/execute routes                             | ✅     |
+| `infrastructure-dashboard/services/api.ts` | MODIFY | Add testAuthConfig and executeEndpoint methods                        | ✅     |
+| `carePaymentApps.js`                       | MODIFY | Enhance endpoint definitions with pathParams, requestBody             | ✅     |
+| `infrastructure/types.ts`                  | MODIFY | Add EndpointTesterProps, EndpointResult, AuthTestResultWithToken      | ✅     |
 
 ---
 
@@ -441,11 +443,44 @@ if (BLOCKED_ENVIRONMENTS.includes(process.env.NODE_ENV)) {
 ## Questions for Approval
 
 1. ~~Should we limit which environments can use the endpoint tester?~~ ✅ **RESOLVED: dev, qa, qa2, staging only - never preprod/prod**
-2. Should we add request/response history logging?
-3. Do you want to include request timing metrics in the UI?
-4. Should failed requests be retryable with a single click?
+2. Should we add request/response history logging? _(Future enhancement)_
+3. Do you want to include request timing metrics in the UI? ✅ **Implemented - latency shown in ms**
+4. Should failed requests be retryable with a single click? ✅ **Implemented - can re-execute any endpoint**
+
+---
+
+## Implementation Summary
+
+**Completed:** January 16, 2026
+
+### Key Features Implemented:
+
+1. **Token Display Enhancement**
+   - Token masked by default with show/hide toggle
+   - Copy to clipboard functionality
+   - Expiry time display with countdown
+   - Stored in component state for endpoint testing
+
+2. **Interactive Endpoint Tester**
+   - Collapsible endpoint cards with execute button
+   - Path parameter input fields (auto-extracted from URL patterns)
+   - Request body editor for POST/PUT/PATCH methods
+   - Response display with status, latency, and JSON formatting
+   - Copy response to clipboard
+
+3. **Environment Restrictions**
+   - Testing enabled: `local`, `dev`, `qa`, `qa2`, `staging`
+   - Testing disabled: `preprod`, `prod` (shows warning message)
+   - Both frontend and backend enforcement
+
+4. **Backend Routes Added**
+   - `POST /api/infrastructure/auth/test` - Test authentication and obtain token
+   - `POST /api/infrastructure/endpoint/execute` - Proxy API calls with CORS handling
+
+### Build Status: ✅ Passing
 
 ---
 
 _Plan created: January 16, 2026_
+_Implementation completed: January 16, 2026_
 _Branch: infra-enhancements_
